@@ -6,7 +6,7 @@ import time
 
 from dataclasses import dataclass
 
-from backend.common.dataclasses import SnowflakeInfo
+from backend.common._dataclasses import SnowflakeInfo
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings

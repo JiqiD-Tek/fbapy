@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile
 
-from backend.common.dataclasses import UploadUrl
+from backend.common._dataclasses import UploadUrl
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
 from backend.common.security.permission import RequestPermission
 from backend.common.security.rbac import DependsRBAC

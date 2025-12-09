@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.admin.model import User
 from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
-from backend.common.dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
+from backend.app.domain.schema.user import GetUserInfoDetail
+from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
 from backend.common.exception import errors
 from backend.core.conf import settings
 from backend.database.db import async_db_session
@@ -231,7 +232,40 @@ def superuser_verify(request: Request, _token: str = DependsJwtAuth) -> bool:
     return superuser
 
 
-async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail:
+# async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail:
+#     """
+#     JWT 认证
+#
+#     :param token: JWT token
+#     :return:
+#     """
+#     token_payload = jwt_decode(token)
+#     user_id = token_payload.id
+#     redis_token = await redis_client.get(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}:{token_payload.session_uuid}')
+#     if not redis_token:
+#         raise errors.TokenError(msg='Token 已过期')
+#
+#     if token != redis_token:
+#         raise errors.TokenError(msg='Token 已失效')
+#
+#     cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
+#     if not cache_user:
+#         async with async_db_session() as db:
+#             current_user = await get_current_user(db, user_id)
+#             user = GetUserInfoWithRelationDetail.model_validate(current_user)
+#             await redis_client.setex(
+#                 f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}',
+#                 settings.TOKEN_EXPIRE_SECONDS,
+#                 user.model_dump_json(),
+#             )
+#     else:
+#         # TODO: 在恰当的时机，应替换为使用 model_validate_json
+#         # https://docs.pydantic.dev/latest/concepts/json/#partial-json-parsing
+#         user = GetUserInfoWithRelationDetail.model_validate(from_json(cache_user, allow_partial=True))
+#     return user
+
+
+async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetUserInfoDetail:
     """
     JWT 认证
 
@@ -240,6 +274,7 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail:
     """
     token_payload = jwt_decode(token)
     user_id = token_payload.id
+    session_uuid = token_payload.session_uuid
     redis_token = await redis_client.get(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}:{token_payload.session_uuid}')
     if not redis_token:
         raise errors.TokenError(msg='Token 已过期')
@@ -247,22 +282,40 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail:
     if token != redis_token:
         raise errors.TokenError(msg='Token 已失效')
 
-    cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
-    if not cache_user:
-        async with async_db_session() as db:
-            current_user = await get_current_user(db, user_id)
-            user = GetUserInfoWithRelationDetail.model_validate(current_user)
-            await redis_client.setex(
-                f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}',
-                settings.TOKEN_EXPIRE_SECONDS,
-                user.model_dump_json(),
-            )
-    else:
-        # TODO: 在恰当的时机，应替换为使用 model_validate_json
-        # https://docs.pydantic.dev/latest/concepts/json/#partial-json-parsing
-        user = GetUserInfoWithRelationDetail.model_validate(from_json(cache_user, allow_partial=True))
-    return user
+    extra_info = await redis_client.get(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}:{session_uuid}')
+    extra_info = json.loads(extra_info)
 
+    if extra_info.get('domain') is True:  # 非管理员
+        cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:domain:{user_id}')
+        if not cache_user:
+            async with async_db_session() as db:
+                from backend.app.domain.crud.crud_user import user_dao
+                current_user = await user_dao.get(db, user_id)
+                if not current_user:
+                    raise errors.TokenError(msg='Token 无效')
+                user = GetUserInfoDetail.model_validate(current_user)
+                await redis_client.setex(
+                    f'{settings.JWT_USER_REDIS_PREFIX}:domain:{user_id}',
+                    settings.TOKEN_EXPIRE_SECONDS,
+                    user.model_dump_json(),
+                )
+        else:
+            user = GetUserInfoDetail.model_validate(from_json(cache_user, allow_partial=True))
+    else:  # 管理员
+        cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
+        if not cache_user:
+            async with async_db_session() as db:
+                current_user = await get_current_user(db, user_id)
+                user = GetUserInfoWithRelationDetail.model_validate(current_user)
+                await redis_client.setex(
+                    f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}',
+                    settings.TOKEN_EXPIRE_SECONDS,
+                    user.model_dump_json(),
+                )
+        else:
+            user = GetUserInfoWithRelationDetail.model_validate(from_json(cache_user, allow_partial=True))
+
+    return user
 
 # 超级管理员鉴权依赖注入
 DependsSuperUser = Depends(superuser_verify)

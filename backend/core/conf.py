@@ -273,6 +273,22 @@ class Settings(BaseSettings):
     EMAIL_CAPTCHA_REDIS_PREFIX: str = 'fba:email:captcha'
     EMAIL_CAPTCHA_EXPIRE_SECONDS: int = 60 * 3  # 3 分钟
 
+    # 三元组
+    MASTER_SECRET: str = ''  # 主密钥
+    KEY_SALT: str = ''  # 密钥盐
+
+    # SMS
+    SMS_ACCESS_KEY_ID: str = ''
+    SMS_ACCESS_KEY_SECRET: str = ''
+    SMS_SIGN_NAME: str = ''
+    SMS_TEMPLATE_CODE: str = ''
+
+    # OSS
+    OSS_ACCESS_KEY_ID: str = ''
+    OSS_ACCESS_KEY_SECRET: str = ''
+    OSS_BUCKET: str = ''
+    OSS_REGION: str = ''
+
     @model_validator(mode='before')
     @classmethod
     def check_env(cls, values: Any) -> Any:

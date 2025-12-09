@@ -14,7 +14,7 @@ from backend.app.admin.service.opera_log_service import opera_log_service
 from backend.common.context import ctx
 from backend.common.enums import OperaLogCipherType, StatusType
 from backend.common.log import log
-from backend.common.queue import batch_dequeue
+from backend.common._queue import batch_dequeue
 from backend.common.response.response_code import StandardResponseCode
 from backend.core.conf import settings
 from backend.database.db import async_db_session

@@ -1,0 +1,121 @@
+networks:
+  fba_network:
+    driver: bridge
+
+services:
+  fbapy:
+    image: fbapy:latest
+    container_name: fbapy
+    restart: unless-stopped
+    volumes:
+      - .env.server:/fbapy/backend/.env:ro
+      - ${DATA_ROOT}/fbapy/log:/var/log/fba
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - fba_network
+    command:
+      - bash
+      - -c
+      - |
+        supervisord -c /etc/supervisor/supervisord.conf
+        supervisorctl restart
+
+  mysql:
+    restart: unless-stopped
+    privileged: true
+    image: mysql
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: fba
+      TZ: Asia/Shanghai
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4  # 支持emoji
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      - ${DATA_ROOT}/mysql/log:/var/log/mysql # 映射日志目录，宿主机:容器
+      - ${DATA_ROOT}/mysql/data:/var/lib/mysql # 映射数据目录，宿主机:容器
+      - ${DATA_ROOT}/mysql/conf.d:/etc/mysql/conf.d # 映射配置目录，宿主机:容器
+      - /etc/localtime:/etc/localtime:ro # 让容器的时钟与宿主机时钟同步，避免时间的问题，ro是read only的意思，就是只读。
+    networks:
+      - fba_network
+
+  redis:
+    restart: unless-stopped
+    privileged: true
+    image: redis
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${DATA_ROOT}/redis/data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - fba_network
+
+  #  nginx:
+  #    restart: unless-stopped
+  #    privileged: true
+  #    image: nginx
+  #    container_name: nginx
+  #    ports:
+  #      - "80:80"
+  #      - "443:443"
+  #    environment:
+  #      - NGINX_PORT=80
+  #      - TZ=Asia/Shanghai
+  #    volumes:
+  #      - ./nginx.conf:/etc/nginx/nginx.conf
+  #      - ${DATA_ROOT}/nginx/html:/usr/share/nginx/html
+  #      - ${DATA_ROOT}/nginx/logs:/var/log/nginx
+  #      - /etc/localtime:/etc/localtime:ro
+  #    extra_hosts:
+  #      - "host.docker.internal:host-gateway"
+  #    networks:
+  #      - fba_network
+
+  emqx-enterprise:
+    restart: unless-stopped
+    image: emqx/emqx-enterprise:5.10.1-rc.2
+    container_name: emqx
+    environment:
+      EMQX_NODE_NAME: ${EMQX_NODE_NAME}
+      EMQX_LISTENERS__TCP__DEFAULT__BIND: 0.0.0.0:1883
+      EMQX_LISTENERS__SSL__DEFAULT__BIND: 0.0.0.0:8883
+      EMQX_LISTENERS__WS__DEFAULT__BIND: 0.0.0.0:8083
+      EMQX_LISTENERS__WSS__DEFAULT__BIND: 0.0.0.0:8084
+      EMQX_DASHBOARD__DEFAULT_USERNAME: ${EMQX_USER}
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "1883:1883"    # MQTT TCP
+      - "8083:8083"    # MQTT WebSocket
+      - "8084:8084"    # MQTT WebSocket SSL
+      - "8883:8883"    # MQTT SSL
+      - "18083:18083"  # Dashboard
+    volumes:
+      - ${DATA_ROOT}/emqx/data:/opt/emqx/data
+      - ${DATA_ROOT}/emqx/log:/opt/emqx/log
+    networks:
+      - fba_network
+
+  minio:
+    restart: unless-stopped
+    image: minio/minio
+    container_name: minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      TZ: Asia/Shanghai
+    ports:
+      - "19000:9000"
+      - "19090:9090"
+    volumes:
+      - ${DATA_ROOT}/minio/data:/data
+      - ${DATA_ROOT}/minio/config:/root/.minio
+    command: server /data --console-address :9090 -address :9000
+    networks:
+      - fba_network
+

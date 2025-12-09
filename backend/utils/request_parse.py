@@ -4,7 +4,7 @@ from fastapi import Request
 from ip2loc import XdbSearcher
 from user_agents import parse
 
-from backend.common.dataclasses import IpInfo, UserAgentInfo
+from backend.common._dataclasses import IpInfo, UserAgentInfo
 from backend.common.log import log
 from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR

@@ -52,6 +52,10 @@ dependencies = [
     "sqlparse>=0.5.4",
     "starlette-context>=0.4.0",
     "user-agents>=2.2.0",
+    "alibabacloud-dysmsapi20170525>=4.3.0",
+    "alibabacloud-oss-v2>=1.2.1",
+    "paho-mqtt>=2.1.0",
+    "cachetools>=6.2.2",
 ]
 
 [dependency-groups]
