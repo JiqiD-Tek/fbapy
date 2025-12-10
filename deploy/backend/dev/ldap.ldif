@@ -1,0 +1,447 @@
+dn: cn=Dong Yaxun,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Dong Yaxun
+displayName: 董亚珣
+givenName: Yaxun
+sn: Dong
+uid: dyx
+uidNumber: 1006
+gidNumber: 502
+homeDirectory: /home/users/dyx
+loginShell: /bin/bash
+mail: dyx@jiqid.com
+userpassword: 123456
+
+dn: cn=Gu Hua,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Gu Hua
+displayName: 谷华
+givenName: Hua
+sn: Gu
+uid: guhua
+uidNumber: 1007
+gidNumber: 502
+homeDirectory: /home/users/guhua
+loginShell: /bin/bash
+mail: guhua@jiqid.com
+userpassword: 123456
+
+dn: cn=Wang Dongfeng,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Wang Dongfeng
+displayName: 王东峰
+givenName: Dongfeng
+sn: Wang
+uid: wangdongfeng
+uidNumber: 1008
+gidNumber: 502
+homeDirectory: /home/users/wangdongfeng
+loginShell: /bin/bash
+mail: wangdongfeng@jiqid.com
+userpassword: 123456
+
+dn: cn=Zhang Zhiwen,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Zhang Zhiwen
+displayName: 张志文
+givenName: Zhiwen
+sn: Zhang
+uid: zhangzhiwen
+uidNumber: 1009
+gidNumber: 502
+homeDirectory: /home/users/zhangzhiwen
+loginShell: /bin/bash
+mail: zhangzhiwen@jiqid.com
+userpassword: 123456
+
+dn: cn=Li Yuexuan,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Li Yuexuan
+displayName: 李岳璇
+givenName: Yuexuan
+sn: Li
+uid: liyuexuan
+uidNumber: 1010
+gidNumber: 502
+homeDirectory: /home/users/liyuexuan
+loginShell: /bin/bash
+mail: liyuexuan@jiqid.com
+userpassword: 123456
+
+dn: cn=Ni Peng,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Ni Peng
+displayName: 倪鹏
+givenName: Peng
+sn: Ni
+uid: nipeng
+uidNumber: 1011
+gidNumber: 502
+homeDirectory: /home/users/nipeng
+loginShell: /bin/bash
+mail: nipeng@jiqid.com
+userpassword: 123456
+
+dn: cn=Yang Shulong,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Yang Shulong
+displayName: 杨书龙
+givenName: Shulong
+sn: Yang
+uid: yangshulong
+uidNumber: 1012
+gidNumber: 502
+homeDirectory: /home/users/yangshulong
+loginShell: /bin/bash
+mail: yangshulong@jiqid.com
+userpassword: 123456
+
+dn: cn=Dong Jintao,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Dong Jintao
+displayName: 董锦涛
+givenName: Jintao
+sn: Dong
+uid: dongjintao
+uidNumber: 1013
+gidNumber: 502
+homeDirectory: /home/users/dongjintao
+loginShell: /bin/bash
+mail: dongjintao@jiqid.com
+userpassword: 123456
+
+dn: cn=He Teli,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: He Teli
+displayName: 何特立
+givenName: Teli
+sn: He
+uid: heteli
+uidNumber: 1014
+gidNumber: 502
+homeDirectory: /home/users/heteli
+loginShell: /bin/bash
+mail: heteli@jiqid.com
+userpassword: 123456
+
+dn: cn=Liu Mingjun,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Liu Mingjun
+displayName: 刘明军
+givenName: Mingjun
+sn: Liu
+uid: liumingjun
+uidNumber: 1015
+gidNumber: 502
+homeDirectory: /home/users/liumingjun
+loginShell: /bin/bash
+mail: liumingjun@jiqid.com
+userpassword: 123456
+
+dn: cn=Cao Zhanpeng,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Cao Zhanpeng
+displayName: 曹展鹏
+givenName: Zhanpeng
+sn: Cao
+uid: caozhanpeng
+uidNumber: 1016
+gidNumber: 502
+homeDirectory: /home/users/caozhanpeng
+loginShell: /bin/bash
+mail: caozhanpeng@jiqid.com
+userpassword: 123456
+
+dn: cn=Luo Jialei,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Luo Jialei
+displayName: 罗家磊
+givenName: Jialei
+sn: Luo
+uid: luojialei
+uidNumber: 1017
+gidNumber: 502
+homeDirectory: /home/users/luojialei
+loginShell: /bin/bash
+mail: luojialei@jiqid.com
+userpassword: 123456
+
+dn: cn=Jiang Yinhu,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Jiang Yinhu
+displayName: 姜银虎
+givenName: Yinhu
+sn: Jiang
+uid: jiangyinhu
+uidNumber: 1018
+gidNumber: 502
+homeDirectory: /home/users/jiangyinhu
+loginShell: /bin/bash
+mail: jiangyinhu@jiqid.com
+userpassword: 123456
+
+dn: cn=Zhang Xin,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Zhang Xin
+displayName: 张鑫
+givenName: Xin
+sn: Zhang
+uid: zhangxin
+uidNumber: 1019
+gidNumber: 502
+homeDirectory: /home/users/zhangxin
+loginShell: /bin/bash
+mail: zhangxin@jiqid.com
+userpassword: 123456
+
+dn: cn=Zhu Bin,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Zhu Bin
+displayName: 祝斌
+givenName: Bin
+sn: Zhu
+uid: zhubin
+uidNumber: 1020
+gidNumber: 502
+homeDirectory: /home/users/zhubin
+loginShell: /bin/bash
+mail: zhubin@jiqid.com
+userpassword: 123456
+
+dn: cn=Hu Henglei,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Hu Henglei
+displayName: 胡恒磊
+givenName: Henglei
+sn: Hu
+uid: huhenglei
+uidNumber: 1021
+gidNumber: 502
+homeDirectory: /home/users/huhenglei
+loginShell: /bin/bash
+mail: huhenglei@jiqid.com
+userpassword: 123456
+
+dn: cn=Yue Qingan,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Yue Qingan
+displayName: 岳庆安
+givenName: Qingan
+sn: Yue
+uid: yqa
+uidNumber: 1022
+gidNumber: 502
+homeDirectory: /home/users/yqa
+loginShell: /bin/bash
+mail: yqa@jiqid.com
+userpassword: 123456
+
+dn: cn=Li Xinguang,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Li Xinguang
+displayName: 李新光
+givenName: Xinguang
+sn: Li
+uid: lixinguang
+uidNumber: 1023
+gidNumber: 502
+homeDirectory: /home/users/lixinguang
+loginShell: /bin/bash
+mail: lixinguang@jiqid.com
+userpassword: 123456
+
+dn: cn=Sun Yanyan,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Sun Yanyan
+displayName: 孙艳艳
+givenName: Yanyan
+sn: Sun
+uid: sunyanyan
+uidNumber: 1024
+gidNumber: 502
+homeDirectory: /home/users/sunyanyan
+loginShell: /bin/bash
+mail: sunyanyan@jiqid.com
+userpassword: 123456
+
+dn: cn=Jin Xiang,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Jin Xiang
+displayName: 金翔
+givenName: Xiang
+sn: Jin
+uid: jinxiang
+uidNumber: 1025
+gidNumber: 502
+homeDirectory: /home/users/jinxiang
+loginShell: /bin/bash
+mail: jinxiang@jiqid.com
+userpassword: 123456
+
+dn: cn=Sha Sha,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Sha Sha
+displayName: 沙莎
+givenName: Sha
+sn: Sha
+uid: shasha
+uidNumber: 1026
+gidNumber: 502
+homeDirectory: /home/users/shasha
+loginShell: /bin/bash
+mail: shasha@jiqid.com
+userpassword: 123456
+
+dn: cn=Li Qiuying,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Li Qiuying
+displayName: 李秋荧
+givenName: Qiuying
+sn: Li
+uid: liqiuying
+uidNumber: 1027
+gidNumber: 502
+homeDirectory: /home/users/liqiuying
+loginShell: /bin/bash
+mail: liqiuying@jiqid.com
+userpassword: 123456
+
+dn: cn=Lang Yue,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Lang Yue
+displayName: 郎月
+givenName: Yue
+sn: Lang
+uid: langyue
+uidNumber: 1028
+gidNumber: 502
+homeDirectory: /home/users/langyue
+loginShell: /bin/bash
+mail: langyue@jiqid.com
+userpassword: 123456
+
+dn: cn=Sun Guangcheng,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Sun Guangcheng
+displayName: 孙广成
+givenName: Guangcheng
+sn: Sun
+uid: sunguangcheng
+uidNumber: 1029
+gidNumber: 502
+homeDirectory: /home/users/sunguangcheng
+loginShell: /bin/bash
+mail: sunguangcheng@jiqid.com
+userpassword: 123456
+
+dn: cn=Wang Xiaoyun,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Wang Xiaoyun
+displayName: 王晓芸
+givenName: Xiaoyun
+sn: Wang
+uid: wangxiaoyun
+uidNumber: 1030
+gidNumber: 502
+homeDirectory: /home/users/wangxiaoyun
+loginShell: /bin/bash
+mail: wangxiaoyun@jiqid.com
+userpassword: 123456
+
+dn: cn=Zhang Wenqiang,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Zhang Wenqiang
+displayName: 张文强
+givenName: Wenqiang
+sn: Zhang
+uid: zhangwenqiang
+uidNumber: 1031
+gidNumber: 502
+homeDirectory: /home/users/zhangwenqiang
+loginShell: /bin/bash
+mail: zhangwenqiang@jiqid.com
+userpassword: 123456
+
+dn: cn=Zhang Shanfang,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Zhang Shanfang
+displayName: 张善芳
+givenName: Shanfang
+sn: Zhang
+uid: zhangshanfang
+uidNumber: 1032
+gidNumber: 502
+homeDirectory: /home/users/zhangshanfang
+loginShell: /bin/bash
+mail: zhangshanfang@jiqid.com
+userpassword: 123456
+
+dn: cn=Chu Li,cn=users,dc=jiqid,dc=com
+objectClass: top
+objectClass: inetOrgPerson
+objectClass: posixAccount
+cn: Chu Li
+displayName: 褚丽
+givenName: Li
+sn: Chu
+uid: chuli
+uidNumber: 1033
+gidNumber: 502
+homeDirectory: /home/users/chuli
+loginShell: /bin/bash
+mail: chuli@jiqid.com
+userpassword: 123456

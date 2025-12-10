@@ -1,0 +1,188 @@
+# 定义网络
+networks:
+  jiqid_network:
+    driver: bridge  # 使用桥接网络，容器间可以通过服务名相互通信
+
+services:
+  # MariaDB 数据库服务 - 用于 Bugzilla
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb
+    hostname: mariadb
+    restart: unless-stopped  # 自动重启策略，除非手动停止
+    ports:
+      - "3306:3306"  # 暴露 MySQL/MariaDB 默认端口到宿主机
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root_123456}  # root 用户密码，支持环境变量覆盖
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-bugzilla}  # 初始创建的数据库名
+      MYSQL_USER: ${MYSQL_USER:-bugzilla}  # 创建的非 root 用户
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-Bugzilla_123456}  # 非 root 用户密码
+      MYSQL_INITDB_SKIP_TZINFO: 1  # 跳过时区表加载，减小镜像大小
+    command:
+      - --character-set-server=utf8mb4  # 设置默认字符集为 UTF-8
+      - --collation-server=utf8mb4_unicode_ci  # 设置默认排序规则
+      - --bind-address=0.0.0.0  # 允许所有网络接口连接
+    volumes:
+      - ${DATA_ROOT}/mariadb/data:/var/lib/mysql  # 数据持久化到宿主机
+    networks:
+      - jiqid_network
+
+  # OpenLDAP 服务 - 用于统一身份认证
+  ldap:
+    image: osixia/openldap:latest
+    container_name: ldap
+    hostname: ldap
+    restart: unless-stopped
+    ports:
+      - "389:389"  # LDAP 标准端口
+    environment:
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}  # LDAP 管理员密码
+      LDAP_ORGANISATION: "Jiqid"  # 组织名称
+      LDAP_DOMAIN: ${LDAP_DOMAIN}  # LDAP 域名（如 jiqid.com）
+      LDAP_BASE_DN: ${LDAP_BASE_DN}  # LDAP 基础 DN（如 dc=jiqid,dc=com）
+
+      # TLS 配置：开发环境禁用，生产环境应启用
+      LDAP_TLS: "false"
+      LDAP_TLS_ENFORCE: "false"
+      LDAP_TLS_VERIFY_CLIENT: "never"
+      LDAP_NOFILEOWNERCHANGE: "true"  # 防止容器内的 chown 错误
+
+      LDAP_LOG_LEVEL: "256"  # 日志级别
+      TZ: ${TZ}  # 时区设置
+
+    volumes:
+      - ${DATA_ROOT}/ldap/var:/var/lib/ldap  # LDAP 数据持久化，首次启动时，${DATA_ROOT}/ldap/var 目录必须为空
+    networks:
+      - jiqid_network
+
+  # PHP LDAP 管理界面
+  ldap-admin:
+    image: osixia/phpldapadmin:latest
+    container_name: ldap-admin
+    hostname: ldap-admin
+    restart: unless-stopped
+    ports:
+      - "6443:443"  # 使用非标准端口 6443，避免与可能的其他 HTTPS 服务冲突
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: ldap  # 连接的 LDAP 服务器（容器名）
+      PHPLDAPADMIN_HTTPS: "true"  # 启用 HTTPS
+      PHPLDAPADMIN_TRUSTED_IP_CIDR: "0.0.0.0/0"  # 允许所有 IP 访问管理界面
+      TZ: ${TZ:-Asia/Shanghai}
+    networks:
+      - jiqid_network
+
+  # Gerrit 代码审查服务
+  gerrit:
+    image: gerritcodereview/gerrit:latest
+    container_name: gerrit
+    hostname: gerrit
+    restart: unless-stopped
+    ports:
+      - "29418:29418"  # Gerrit SSH 端口，用于 git clone/push 等操作
+      - "8081:8080"    # Gerrit Web 界面端口，访问 http://localhost:8081
+    environment:
+      CANONICAL_WEB_URL: ${GERRIT_WEB_URL}  # Gerrit 规范 Web URL，用于生成链接
+      GERRIT_JAVA_OPTS: ${GERRIT_JAVA_OPTS}  # JVM 启动参数，可配置堆内存大小等
+      TZ: ${TZ}  # 时区
+    volumes:
+      - ${DATA_ROOT}/gerrit/db:/var/gerrit/db  # 数据库文件持久化（Gerrit 3.x 使用 NoteDb）
+      - ${DATA_ROOT}/gerrit/etc:/var/gerrit/etc  # Gerrit 配置文件持久化
+      - ${DATA_ROOT}/gerrit/git:/var/gerrit/git  # Git 仓库持久化
+      - ${DATA_ROOT}/gerrit/index:/var/gerrit/index  # 搜索索引数据持久化
+      - ${DATA_ROOT}/gerrit/cache:/var/gerrit/cache  # 缓存数据持久化
+      - ${DATA_ROOT}/gerrit/plugins:/var/gerrit/plugins  # 插件目录持久化
+      - ${DATA_ROOT}/gerrit/tmp:/tmp  # 临时目录持久化
+    networks:
+      - jiqid_network
+
+  # Bugzilla 缺陷跟踪系统
+  bugzilla:
+    image: nasqueron/bugzilla:latest
+    container_name: bugzilla
+    hostname: bugzilla
+    restart: unless-stopped
+    ports:
+      - "8083:80"  # Bugzilla Web 界面，访问 http://localhost:8083
+    environment:
+      # 数据库连接配置
+      DB_TYPE: "mysql"
+      DB_HOST: "mariadb"  # MariaDB 容器名
+      DB_PORT: "3306"
+      DB_DATABASE: ${MYSQL_DATABASE:-bugzilla}
+      DB_USER: ${MYSQL_USER:-bugzilla}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-Bugzilla_123456}
+      DB_DRIVER: "mysql"
+      DB_MYSQL_CONNECT_TIMEOUT: "30"  # 数据库连接超时时间
+
+      # Bugzilla 管理员账户配置
+      ADMIN_EMAIL: "admin@${LDAP_DOMAIN:-jiqid.com}"  # 管理员邮箱
+      ADMIN_PASSWORD: "Admin@123"  # 管理员初始密码
+
+      # Bugzilla 访问 URL
+      BUGZILLA_URL: ${BUGZILLA_WEB_URL}
+
+      # 时区
+      TZ: ${TZ:-Asia/Shanghai}
+    networks:
+      - jiqid_network
+
+  # Jenkins 持续集成服务
+  jenkins:
+    image: jenkins/jenkins:latest
+    container_name: jenkins
+    hostname: jenkins
+    restart: unless-stopped
+    ports:
+      - "8082:8080"  # Jenkins Web 界面，访问 http://localhost:8082
+      - "50000:50000"  # Jenkins 代理通信端口
+    environment:
+      JAVA_OPTS: ${JENKINS_JAVA_OPTS}  # Jenkins JVM 参数
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${DATA_ROOT}/jenkins/home:/var/jenkins_home  # Jenkins 数据持久化
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - 1002 # Docker用户组GID，保证Jenkins可以使用Docker创建编译镜像
+    networks:
+      - jiqid_network
+
+  # OpenGrok 代码搜索和交叉引用工具
+  opengrok:
+    image: opengrok/docker:latest
+    container_name: opengrok
+    hostname: opengrok
+    restart: unless-stopped
+    ports:
+      - "8084:8080"  # OpenGrok Web 界面，访问 http://localhost:8084
+    environment:
+      MIRROR_ENABLE: "false"
+      REINDEX_PERIOD_MINUTES: "1440"  # 24小时
+      SYNC_PERIOD_MINUTES: "720"      # 12小时
+      IGNORE_PATHS: ".repo,.git,*.o,*.so,*.a,out,target,build,dist,tools/prebuilt"
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${DATA_ROOT}/opengrok/src:/opengrok/src  # 源代码目录
+      - ${DATA_ROOT}/opengrok/etc:/opengrok/etc  # 配置文件目录
+      - ${DATA_ROOT}/opengrok/data:/opengrok/data  # 索引数据目录
+      - /root/.ssh:/root/.ssh:ro  # 添加:ro只读模式
+    networks:
+      - jiqid_network
+
+  # MinIO 对象存储服务（兼容 S3 的存储）
+  minio:
+    restart: always
+    image: minio/minio
+    container_name: minio
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      TZ: Asia/Shanghai
+    ports:
+      - "9000:9000"  # API 端口，用于对象存储操作
+      - "9090:9090"  # 控制台端口，用于 Web 管理界面
+    volumes:
+      - ${DATA_ROOT}/minio/data:/data  # 存储数据目录
+      - ${DATA_ROOT}/minio/config:/root/.minio  # 配置文件目录
+    command: server /data --console-address :9090 -address :9000  # 启动命令
+    networks:
+      - jiqid_network

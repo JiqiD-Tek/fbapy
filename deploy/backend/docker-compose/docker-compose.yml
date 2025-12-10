@@ -55,26 +55,26 @@ services:
     networks:
       - fba_network
 
-  #  nginx:
-  #    restart: unless-stopped
-  #    privileged: true
-  #    image: nginx
-  #    container_name: nginx
-  #    ports:
-  #      - "80:80"
-  #      - "443:443"
-  #    environment:
-  #      - NGINX_PORT=80
-  #      - TZ=Asia/Shanghai
-  #    volumes:
-  #      - ./nginx.conf:/etc/nginx/nginx.conf
-  #      - ${DATA_ROOT}/nginx/html:/usr/share/nginx/html
-  #      - ${DATA_ROOT}/nginx/logs:/var/log/nginx
-  #      - /etc/localtime:/etc/localtime:ro
-  #    extra_hosts:
-  #      - "host.docker.internal:host-gateway"
-  #    networks:
-  #      - fba_network
+  nginx:
+    restart: unless-stopped
+    privileged: true
+    image: nginx
+    container_name: nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - NGINX_PORT=80
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ${DATA_ROOT}/nginx/html:/usr/share/nginx/html
+      - ${DATA_ROOT}/nginx/logs:/var/log/nginx
+      - /etc/localtime:/etc/localtime:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - fba_network
 
   emqx-enterprise:
     restart: unless-stopped
