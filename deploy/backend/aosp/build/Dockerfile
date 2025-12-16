@@ -14,10 +14,10 @@ RUN sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list &&
 # ---------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc-multilib g++-multilib \
-    libc6-dev-i386 lib32z1-dev lib32ncurses5-dev libncurses5-dev \
+    libc6-dev-i386 lib32z1-dev lib32ncurses5-dev libncurses5 libncurses5-dev \
     flex bison \
     zip unzip tar cpio lz4 liblz4-dev liblz4-tool \
-    curl wget git vim gnupg \
+    curl wget git vim gnupg rsync \
     zlib1g-dev libssl-dev libelf-dev device-tree-compiler dwarves bc \
     python3 python3-dev python3-pip python3-setuptools \
     python2.7 python2-dev \
