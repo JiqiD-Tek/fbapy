@@ -2,7 +2,7 @@ from functools import lru_cache
 from re import Pattern
 from typing import Any, Literal
 
-from pydantic import model_validator
+from pydantic import model_validator, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from backend.core.path_conf import BASE_PATH
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # FastAPI
     FASTAPI_API_V1_PATH: str = '/api/v1'
-    FASTAPI_TITLE: str = 'FastAPI'
+    FASTAPI_TITLE: str = 'fba'
     FASTAPI_DESCRIPTION: str = 'FastAPI Best Architecture'
     FASTAPI_DOCS_URL: str = '/docs'
     FASTAPI_REDOC_URL: str = '/redoc'
@@ -183,7 +183,7 @@ class Settings(BaseSettings):
     LOG_ERROR_FILENAME: str = 'fba_error.log'
 
     # .env 操作日志
-    OPERA_LOG_ENCRYPT_SECRET_KEY: str  # 密钥 os.urandom(32), 需使用 bytes.hex() 方法转换为 str
+    OPERA_LOG_ENCRYPT_SECRET_KEY: str  # secrets.token_hex(32)
 
     # 操作日志
     OPERA_LOG_PATH_EXCLUDE: list[str] = [
@@ -214,6 +214,11 @@ class Settings(BaseSettings):
 
     # I18n 配置
     I18N_DEFAULT_LANGUAGE: str = 'zh-CN'
+
+    # Grafana
+    GRAFANA_METRICS: bool = False
+    GRAFANA_APP_NAME: str = 'fba_server'
+    GRAFANA_OTLP_GRPC_ENDPOINT: str = 'fba_alloy:4317'
 
     ##################################################
     # [ App ] task
@@ -288,6 +293,49 @@ class Settings(BaseSettings):
     OSS_ACCESS_KEY_SECRET: str = ''
     OSS_BUCKET: str = ''
     OSS_REGION: str = ''
+
+    # 大模型
+    LLM_MODEL_NAME: str = "doubao-seed-1-6-flash-250615"  # 模型名称 豆包: doubao-seed-1-6-flash-250615  gpt: gpt-4o-mini
+
+    LLM_LANGUAGE: Literal["zh-CN", "en-US", "es-ES"] = "zh-CN"  # 中文 英文 西班牙语
+
+    SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[asr, tts]类型  azure  coze
+    SPEECH_ENCODING: Literal["wav", "mp3"] = "wav"  # 语音编码格式
+
+    # 微软 语音
+    AZURE_SPEECH_KEY: SecretStr = ""
+    AZURE_SERVICE_REGION: str = "southeastasia"
+    AZURE_SPEECH_RECOGNITION_LANGUAGE: str = "en-US"
+
+    # 微软 大模型
+    AZURE_OPENAI_ENDPOINT: str = "https://admin-mct0fcqx-eastus2.cognitiveservices.azure.com/"
+
+    AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ""
+    AZURE_OPENAI_API_VERSION: str = "2024-12-01-preview"
+
+    # doubao
+    DOUBAO_API_KEY: SecretStr = ""
+    DOUBAO_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
+
+    # 火山引擎
+    BYTES_ASR_URL: str = "wss://openspeech.bytedance.com/api/v2/asr"
+    BYTES_ASR_APPID: str = ""
+    BYTES_ASR_TOKEN: str = ""
+    BYTES_ASR_CLUSTER: str = ""
+    BYTES_ASR_LANGUAGE: str = "zh-CN"
+
+    BYTES_TTS_URL: str = "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
+    BYTES_TTS_APPID: str = ""
+    BYTES_TTS_TOKEN: str = ""
+    BYTES_TTS_CLUSTER: str = "volcano_tts"
+    BYTES_TTS_VOICE_TYPE: str = "BV064_streaming"
+
+    # 音声复刻
+    BYTES_ICL_CLUSTER: str = "volcano_icl"
+    BYTES_ICL_VOICE_TYPE: str = "S_HFruD8as1"
+
+    # 是否启用复刻声音
+    BYTES_ICL_STATUS: bool = False
 
     @model_validator(mode='before')
     @classmethod

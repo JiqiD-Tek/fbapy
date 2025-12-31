@@ -13,12 +13,13 @@ class TypedContextProtocol(Protocol):
     region: str | None
     city: str | None
 
-    user_agent: str
+    user_agent: str | None
     os: str | None
     browser: str | None
     device: str | None
 
     permission: str | None
+    language: str
 
 
 class TypedContext(TypedContextProtocol, _Context):

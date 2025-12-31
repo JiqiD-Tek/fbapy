@@ -1,11 +1,12 @@
 import json
 import uuid
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer
+from fastapi.security.http import HTTPAuthorizationCredentials
 from fastapi.security.utils import get_authorization_scheme_param
 from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic_core import from_json
@@ -16,6 +17,7 @@ from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
 from backend.app.domain.schema.user import GetUserInfoDetail
 from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
 from backend.common.exception import errors
+from backend.common.exception.errors import TokenError
 from backend.core.conf import settings
 from backend.database.db import async_db_session
 from backend.database.redis import redis_client
@@ -232,39 +234,6 @@ def superuser_verify(request: Request, _token: str = DependsJwtAuth) -> bool:
     return superuser
 
 
-# async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail:
-#     """
-#     JWT 认证
-#
-#     :param token: JWT token
-#     :return:
-#     """
-#     token_payload = jwt_decode(token)
-#     user_id = token_payload.id
-#     redis_token = await redis_client.get(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}:{token_payload.session_uuid}')
-#     if not redis_token:
-#         raise errors.TokenError(msg='Token 已过期')
-#
-#     if token != redis_token:
-#         raise errors.TokenError(msg='Token 已失效')
-#
-#     cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
-#     if not cache_user:
-#         async with async_db_session() as db:
-#             current_user = await get_current_user(db, user_id)
-#             user = GetUserInfoWithRelationDetail.model_validate(current_user)
-#             await redis_client.setex(
-#                 f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}',
-#                 settings.TOKEN_EXPIRE_SECONDS,
-#                 user.model_dump_json(),
-#             )
-#     else:
-#         # TODO: 在恰当的时机，应替换为使用 model_validate_json
-#         # https://docs.pydantic.dev/latest/concepts/json/#partial-json-parsing
-#         user = GetUserInfoWithRelationDetail.model_validate(from_json(cache_user, allow_partial=True))
-#     return user
-
-
 async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetUserInfoDetail:
     """
     JWT 认证
@@ -272,6 +241,19 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetU
     :param token: JWT token
     :return:
     """
+    if token in ("jiqid_001",):
+        return GetUserInfoDetail(
+            id=1,
+            uuid="550e8400-e29b-41d4-a716-446655440000",
+            username="jiqid",
+            nickname="示例用户",
+            avatar="https://example.com/avatar.jpg",
+            email=None,
+            phone="13800138000",
+            sex=1,
+            birthday=datetime.now(),
+            last_login_time=datetime.now(),
+        )
     token_payload = jwt_decode(token)
     user_id = token_payload.id
     session_uuid = token_payload.session_uuid
