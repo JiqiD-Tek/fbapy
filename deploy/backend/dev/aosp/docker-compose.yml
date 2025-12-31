@@ -1,6 +1,7 @@
 # 定义网络
 networks:
   aosp_network:
+    name: aosp_network
     driver: bridge
 
 services:

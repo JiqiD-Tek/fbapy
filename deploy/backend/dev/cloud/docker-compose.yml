@@ -1,29 +1,27 @@
 # 定义网络
 networks:
   jiqid_network:
-    driver: bridge  # 使用桥接网络，容器间可以通过服务名相互通信
+    name: jiqid_network
+    driver: bridge  # 使用桥接网络，容器间可以通过服务名通信
 
 services:
-  # MariaDB 数据库服务 - 用于 Bugzilla
-  mariadb:
-    image: mariadb:latest
-    container_name: mariadb
-    hostname: mariadb
-    restart: unless-stopped  # 自动重启策略，除非手动停止
-    ports:
-      - "3306:3306"  # 暴露 MySQL/MariaDB 默认端口到宿主机
+  # Mysql 数据库服务 - 用于 jira
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    hostname: mysql
+    restart: unless-stopped
     environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-jira}  # 初始创建的数据库名
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Root_123456}  # root 用户密码，支持环境变量覆盖
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-bugzilla}  # 初始创建的数据库名
-      MYSQL_USER: ${MYSQL_USER:-bugzilla}  # 创建的非 root 用户
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-Bugzilla_123456}  # 非 root 用户密码
-      MYSQL_INITDB_SKIP_TZINFO: 1  # 跳过时区表加载，减小镜像大小
-    command:
-      - --character-set-server=utf8mb4  # 设置默认字符集为 UTF-8
-      - --collation-server=utf8mb4_unicode_ci  # 设置默认排序规则
-      - --bind-address=0.0.0.0  # 允许所有网络接口连接
+      MYSQL_USER: ${MYSQL_USER:-jira}  # 创建的非 root 用户
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-Jira_123456}  # 非 root 用户密码
+      TZ: ${TZ}  # 时区设置
+    command: [ 'mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_bin' ]
+    ports:
+      - "3306:3306"
     volumes:
-      - ${DATA_ROOT}/mariadb/data:/var/lib/mysql  # 数据持久化到宿主机
+      - ${DATA_ROOT}/mysql/data:/var/lib/mysql
     networks:
       - jiqid_network
 
@@ -95,34 +93,20 @@ services:
     networks:
       - jiqid_network
 
-  # Bugzilla 缺陷跟踪系统
-  bugzilla:
-    image: nasqueron/bugzilla:latest
-    container_name: bugzilla
-    hostname: bugzilla
+  # Jira 缺陷跟踪系统
+  jira:
+    image: haxqer/jira:10.7.3
+    container_name: jira
+    hostname: jira
     restart: unless-stopped
-    ports:
-      - "8083:80"  # Bugzilla Web 界面，访问 http://localhost:8083
     environment:
-      # 数据库连接配置
-      DB_TYPE: "mysql"
-      DB_HOST: "mariadb"  # MariaDB 容器名
-      DB_PORT: "3306"
-      DB_DATABASE: ${MYSQL_DATABASE:-bugzilla}
-      DB_USER: ${MYSQL_USER:-bugzilla}
-      DB_PASSWORD: ${MYSQL_PASSWORD:-Bugzilla_123456}
-      DB_DRIVER: "mysql"
-      DB_MYSQL_CONNECT_TIMEOUT: "30"  # 数据库连接超时时间
-
-      # Bugzilla 管理员账户配置
-      ADMIN_EMAIL: "admin@${LDAP_DOMAIN:-jiqid.com}"  # 管理员邮箱
-      ADMIN_PASSWORD: "Admin@123"  # 管理员初始密码
-
-      # Bugzilla 访问 URL
-      BUGZILLA_URL: ${BUGZILLA_WEB_URL}
-
-      # 时区
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ}  # 时区
+    depends_on:
+      - mysql
+    ports:
+      - "8083:8080"
+    volumes:
+      - ${DATA_ROOT}/jira:/var/jira
     networks:
       - jiqid_network
 
@@ -153,7 +137,7 @@ services:
     hostname: opengrok
     restart: unless-stopped
     ports:
-      - "8084:8080"  # OpenGrok Web 界面，访问 http://localhost:8084
+      - "8084:8080"
     environment:
       MIRROR_ENABLE: "false"
       REINDEX_PERIOD_MINUTES: "1440"  # 24小时
@@ -186,3 +170,14 @@ services:
     command: server /data --console-address :9090 -address :9000  # 启动命令
     networks:
       - jiqid_network
+
+  # jenkins-docker-agent_01:
+  #  build:
+  #    context: .
+  #    dockerfile: Dockerfile.jenkins-docker-agent_01
+  #  image: android14-app-builder
+  #  container_name: android14-app-builder
+  #  # 不启动，只提供镜像给 Jenkins Dynamic Agent
+  #  entrypoint: ["tail", "-f", "/dev/null"]
+  #  volumes:
+  #    - /var/run/docker.sock:/var/run/docker.sock
