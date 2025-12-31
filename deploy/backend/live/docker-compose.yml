@@ -1,0 +1,73 @@
+networks:
+  livekit-network:
+    driver: bridge
+
+services:
+  # Redis 用于房间状态
+  livekit-redis:
+    restart: unless-stopped
+    privileged: true
+    image: redis
+    container_name: livekit-redis
+    volumes:
+      - ${DATA_ROOT}/redis/data:/data
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - livekit-network
+
+  # LiveKit 服务器
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    restart: unless-stopped
+    ports:
+      - "7880:7880"     # WebSocket/HTTP
+      - "7881:7881"     # TCP
+      - "50000-60000:50000-60000/udp"  # UDP 端口范围
+    volumes:
+      - ./livekit.yaml:/livekit.yaml
+    command: --config /livekit.yaml --dev
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+    depends_on:
+      - redis
+    networks:
+      - livekit-network
+
+  # Python Agent 1 - 对话服务（ASR LLM TTS)
+  livekit-agent1:
+    image: livekit-agent:latest
+    container_name: livekit-agent1
+    restart: unless-stopped
+    environment:
+      - AGENT_NAME=chat-agent1
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      - livekit-server
+      - redis
+    networks:
+      - livekit-network
+    volumes:
+      - ${DATA_ROOT}/livekit-agent1:/app
+
+  # Python Agent 2 - 对话服务（ASR LLM TTS)
+  livekit-agent2:
+    image: livekit-agent:latest
+    container_name: livekit-agent2
+    restart: unless-stopped
+    environment:
+      - AGENT_NAME=chat-agent2
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - REDIS_URL=${REDIS_URL}
+    depends_on:
+      - livekit-server
+      - redis
+    networks:
+      - livekit-network
+    volumes:
+      - ${DATA_ROOT}/livekit-agent2:/app
