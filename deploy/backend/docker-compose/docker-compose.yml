@@ -3,25 +3,7 @@ networks:
     driver: bridge
 
 services:
-  fbapy:
-    image: fbapy:latest
-    container_name: fbapy
-    restart: unless-stopped
-    volumes:
-      - .env.server:/fbapy/backend/.env:ro
-      - ${DATA_ROOT}/fbapy/log:/var/log/fba
-      - /etc/localtime:/etc/localtime:ro
-    ports:
-      - "8000:8000"
-    networks:
-      - fba_network
-    command:
-      - bash
-      - -c
-      - |
-        supervisord -c /etc/supervisor/supervisord.conf
-        supervisorctl restart
-
+  # 数据库
   mysql:
     restart: unless-stopped
     privileged: true
@@ -42,6 +24,7 @@ services:
     networks:
       - fba_network
 
+  # redis缓存
   redis:
     restart: unless-stopped
     privileged: true
@@ -55,6 +38,7 @@ services:
     networks:
       - fba_network
 
+  # nginx代理
   nginx:
     restart: unless-stopped
     privileged: true
@@ -76,6 +60,7 @@ services:
     networks:
       - fba_network
 
+  # mqtt服务器
   emqx-enterprise:
     restart: unless-stopped
     image: emqx/emqx-enterprise:5.10.1-rc.2
@@ -101,6 +86,7 @@ services:
     networks:
       - fba_network
 
+  # 云存储服务器
   minio:
     restart: unless-stopped
     image: minio/minio
@@ -119,3 +105,41 @@ services:
     networks:
       - fba_network
 
+  # LiveKit 服务器
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    restart: unless-stopped
+    ports:
+      - "7880:7880"     # WebSocket/HTTP
+      - "7881:7881"     # TCP
+      - "50000-60000:50000-60000/udp"  # UDP 端口范围
+    volumes:
+      - ./livekit.yaml:/livekit.yaml
+    command: --config /livekit.yaml --dev
+    environment:
+      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+    depends_on:
+      - redis
+    networks:
+      - fba_network
+
+  # 后端服务
+  fbapy:
+    image: fbapy:latest
+    container_name: fbapy
+    restart: unless-stopped
+    volumes:
+      - .env.server:/fbapy/backend/.env:ro
+      - ${DATA_ROOT}/fbapy/log:/var/log/fba
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - fba_network
+    command:
+      - bash
+      - -c
+      - |
+        supervisord -c /etc/supervisor/supervisord.conf
+        supervisorctl restart
