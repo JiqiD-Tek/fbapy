@@ -16,6 +16,7 @@ services:
       TZ: Asia/Shanghai
       MYSQL_CHARACTER_SET_SERVER: utf8mb4  # 支持emoji
       MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - ${DATA_ROOT}/mysql/log:/var/log/mysql # 映射日志目录，宿主机:容器
       - ${DATA_ROOT}/mysql/data:/var/lib/mysql # 映射数据目录，宿主机:容器
@@ -113,12 +114,10 @@ services:
     ports:
       - "7880:7880"     # WebSocket/HTTP
       - "7881:7881"     # TCP
-      - "50000-60000:50000-60000/udp"  # UDP 端口范围
+      - "50000-51000:50000-51000/udp"  # UDP 端口范围
     volumes:
       - ./livekit.yaml:/livekit.yaml
     command: --config /livekit.yaml --dev
-    environment:
-      - LIVEKIT_KEYS=${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
     depends_on:
       - redis
     networks:

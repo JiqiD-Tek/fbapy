@@ -74,3 +74,59 @@ services:
     volumes:
       - ${DATA_ROOT}/22005/aosp:/aosp  # 每个容器独立源码目录
       - ${DATA_ROOT}/22005/.ssh:/root/.ssh
+
+  aosp-22006:
+    image: aosp-build:latest
+    container_name: aosp-22006
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - aosp_network
+    ports:
+      - "22006:22"
+    volumes:
+      - ${DATA_ROOT}/22006/aosp:/aosp  # 每个容器独立源码目录
+      - ${DATA_ROOT}/22006/.ssh:/root/.ssh
+
+  aosp-22007:
+    image: aosp-build:latest
+    container_name: aosp-22007
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - aosp_network
+    ports:
+      - "22007:22"
+    volumes:
+      - ${DATA_ROOT}/22007/aosp:/aosp  # 每个容器独立源码目录
+      - ${DATA_ROOT}/22007/.ssh:/root/.ssh
+
+  aosp-22008:
+    image: aosp-build:latest
+    container_name: aosp-22008
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - aosp_network
+    ports:
+      - "22008:22"
+    volumes:
+      - ${DATA_ROOT}/22008/aosp:/aosp  # 每个容器独立源码目录
+      - ${DATA_ROOT}/22008/.ssh:/root/.ssh
+
+  aosp-22009:
+    image: aosp-build:latest
+    container_name: aosp-22009
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    networks:
+      - aosp_network
+    ports:
+      - "22009:22"
+    volumes:
+      - ${DATA_ROOT}/22009/aosp:/aosp  # 每个容器独立源码目录
+      - ${DATA_ROOT}/22009/.ssh:/root/.ssh
