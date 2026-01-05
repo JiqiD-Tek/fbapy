@@ -35,21 +35,20 @@ COPY --from=builder /fbapy /fbapy
 
 COPY --from=builder /usr/local /usr/local
 
-COPY deploy/backend/supervisord.conf /etc/supervisor/supervisord.conf
+COPY deploy/backend/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 
 WORKDIR /fbapy/backend
 
 # === FastAPI server image ===
 FROM base_server AS fbapy
 
-COPY deploy/backend/fbapy.conf /etc/supervisor/conf.d/
+COPY deploy/backend/supervisor/fbapy.conf /etc/supervisor/conf.d/
 
 RUN mkdir -p /var/log/fba
 
-EXPOSE 8001
+EXPOSE 8000
 
-CMD ["/usr/local/bin/granian", "main:app", "--interface", "asgi", "--host", "0.0.0.0", "--port","8000"]
-
+CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
 
 # Build image
 FROM ${SERVER_TYPE}
