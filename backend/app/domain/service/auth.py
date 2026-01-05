@@ -51,7 +51,13 @@ class AuthService:
         await device_dao.create(db, device_param)
 
     async def _register(self, db: AsyncSession, obj: AuthLoginParam) -> User:
-        user = await user_dao.get_by_phone(db, obj.phone)
+        if obj.phone:
+            user = await user_dao.get_by_phone(db, obj.phone)
+        elif obj.email:
+            user = await user_dao.get_by_email(db, obj.email)
+        else:
+            raise errors.RequestError(msg=t('error.phone.email'))
+
         if user:
             await self._register_device(db, user, obj)
             return user
@@ -93,11 +99,8 @@ class AuthService:
                     raise errors.CustomError(error=CustomErrorCode.CAPTCHA_ERROR)
                 await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
 
-            user = await user_dao.get_by_phone(db, obj.phone)
-            if not user:
-                user = await self._register(db, obj)
-
-            await user_dao.update_login_time(db, obj.phone)
+            user = await self._register(db, obj)
+            await user_dao.update_login_time(db, obj.phone, obj.email)
             await db.refresh(user)
             access_token_data = await create_access_token(
                 user.id,
@@ -125,7 +128,7 @@ class AuthService:
                 httponly=True,
             )
         except errors.NotFoundError as e:
-            log.error('登陆错误: 用户名不存在')
+            log.error('登陆错误: 用户不存在')
             raise errors.NotFoundError(msg=e.msg)
         except (errors.RequestError, errors.CustomError) as e:
             log.error(f'登陆错误: {e}')

@@ -28,7 +28,8 @@ class DeviceAuthSchemaBase(SchemaBase):
 class AuthSchemaBase(SchemaBase):
     """用户认证基础模型"""
 
-    phone: str = Field(description='手机号')
+    phone: Optional[str] = Field(None, description='手机号')
+    email: Optional[EmailStr] = Field(None, description='邮箱')
     device: DeviceAuthSchemaBase = Field(description='设备认证信息')
 
 
@@ -42,7 +43,7 @@ class AuthLoginParam(AuthSchemaBase):
 class UserSchemaBase(SchemaBase):
     """用户基础模型"""
 
-    phone: str = Field(description='手机号')
+    phone: Optional[str] = Field(None, description='手机号')
     username: Optional[str] = Field(None, description='用户名')
     nickname: Optional[str] = Field(None, description='昵称')
     email: Optional[EmailStr] = Field(None, description='邮箱')
@@ -72,62 +73,8 @@ class CreateUserParam(UserSchemaBase):
         super().__init__(**data)
 
 
-class UserLoginByPhoneParam(SchemaBase):
-    """手机号登录参数"""
-
-    phone: str = Field(description='手机号')
-    code: str = Field(description='验证码')
-
-
-class UserLoginByPasswordParam(SchemaBase):
-    """密码登录参数（备用）"""
-
-    phone: str = Field(description='手机号')
-    password: str = Field(description='密码')
-
-
-class SendVerificationCodeParam(SchemaBase):
-    """发送验证码参数"""
-
-    phone: str = Field(description='手机号')
-    type: str = Field(description='验证码类型(register/login/reset)')
-
-
-class VerifyCodeParam(SchemaBase):
-    """验证验证码参数"""
-
-    phone: str = Field(description='手机号')
-    code: str = Field(description='验证码')
-    type: str = Field(description='验证码类型(register/login/reset)')
-
-
 class UpdateUserParam(SchemaBase):
     """更新用户参数"""
-
-    phone: Optional[str] = Field(None, description='手机号')
-
-
-class SetPasswordParam(SchemaBase):
-    """设置密码参数（注册后补充或修改）"""
-
-    password: str = Field(description='密码')
-    confirm_password: str = Field(description='确认密码')
-
-
-class ResetPasswordByPhoneParam(SchemaBase):
-    """通过手机号重置密码"""
-
-    phone: str = Field(description='手机号')
-    code: str = Field(description='验证码')
-    new_password: str = Field(description='新密码')
-    confirm_password: str = Field(description='确认密码')
-
-
-class BindPhoneParam(SchemaBase):
-    """绑定手机号参数"""
-
-    phone: str = Field(description='手机号')
-    code: str = Field(description='验证码')
 
 
 class DeleteUserParam(SchemaBase):

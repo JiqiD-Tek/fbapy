@@ -14,6 +14,7 @@ from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
 from backend.common.ali_sms import sms_client
+from backend.common.exception import errors
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
@@ -23,22 +24,31 @@ from backend.app.domain.schema.captcha import GetCaptchaDetail
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
 from backend.app.domain.schema.user import AuthLoginParam
 from backend.app.domain.service.auth import auth_service
+from backend.plugin.email.utils.send import send_email
 
 router = APIRouter()
 
 
 @router.get(
     '/captcha',
-    summary='获取手机短信验证码',
+    summary='获取验证码',
     dependencies=[Depends(RateLimiter(times=5, seconds=10))],
 )
 async def k10_get_captcha(
+        db: CurrentSession,
         phone: Annotated[str, Query(description='手机号')],
+        email: Annotated[str, Query(description='邮箱')],
         background_tasks: BackgroundTasks,
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
-    code = ''.join(str(secrets.randbelow(10)) for _ in range(6))
+    code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 
-    background_tasks.add_task(sms_client.send_code, phone, code)
+    if phone:
+        background_tasks.add_task(sms_client.send_code, phone, code)
+    elif email:
+        content = {'code': code, 'expired': int(settings.LOGIN_CAPTCHA_EXPIRE_SECONDS / 60)}
+        background_tasks.add_task(send_email, db, email, '验证码', content, 'captcha.html')
+    else:
+        raise errors.NotFoundError(msg='请提供手机号或邮箱')
     captcha_uuid = str(uuid.uuid4())
 
     await redis_client.set(

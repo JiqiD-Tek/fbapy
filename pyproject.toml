@@ -68,6 +68,7 @@ dependencies = [
     "webrtcvad==2.0.10",
     "authlib>=1.6.6",
     "azure-cognitiveservices-speech>=1.47.0",
+    "aiosmtplib>=5.0.0",
 ]
 
 [dependency-groups]

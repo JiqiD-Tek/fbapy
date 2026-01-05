@@ -37,13 +37,21 @@ class CRUDUser(CRUDPlus[User]):
     async def delete(self, db: AsyncSession, pks: list[int]) -> int:
         return await self.delete_model_by_column(db, allow_multiple=True, id__in=pks)
 
-    async def update_login_time(self, db: AsyncSession, phone: str) -> int:
+    async def update_login_time(self, db: AsyncSession, phone: str, email: str) -> int:
         """ 更新用户上次登录时间 """
-        return await self.update_model_by_column(db, {'last_login_time': timezone.now()}, phone=phone)
+        if phone:
+            return await self.update_model_by_column(db, {'last_login_time': timezone.now()}, phone=phone)
+        if email:
+            return await self.update_model_by_column(db, {'last_login_time': timezone.now()}, email=email)
+        return 0
 
     async def get_by_phone(self, db: AsyncSession, phone: str) -> User | None:
         """ 通过手机获取用户 """
         return await self.select_model_by_column(db, phone=phone)
+
+    async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
+        """ 通过邮箱获取用户 """
+        return await self.select_model_by_column(db, email=email)
 
 
 user_dao: CRUDUser = CRUDUser(User)
