@@ -7,7 +7,7 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 # Used for build Python packages
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends gcc python3-dev \
+    && apt-get install -y --no-install-recommends gcc python3-dev libportaudio2 portaudio19-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . /fbapy
