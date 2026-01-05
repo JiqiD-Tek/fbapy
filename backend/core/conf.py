@@ -272,7 +272,7 @@ class Settings(BaseSettings):
     EMAIL_PASSWORD: str
 
     # 基础配置
-    EMAIL_HOST: str = 'smtp.qq.com'
+    EMAIL_HOST: str = 'smtp.exmail.qq.com'
     EMAIL_PORT: int = 465
     EMAIL_SSL: bool = True
     EMAIL_CAPTCHA_REDIS_PREFIX: str = 'fba:email:captcha'

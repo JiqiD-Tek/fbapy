@@ -36,9 +36,9 @@ router = APIRouter()
 )
 async def k10_get_captcha(
         db: CurrentSession,
-        phone: Annotated[str, Query(description='手机号')],
-        email: Annotated[str, Query(description='邮箱')],
         background_tasks: BackgroundTasks,
+        phone: Annotated[str | None, Query(description='手机号')] = None,
+        email: Annotated[str | None, Query(description='邮箱')] = None,
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 

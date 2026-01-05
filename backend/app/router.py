@@ -16,7 +16,7 @@ router.include_router(domain_v1)
 # router.include_router(vce_v1)
 
 
-@router.get("/health")
+@router.get("/health", tags=["Health"])
 async def health_check():
     """健康检查端点"""
     return {"status": "ok", "message": "Service is healthy"}
