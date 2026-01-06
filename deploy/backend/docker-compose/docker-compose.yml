@@ -1,50 +1,57 @@
 networks:
-  fba_network:
+  fba-network:
+    name: fba-network        # 固定网络名，避免多项目冲突
     driver: bridge
 
 services:
-  # 数据库
+  # ------------------------
+  # MySQL 数据库
+  # ------------------------
   mysql:
-    restart: unless-stopped
-    privileged: true
     image: mysql
     container_name: mysql
+    restart: unless-stopped
+    privileged: true
     ports:
-      - "3306:3306"
+      - "3306:3306"  # 映射宿主机 3306
     environment:
       MYSQL_DATABASE: fba
-      TZ: Asia/Shanghai
-      MYSQL_CHARACTER_SET_SERVER: utf8mb4  # 支持emoji
-      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4      # 支持 emoji
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+      TZ: Asia/Shanghai
     volumes:
-      - ${DATA_ROOT}/mysql/log:/var/log/mysql # 映射日志目录，宿主机:容器
-      - ${DATA_ROOT}/mysql/data:/var/lib/mysql # 映射数据目录，宿主机:容器
-      - ${DATA_ROOT}/mysql/conf.d:/etc/mysql/conf.d # 映射配置目录，宿主机:容器
-      - /etc/localtime:/etc/localtime:ro # 让容器的时钟与宿主机时钟同步，避免时间的问题，ro是read only的意思，就是只读。
+      - ${DATA_ROOT}/mysql/log:/var/log/mysql
+      - ${DATA_ROOT}/mysql/data:/var/lib/mysql
+      - ${DATA_ROOT}/mysql/conf.d:/etc/mysql/conf.d
+      - /etc/localtime:/etc/localtime:ro   # 同步宿主机时间
     networks:
-      - fba_network
+      - fba-network
 
-  # redis缓存
+  # ------------------------
+  # Redis 缓存
+  # ------------------------
   redis:
-    restart: unless-stopped
-    privileged: true
     image: redis
     container_name: redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - ${DATA_ROOT}/redis/data:/data
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    networks:
-      - fba_network
-
-  # nginx代理
-  nginx:
     restart: unless-stopped
     privileged: true
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ${DATA_ROOT}/redis/data:/data
+    networks:
+      - fba-network
+
+  # ------------------------
+  # Nginx 代理
+  # ------------------------
+  nginx:
     image: nginx
     container_name: nginx
+    restart: unless-stopped
+    privileged: true
     ports:
       - "80:80"
       - "443:443"
@@ -57,15 +64,18 @@ services:
       - ${DATA_ROOT}/nginx/logs:/var/log/nginx
       - /etc/localtime:/etc/localtime:ro
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
     networks:
-      - fba_network
+      - fba-network
 
-  # mqtt服务器
+  # ------------------------
+  # MQTT 服务器（EMQX 企业版）
+  # ------------------------
   emqx:
-    restart: unless-stopped
     image: emqx/emqx-enterprise:5.10.1-rc.2
     container_name: emqx
+    restart: unless-stopped
+    privileged: true
     environment:
       EMQX_NODE_NAME: ${EMQX_NODE_NAME}
       EMQX_LISTENERS__TCP__DEFAULT__BIND: 0.0.0.0:1883
@@ -85,28 +95,11 @@ services:
       - ${DATA_ROOT}/emqx/data:/opt/emqx/data
       - ${DATA_ROOT}/emqx/log:/opt/emqx/log
     networks:
-      - fba_network
+      - fba-network
 
-  # 云存储服务器
-#  minio:
-#    restart: unless-stopped
-#    image: minio/minio
-#    container_name: minio
-#    environment:
-#      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-#      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-#      TZ: Asia/Shanghai
-#    ports:
-#      - "19000:9000"
-#      - "19090:9090"
-#    volumes:
-#      - ${DATA_ROOT}/minio/data:/data
-#      - ${DATA_ROOT}/minio/config:/root/.minio
-#    command: server /data --console-address :9090 -address :9000
-#    networks:
-#      - fba_network
-
-  # 后端服务
+  # ------------------------
+  # 后端服务 fbapy
+  # ------------------------
   fbapy:
     image: fbapy:latest
     container_name: fbapy
@@ -118,7 +111,7 @@ services:
     ports:
       - "8000:8000"
     networks:
-      - fba_network
+      - fba-network
     command:
       - bash
       - -c
@@ -126,25 +119,21 @@ services:
         supervisord -c /etc/supervisor/supervisord.conf
         supervisorctl restart
 
-  # LiveKit 服务器
+  # ------------------------
+  # LiveKit Server
+  # ------------------------
   livekit-server:
     image: livekit/livekit-server:latest
     container_name: livekit-server
     restart: unless-stopped
     ports:
-      # 7880: 主信令端口（HTTP / WebSocket）客户端加入房间、Token 校验 Web / App / Agent 默认连接入口
-      - "7880:7880"
-      # 7881: TCP 回退端口（ICE TCP） UDP 不可用时保证连通性
-      - "7881:7881"
-      # 50000–53000/udp: WebRTC 媒体端口 音频/视频 RTP 实际传输
-      - "50000-53000:50000-53000/udp"
+      - "7880:7880"         # 主信令端口 (HTTP / WebSocket)
+      - "7881:7881"         # TCP 回退端口（ICE TCP）
+      - "50000-53000:50000-53000/udp"  # WebRTC RTP 端口
     volumes:
-      # LiveKit 配置文件（Key / RTC / Redis 等）
-      - ./livekit.yaml:/livekit.yaml
-      # 开发模式（生产环境建议移除）
-    command: --config /livekit.yaml --dev
+      - ./livekit.yaml:/livekit.yaml   # 配置文件（Key / RTC / Redis）
+    command: --config /livekit.yaml --dev  # 开发模式（生产环境建议移除 --dev ）
     depends_on:
-      # 状态协调 / 房间管理
-      - redis
+      - redis     # 依赖 Redis 用于房间管理、状态协调
     networks:
-      - fba_network
+      - fba-network
