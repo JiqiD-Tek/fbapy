@@ -62,7 +62,7 @@ services:
       - fba_network
 
   # mqtt服务器
-  emqx-enterprise:
+  emqx:
     restart: unless-stopped
     image: emqx/emqx-enterprise:5.10.1-rc.2
     container_name: emqx
@@ -88,23 +88,23 @@ services:
       - fba_network
 
   # 云存储服务器
-  minio:
-    restart: unless-stopped
-    image: minio/minio
-    container_name: minio
-    environment:
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-      TZ: Asia/Shanghai
-    ports:
-      - "19000:9000"
-      - "19090:9090"
-    volumes:
-      - ${DATA_ROOT}/minio/data:/data
-      - ${DATA_ROOT}/minio/config:/root/.minio
-    command: server /data --console-address :9090 -address :9000
-    networks:
-      - fba_network
+#  minio:
+#    restart: unless-stopped
+#    image: minio/minio
+#    container_name: minio
+#    environment:
+#      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+#      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+#      TZ: Asia/Shanghai
+#    ports:
+#      - "19000:9000"
+#      - "19090:9090"
+#    volumes:
+#      - ${DATA_ROOT}/minio/data:/data
+#      - ${DATA_ROOT}/minio/config:/root/.minio
+#    command: server /data --console-address :9090 -address :9000
+#    networks:
+#      - fba_network
 
   # 后端服务
   fbapy:
