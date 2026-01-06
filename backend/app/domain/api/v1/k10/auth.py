@@ -5,10 +5,11 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 11:20
 """
+import datetime
 import uuid
 import secrets
 from typing import Annotated
-
+from livekit import api
 from fastapi import APIRouter, Depends, Request, Response, Query
 from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
@@ -90,3 +91,24 @@ async def k10_refresh_token(db: CurrentSession, request: Request) -> ResponseSch
 async def k10_logout(request: Request, response: Response) -> ResponseModel:
     await auth_service.logout(request=request, response=response)
     return response_base.success()
+
+
+@router.post('/livekit_token', summary='获取 livekit token')
+async def livekit_token(
+        identity: Annotated[str, Query(description='标识符')],
+        name: Annotated[str, Query(description='名称')],
+        metadata: Annotated[str, Query(description='元数据')],
+        room: Annotated[str, Query(description='房间名')],
+        ttl: Annotated[int, Query(description='有效期')] = 3600,
+) -> ResponseModel:
+    token = api.AccessToken(
+        api_key=settings.LIVEKIT_API_KEY,
+        api_secret=settings.LIVEKIT_API_SECRET,
+    ).with_identity(
+        identity=identity).with_name(
+        name=name).with_metadata(
+        metadata=metadata).with_ttl(
+        ttl=datetime.timedelta(seconds=ttl)).with_grants(
+        api.VideoGrants(room=room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
+    ).to_jwt()
+    return response_base.success(data=token)

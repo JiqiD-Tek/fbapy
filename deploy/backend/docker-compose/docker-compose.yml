@@ -106,23 +106,6 @@ services:
     networks:
       - fba_network
 
-  # LiveKit 服务器
-  livekit-server:
-    image: livekit/livekit-server:latest
-    container_name: livekit-server
-    restart: unless-stopped
-    ports:
-      - "7880:7880"     # WebSocket/HTTP
-      - "7881:7881"     # TCP
-      - "50000-51000:50000-51000/udp"  # UDP 端口范围
-    volumes:
-      - ./livekit.yaml:/livekit.yaml
-    command: --config /livekit.yaml --dev
-    depends_on:
-      - redis
-    networks:
-      - fba_network
-
   # 后端服务
   fbapy:
     image: fbapy:latest
@@ -142,3 +125,26 @@ services:
       - |
         supervisord -c /etc/supervisor/supervisord.conf
         supervisorctl restart
+
+  # LiveKit 服务器
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    restart: unless-stopped
+    ports:
+      # 7880: 主信令端口（HTTP / WebSocket）客户端加入房间、Token 校验 Web / App / Agent 默认连接入口
+      - "7880:7880"
+      # 7881: TCP 回退端口（ICE TCP） UDP 不可用时保证连通性
+      - "7881:7881"
+      # 50000–53000/udp: WebRTC 媒体端口 音频/视频 RTP 实际传输
+      - "50000-53000:50000-53000/udp"
+    volumes:
+      # LiveKit 配置文件（Key / RTC / Redis 等）
+      - ./livekit.yaml:/livekit.yaml
+      # 开发模式（生产环境建议移除）
+    command: --config /livekit.yaml --dev
+    depends_on:
+      # 状态协调 / 房间管理
+      - redis
+    networks:
+      - fba_network

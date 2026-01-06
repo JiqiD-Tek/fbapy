@@ -294,6 +294,22 @@ class Settings(BaseSettings):
     OSS_BUCKET: str = ''
     OSS_REGION: str = ''
 
+    # livekit
+    LIVEKIT_API_KEY: str = ''
+    LIVEKIT_API_SECRET: str = ''
+
+    # MQTT
+    MQTT_HOST: str = "zh.api.jiqid.net"
+    MQTT_PORT: int = 1883
+    MQTT_USERNAME: str = "admin"
+    MQTT_JWT_SECRET: str = "Qkxc123456"
+    MQTT_PASSWORD: str = "Qkxc123456"
+
+    # QQ音乐
+    QQ_MUSIC_URL: str = "https://test.szhkeji.com/rpc_proxy/music_open_api"
+    QQ_MUSIC_APPID: str = ""
+    QQ_MUSIC_APPKEY: str = ""
+
     # 大模型
     LLM_MODEL_NAME: str = "doubao-seed-1-6-flash-250615"  # 模型名称 豆包: doubao-seed-1-6-flash-250615  gpt: gpt-4o-mini
 
