@@ -6,7 +6,7 @@ networks:
 
 services:
   aosp-22001:
-    image: aosp-build:latest
+    image: aosp-build:1.0
     container_name: aosp-22001
     restart: unless-stopped
     environment:

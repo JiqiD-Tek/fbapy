@@ -94,15 +94,18 @@ class RegistrationClient:
     """客户端注册请求生成器"""
 
     @staticmethod
-    def build_registration_request(mac: str, did: str, key: str) -> Dict[str, str]:
+    def build_registration_request(
+            mac: str, did: str, key: str,  # 三元组 必传
+            sn: str = "K10-0001", model: str = "K10",  # 设备信息
+    ) -> Dict[str, str]:
         mac = normalize_mac(mac)
         data = {
             "mac": mac,
             "did": did,
             "timestamp": int(time.time()),
             "nonce": uuid.uuid4().hex,
-            "sn": "K10-0001",
-            "model": "K10",
+            "sn": sn,
+            "model": model,
         }
         data["signature"] = sign(data, key)
         return data
@@ -126,13 +129,13 @@ secure_service = RegistrationServer(settings.MASTER_SECRET, salt=settings.KEY_SA
 # ------------------ 测试 ------------------
 def main(mac_address="C4:1C:9C:09:C9:81"):
     credentials = secure_service.derive_credentials(mac_address)
-    print("三元组:", credentials)
+    log.debug(f"三元组: {credentials}")
 
     reg_data = RegistrationClient.build_registration_request(credentials["mac"], credentials["did"], credentials["key"])
-    print("注册数据:", reg_data)
+    log.debug(f"注册数据: {reg_data}")
 
     valid = secure_service.verify(**reg_data)
-    print("验证结果:", valid)
+    log.debug(f"验证结果: {valid}")
 
 
 if __name__ == "__main__":

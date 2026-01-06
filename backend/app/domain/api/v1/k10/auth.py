@@ -16,6 +16,7 @@ from starlette.background import BackgroundTasks
 
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
+from backend.common.security.jwt import DependsJwtAuth
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
@@ -81,26 +82,48 @@ async def k10_login(
     return response_base.success(data=data)
 
 
-@router.post('/refresh', summary='刷新 token')
-async def k10_refresh_token(db: CurrentSession, request: Request) -> ResponseSchemaModel[GetNewToken]:
-    data = await auth_service.refresh_token(db=db, request=request)
+@router.post(
+    '/refresh',
+    summary='刷新 token'
+)
+async def k10_refresh_token(
+        db: CurrentSession,
+        refresh_token: Annotated[str, Query(description='刷新 token')],
+) -> ResponseSchemaModel[GetNewToken]:
+    data = await auth_service.refresh_token(db=db, refresh_token=refresh_token)
     return response_base.success(data=data)
 
 
-@router.post('/logout', summary='用户登出')
-async def k10_logout(request: Request, response: Response) -> ResponseModel:
-    await auth_service.logout(request=request, response=response)
+@router.post(
+    '/logout',
+    summary='用户登出'
+)
+async def k10_logout(
+        request: Request
+) -> ResponseModel:
+    await auth_service.logout(request=request)
     return response_base.success()
 
 
-@router.post('/livekit_token', summary='获取 livekit token')
+@router.post(
+    '/livekit_token',
+    summary='获取 livekit token',
+    # dependencies=[DependsJwtAuth],
+)
 async def livekit_token(
+        request: Request,
         identity: Annotated[str, Query(description='标识符')],
         name: Annotated[str, Query(description='名称')],
         metadata: Annotated[str, Query(description='元数据')],
         room: Annotated[str, Query(description='房间名')],
         ttl: Annotated[int, Query(description='有效期')] = 3600,
 ) -> ResponseModel:
+    # def _check_user(user_id: str) -> bool:
+    #     return True
+    #
+    # if not _check_user(user_id=request.user.id):
+    #     raise errors.ForbiddenError(msg='权限不足')
+
     token = api.AccessToken(
         api_key=settings.LIVEKIT_API_KEY,
         api_secret=settings.LIVEKIT_API_SECRET,

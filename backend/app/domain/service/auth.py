@@ -120,13 +120,6 @@ class AuthService:
                 user.id,
                 multi_login=True,
             )
-            response.set_cookie(
-                key=settings.COOKIE_REFRESH_TOKEN_KEY,
-                value=refresh_token_data.refresh_token,
-                max_age=settings.COOKIE_REFRESH_TOKEN_EXPIRE_SECONDS,
-                expires=timezone.to_utc(refresh_token_data.refresh_token_expire_time),
-                httponly=True,
-            )
         except errors.NotFoundError as e:
             log.error('登陆错误: 用户不存在')
             raise errors.NotFoundError(msg=e.msg)
@@ -158,23 +151,25 @@ class AuthService:
             data = GetLoginToken(
                 access_token=access_token_data.access_token,
                 access_token_expire_time=access_token_data.access_token_expire_time,
+                refresh_token=refresh_token_data.refresh_token,
+                refresh_token_expire_time=refresh_token_data.refresh_token_expire_time,
                 session_uuid=access_token_data.session_uuid,
                 user=user,  # type: ignore
             )
             return data
 
     @staticmethod
-    async def refresh_token(*, db: AsyncSession, request: Request) -> GetNewToken:
+    async def refresh_token(*, db: AsyncSession, refresh_token: str) -> GetNewToken:
         """
         刷新令牌
 
         :param db: 数据库会话
-        :param request: FastAPI 请求对象
+        :param refresh_token: 刷新令牌
         :return:
         """
-        refresh_token = request.cookies.get(settings.COOKIE_REFRESH_TOKEN_KEY)
         if not refresh_token:
             raise errors.RequestError(msg='Refresh Token 已过期，请重新登录')
+
         token_payload = jwt_decode(refresh_token)
 
         user = await user_dao.get(db, token_payload.id)
@@ -199,17 +194,18 @@ class AuthService:
         data = GetNewToken(
             access_token=new_token.new_access_token,
             access_token_expire_time=new_token.new_access_token_expire_time,
+            refresh_token=new_token.new_refresh_token,
+            refresh_token_expire_time=new_token.new_refresh_token_expire_time,
             session_uuid=new_token.session_uuid,
         )
         return data
 
     @staticmethod
-    async def logout(*, request: Request, response: Response) -> None:
+    async def logout(*, request: Request) -> None:
         """
         用户登出
 
         :param request: FastAPI 请求对象
-        :param response: FastAPI 响应对象
         :return:
         """
         try:
@@ -217,16 +213,12 @@ class AuthService:
             token_payload = jwt_decode(token)
             user_id = token_payload.id
             session_uuid = token_payload.session_uuid
-            refresh_token = request.cookies.get(settings.COOKIE_REFRESH_TOKEN_KEY)
         except errors.TokenError:
             return
-        finally:
-            response.delete_cookie(settings.COOKIE_REFRESH_TOKEN_KEY)
 
         await redis_client.delete(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}:{session_uuid}')
         await redis_client.delete(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}:{session_uuid}')
-        if refresh_token:
-            await redis_client.delete(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user_id}:{refresh_token}')
+        await redis_client.delete(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user_id}:{session_uuid}')
 
 
 auth_service: AuthService = AuthService()
