@@ -5,6 +5,9 @@
 
 set -e  # 遇到错误立即退出
 
+# 默认版本号
+DEFAULT_VERSION="latest"
+
 # 颜色定义
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,49 +16,67 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 日志函数
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# 显示用法
+show_usage() {
+    echo "用法: $0 [选项]"
+    echo "选项:"
+    echo "  -v, --version <版本号>    指定镜像版本号 (默认: $DEFAULT_VERSION)"
+    echo "  -h, --help                显示帮助信息"
+    echo ""
+    echo "示例:"
+    echo "  $0                        使用默认版本号 latest"
+    echo "  $0 -v 1.0.0               使用指定版本号 1.0.0"
+    echo "  $0 --version v2.1.3       使用指定版本号 v2.1.3"
 }
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+# ==========================
+# 检查命令/文件/目录
+# ==========================
+check_command() { command -v "$1" &>/dev/null || { log_error "命令 $1 未找到，请安装"; exit 1; } }
+check_file()    { [ -f "$1" ] || { log_error "文件不存在: $1"; exit 1; } }
+check_dir()     { [ -d "$1" ] || { log_error "目录不存在: $1"; exit 1; } }
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
+# 解析命令行参数
+parse_args() {
+    IMAGE_VERSION="$DEFAULT_VERSION"
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# 检查命令是否存在
-check_command() {
-    if ! command -v "$1" &> /dev/null; then
-        log_error "命令 $1 未找到，请先安装"
-        exit 1
-    fi
-}
-
-# 检查文件是否存在
-check_file() {
-    if [ ! -f "$1" ]; then
-        log_error "文件不存在: $1"
-        exit 1
-    fi
-}
-
-# 检查目录是否存在
-check_dir() {
-    if [ ! -d "$1" ]; then
-        log_error "目录不存在: $1"
-        exit 1
-    fi
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -v|--version)
+                if [ -n "$2" ]; then
+                    IMAGE_VERSION="$2"
+                    shift 2
+                else
+                    log_error "错误: 需要指定版本号"
+                    show_usage
+                    exit 1
+                fi
+                ;;
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            *)
+                log_error "未知选项: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # 主函数
 main() {
     echo "=== Fbapy 部署脚本 ==="
+
+    # 解析参数
+    parse_args "$@"
+    log_info "镜像版本: $IMAGE_VERSION"
 
     # 初始化路径
     local PROJECT_DIR
@@ -89,12 +110,8 @@ main() {
     log_info "步骤 2: 构建 Docker 镜像..."
     cd "$PROJECT_DIR"
     local IMAGE_NAME="fbapy"
-    local TIMESTAMP
-    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-
-    # 构建镜像，只打 latest 标签
-    docker build -f Dockerfile -t "${IMAGE_NAME}:latest" .
-    log_success "镜像构建完成: ${IMAGE_NAME}:latest"
+    docker build -f Dockerfile -t "${IMAGE_NAME}:${IMAGE_VERSION}" .
+    log_success "镜像构建完成: ${IMAGE_NAME}:${IMAGE_VERSION}"
 
     # 3. 清理悬空镜像
     log_info "步骤 3: 清理悬空镜像..."
@@ -144,7 +161,7 @@ main() {
     docker-compose ps fbapy
 
     log_success "=== 部署完成 ==="
-    log_info "镜像版本: ${IMAGE_NAME}:${TIMESTAMP}"
+    log_info "镜像版本: ${IMAGE_NAME}:${IMAGE_VERSION}"
     log_info "使用 'docker-compose logs -f fbapy' 查看实时日志"
 }
 
