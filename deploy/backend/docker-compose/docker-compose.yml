@@ -155,15 +155,7 @@ services:
     cpus: 1.0
     mem_limit: 2g
     network_mode: "host"  # 使用 host 网络模式解决端口映射问题
-    environment:
-      REALM: ${TURN_REALM}             # 公网域名或服务器 IP
-      LISTENING_PORT: 5349             # TLS 端口
-      EXTERNAL_IP: ${SERVER_PUBLIC_IP} # 公网 IP
-      MIN_PORT: 60000                  # 中继端口范围
-      MAX_PORT: 62000
-      USERNAME: ${TURN_USERNAME}
-      PASSWORD: ${TURN_PASSWORD}
     volumes:
-#      - ${DATA_ROOT}/coturn/turnserver.conf:/etc/turnserver.conf:ro
+      - ./turnserver.conf:/etc/turnserver.conf:ro
       - ${DATA_ROOT}/coturn/privkey.pem:/etc/ssl/private/privkey.pem:ro
       - ${DATA_ROOT}/coturn/cert.pem:/etc/ssl/certs/cert.pem:ro
