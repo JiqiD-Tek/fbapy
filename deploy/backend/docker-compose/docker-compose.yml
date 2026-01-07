@@ -12,6 +12,8 @@ services:
     container_name: mysql
     restart: unless-stopped
     privileged: true
+    mem_limit: 8g
+    cpus: 2.0
     ports:
       - "3306:3306"  # 映射宿主机 3306
     environment:
@@ -36,6 +38,8 @@ services:
     container_name: redis
     restart: unless-stopped
     privileged: true
+    mem_limit: 2g
+    cpus: 1.0
     ports:
       - "6379:6379"
     command: redis-server --requirepass ${REDIS_PASSWORD}
@@ -76,6 +80,8 @@ services:
     container_name: emqx
     restart: unless-stopped
     privileged: true
+    mem_limit: 6g
+    cpus: 2.0
     environment:
       EMQX_NODE_NAME: ${EMQX_NODE_NAME}
       EMQX_LISTENERS__TCP__DEFAULT__BIND: 0.0.0.0:1883
@@ -104,6 +110,8 @@ services:
     image: fbapy:latest
     container_name: fbapy
     restart: unless-stopped
+    mem_limit: 2g
+    cpus: 1.0
     volumes:
       - .env.server:/fbapy/backend/.env:ro
       - ${DATA_ROOT}/fbapy/log:/var/log/fba
@@ -120,20 +128,42 @@ services:
         supervisorctl restart
 
   # ------------------------
-  # LiveKit Server
+  # LiveKit Server(主机网络)
   # ------------------------
   livekit-server:
     image: livekit/livekit-server:latest
     container_name: livekit-server
     restart: unless-stopped
-    ports:
-      - "7880:7880"         # 主信令端口 (HTTP / WebSocket)
-      - "7881:7881"         # TCP 回退端口（ICE TCP）
-      - "50000-53000:50000-53000/udp"  # WebRTC RTP 端口
+    cpus: 4.0
+    mem_limit: 12g
+    network_mode: "host"  # 使用 host 网络模式解决端口映射问题
     volumes:
       - ./livekit.yaml:/livekit.yaml   # 配置文件（Key / RTC / Redis）
-    command: --config /livekit.yaml --dev  # 开发模式（生产环境建议移除 --dev ）
+    command: >
+      --config /livekit.yaml
+      ${LIVEKIT_FLAGS}
     depends_on:
       - redis     # 依赖 Redis 用于房间管理、状态协调
-    networks:
-      - fba-network
+
+  # ------------------------
+  # TURN Server (主机网络)
+  # ------------------------
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 2g
+    network_mode: "host"  # 使用 host 网络模式解决端口映射问题
+    environment:
+      REALM: ${TURN_REALM}             # 公网域名或服务器 IP
+      LISTENING_PORT: 5349             # TLS 端口
+      EXTERNAL_IP: ${SERVER_PUBLIC_IP} # 公网 IP
+      MIN_PORT: 60000                  # 中继端口范围
+      MAX_PORT: 62000
+      USERNAME: ${TURN_USERNAME}
+      PASSWORD: ${TURN_PASSWORD}
+    volumes:
+#      - ${DATA_ROOT}/coturn/turnserver.conf:/etc/turnserver.conf:ro
+      - ${DATA_ROOT}/coturn/privkey.pem:/etc/ssl/private/privkey.pem:ro
+      - ${DATA_ROOT}/coturn/cert.pem:/etc/ssl/certs/cert.pem:ro
