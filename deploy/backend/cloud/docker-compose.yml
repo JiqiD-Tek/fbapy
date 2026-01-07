@@ -5,15 +5,51 @@ networks:
 
 services:
   # ------------------------
+  # Prometheus
+  # ------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 512m
+    ports:
+      - "9090:9090"       # Prometheus Web UI
+    volumes:
+      - ./grafana/prometheus.yml:/etc/prometheus/prometheus.yml  # 配置文件
+      - ${DATA_ROOT}/prometheus:/prometheus  # 数据持久化
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
+    networks:
+      - fba-network
+
+  # ------------------------
+  # Grafana
+  # ------------------------
+  grafana:
+    image: grafana/grafana:nightly-ubuntu
+    container_name: grafana
+    restart: unless-stopped
+    cpus: 0.5
+    mem_limit: 512m
+    ports:
+      - "3000:3000"       # Grafana Web UI
+    volumes:
+      - ${DATA_ROOT}/grafana:/var/lib/grafana   # 数据持久化
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    networks:
+      - fba-network
+
+  # ------------------------
   # MySQL 数据库
   # ------------------------
   mysql:
     image: mysql
     container_name: mysql
     restart: unless-stopped
-    privileged: true
-    mem_limit: 8g
-    cpus: 2.0
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "3306:3306"  # 映射宿主机 3306
     environment:
@@ -37,38 +73,17 @@ services:
     image: redis
     container_name: redis
     restart: unless-stopped
-    privileged: true
-    mem_limit: 2g
     cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --bind 0.0.0.0
     volumes:
       - ${DATA_ROOT}/redis/data:/data
-    networks:
-      - fba-network
-
-  # ------------------------
-  # Nginx 代理
-  # ------------------------
-  nginx:
-    image: nginx
-    container_name: nginx
-    restart: unless-stopped
-    privileged: true
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      - NGINX_PORT=80
-      - TZ=Asia/Shanghai
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ${DATA_ROOT}/nginx/html:/usr/share/nginx/html
-      - ${DATA_ROOT}/nginx/logs:/var/log/nginx
-      - /etc/localtime:/etc/localtime:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
     networks:
       - fba-network
 
@@ -79,9 +94,8 @@ services:
     image: emqx/emqx-enterprise:5.10.1-rc.2
     container_name: emqx
     restart: unless-stopped
-    privileged: true
-    mem_limit: 6g
     cpus: 2.0
+    mem_limit: 4096m
     environment:
       EMQX_NODE_NAME: ${EMQX_NODE_NAME}
       EMQX_LISTENERS__TCP__DEFAULT__BIND: 0.0.0.0:1883
@@ -104,28 +118,49 @@ services:
       - fba-network
 
   # ------------------------
+  # Nginx 代理
+  # ------------------------
+  nginx:
+    image: nginx
+    container_name: nginx
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1024m
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - NGINX_PORT=80
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ${DATA_ROOT}/nginx/html:/usr/share/nginx/html
+      - ${DATA_ROOT}/nginx/logs:/var/log/nginx
+      - /etc/localtime:/etc/localtime:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
+    networks:
+      - fba-network
+
+  # ------------------------
   # 后端服务 fbapy
   # ------------------------
   fbapy:
     image: fbapy:latest
     container_name: fbapy
     restart: unless-stopped
-    mem_limit: 2g
     cpus: 1.0
+    mem_limit: 1024m
     volumes:
       - .env.server:/fbapy/backend/.env:ro
       - ${DATA_ROOT}/fbapy/log:/var/log/fba
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "8000:8000"
+    command: >
+      supervisord -n -c /etc/supervisor/supervisord.conf
     networks:
       - fba-network
-    command:
-      - bash
-      - -c
-      - |
-        supervisord -c /etc/supervisor/supervisord.conf
-        supervisorctl restart
 
   # ------------------------
   # LiveKit Server(主机网络)
@@ -134,16 +169,14 @@ services:
     image: livekit/livekit-server:latest
     container_name: livekit-server
     restart: unless-stopped
-    cpus: 4.0
-    mem_limit: 12g
+    cpus: 8.0
+    mem_limit: 16g
     network_mode: "host"  # 使用 host 网络模式解决端口映射问题
     volumes:
       - ./livekit.yaml:/livekit.yaml   # 配置文件（Key / RTC / Redis）
     command: >
       --config /livekit.yaml
       ${LIVEKIT_FLAGS}
-    depends_on:
-      - redis     # 依赖 Redis 用于房间管理、状态协调
 
   # ------------------------
   # TURN Server (主机网络)
@@ -153,7 +186,7 @@ services:
     container_name: coturn
     restart: unless-stopped
     cpus: 1.0
-    mem_limit: 2g
+    mem_limit: 1024m
     network_mode: "host"  # 使用 host 网络模式解决端口映射问题
     volumes:
       - ./turnserver.conf:/etc/turnserver.conf:ro
