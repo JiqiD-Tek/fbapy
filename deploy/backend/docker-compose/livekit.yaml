@@ -10,23 +10,23 @@ rtc:
       port: 5349                 # Coturn TLS 端口
       protocol: tls              # TLS
       username: admin
-      credential: Jiqid_iot_2026
+      credential: Jiqid_iot_yyds
 
     - host: iot.jiqid.com
       port: 3478                 # Coturn TCP/UDP 端口
       protocol: tcp              # TCP 回退
       username: admin
-      credential: Jiqid_iot_2026
+      credential: Jiqid_iot_yyds
 
     - host: iot.jiqid.com
       port: 3478                 # Coturn UDP 端口
       protocol: udp              # UDP
       username: admin
-      credential: Jiqid_iot_2026
+      credential: Jiqid_iot_yyds
 
 redis:
   address: 10.240.225.23:6379   # IP + 端口
-  password: "Jiqid_iot_2026"
+  password: "Jiqid_iot_yyds"
   db: 2
 
 turn:
