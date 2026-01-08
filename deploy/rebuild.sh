@@ -81,7 +81,7 @@ main() {
     # 初始化路径
     local PROJECT_DIR
     PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    local COMPOSE_DIR="$PROJECT_DIR/deploy/backend/docker-compose"
+    local COMPOSE_DIR="$PROJECT_DIR/deploy/backend/azure"
 
     log_info "项目目录: $PROJECT_DIR"
     log_info "Docker Compose 目录: $COMPOSE_DIR"
