@@ -4,7 +4,7 @@ from fastapi import Request
 from ip2loc import XdbSearcher
 from user_agents import parse
 
-from backend.common._dataclasses import IpInfo, UserAgentInfo
+from backend.common._dataclasses import IpInfo, UserAgentInfo, UserInfo
 from backend.common.log import log
 from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR
@@ -120,3 +120,17 @@ def parse_user_agent_info(request: Request) -> UserAgentInfo:
         browser = user_agent_.get_browser()
         device = user_agent_.get_device()
     return UserAgentInfo(user_agent=user_agent, device=device, os=os, browser=browser)
+
+
+def parse_user_info(request: Request) -> UserInfo:
+    """
+    解析请求的用户信息
+
+    :param request: FastAPI 请求对象
+    :return:
+    """
+    x_country = request.headers.get('X-Country')
+    x_language = request.headers.get('X-Language')
+    x_timezone = request.headers.get('X-Timezone')
+
+    return UserInfo(x_country=x_country, x_language=x_language, x_timezone=x_timezone)

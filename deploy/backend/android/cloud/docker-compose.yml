@@ -171,13 +171,37 @@ services:
     networks:
       - jiqid_network
 
-  # jenkins-docker-agent_01:
-  #  build:
-  #    context: .
-  #    dockerfile: Dockerfile.jenkins-docker-agent_01
-  #  image: android14-app-builder
-  #  container_name: android14-app-builder
-  #  # 不启动，只提供镜像给 Jenkins Dynamic Agent
-  #  entrypoint: ["tail", "-f", "/dev/null"]
-  #  volumes:
-  #    - /var/run/docker.sock:/var/run/docker.sock
+  # Nexus 仓库服务
+  nexus:
+    image: dockette/nexus:latest
+    container_name: nexus
+    restart: unless-stopped
+    ports:
+      - "8085:8081"
+    volumes:
+      - ${DATA_ROOT}/nexus/data:/nexus-data
+    environment:
+      - INSTALL4J_ADD_VM_PARAMS=-Xms512m -Xmx2048m -XX:MaxDirectMemorySize=2048m
+    user: "root"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    networks:
+      - jiqid_network
+
+  # 构建机
+  jenkins-agent_01:
+    image: jenkins-agent_android14:1.0
+    container_name: jenkins-agent_01
+    restart: unless-stopped
+    depends_on:
+      - jenkins
+    environment:
+      JENKINS_URL: http://10.240.225.34:8082/
+      JENKINS_AGENT_NAME: agent_01
+      JENKINS_SECRET: 94172727e01f53d7ccf6b8e637beb58dba273bd718aea330afb77eb1b87d1db6
+    volumes:
+      - ${DATA_ROOT}/jenkins/agent/agent_01/gradle:/home/jenkins/.gradle
+    networks:
+      - jiqid_network

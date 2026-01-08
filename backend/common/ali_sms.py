@@ -64,16 +64,11 @@ class AliSmsClient:
     # ----------------------------
     # Public API
     # ----------------------------
-    async def send_code(
-            self,
-            to: str,
-            code: str,
-            region: Literal["cn", "global"] = "cn",
-    ) -> bool:
+    async def send_code(self, to: str, code: str) -> bool:
         """
         统一发送验证码入口
         """
-        if region == "cn":
+        if to.startswith('86'):  # CN
             return await self._send_cn(to, code)
         else:
             return await self._send_global(to, code)
@@ -145,10 +140,10 @@ sms_client = AliSmsClient(
 
 async def main():
     # 国内
-    await sms_client.send_code("15050522761", "1234", region="cn")
+    await sms_client.send_code("8615050522761", "1234")
 
     # 国际
-    await sms_client.send_code("254798789709", "1234", region="global")
+    await sms_client.send_code("254798789709", "1234")
 
 
 if __name__ == "__main__":

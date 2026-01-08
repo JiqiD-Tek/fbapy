@@ -19,6 +19,9 @@ class LoginLogSchemaBase(SchemaBase):
     browser: str | None = Field(None, description='浏览器')
     os: str | None = Field(None, description='操作系统')
     device: str | None = Field(None, description='设备')
+    x_country: str | None = Field(None, description='用户设置的国家')
+    x_language: str | None = Field(None, description='用户设置的语言')
+    x_timezone: str | None = Field(None, description='用户设置的时区')
     msg: str = Field(description='消息')
     login_time: datetime = Field(description='登录时间')
 

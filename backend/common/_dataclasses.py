@@ -24,6 +24,12 @@ class UserAgentInfo:
 
 
 @dataclasses.dataclass
+class UserInfo:
+    x_country: str | None
+    x_language: str | None
+    x_timezone: str | None
+
+@dataclasses.dataclass
 class RequestCallNext:
     code: str
     msg: str

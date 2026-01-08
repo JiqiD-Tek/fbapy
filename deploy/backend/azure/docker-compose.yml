@@ -20,6 +20,10 @@ services:
       - ${DATA_ROOT}/prometheus:/prometheus  # 数据持久化
     extra_hosts:
       - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
+    command:
+      - "--storage.tsdb.retention.time=7d"
+      - "--storage.tsdb.retention.size=10GB"
+      - "--query.max-concurrency=10"
     networks:
       - fba-network
 
@@ -49,7 +53,7 @@ services:
     container_name: mysql
     restart: unless-stopped
     cpus: 1.0
-    mem_limit: 1024m
+    mem_limit: 2048m
     ports:
       - "3306:3306"  # 映射宿主机 3306
     environment:
@@ -150,7 +154,7 @@ services:
     container_name: fbapy
     restart: unless-stopped
     cpus: 1.0
-    mem_limit: 1024m
+    mem_limit: 2048m
     volumes:
       - .env.server:/fbapy/backend/.env:ro
       - ${DATA_ROOT}/fbapy/log:/var/log/fba
@@ -169,7 +173,7 @@ services:
     image: livekit/livekit-server:latest
     container_name: livekit-server
     restart: unless-stopped
-    cpus: 8.0
+    cpus: 6.0
     mem_limit: 16g
     network_mode: "host"  # 使用 host 网络模式解决端口映射问题
     volumes:

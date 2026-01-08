@@ -18,6 +18,11 @@ class TypedContextProtocol(Protocol):
     browser: str | None
     device: str | None
 
+    # 用户设置
+    x_country: str | None
+    x_language: str | None
+    x_timezone: str | None
+
     permission: str | None
     language: str
 

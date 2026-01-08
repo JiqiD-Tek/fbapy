@@ -106,6 +106,10 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
                 browser=ctx.browser,
                 device=ctx.device,
                 args=args,
+                # 用户设置
+                x_country=ctx.country,
+                x_language=ctx.language,
+                x_timezone=ctx.timezone,
                 status=status,
                 code=str(code),
                 msg=msg,

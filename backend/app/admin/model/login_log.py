@@ -25,6 +25,9 @@ class LoginLog(DataClassBase):
     os: Mapped[str | None] = mapped_column(sa.String(64), comment='操作系统')
     browser: Mapped[str | None] = mapped_column(sa.String(64), comment='浏览器')
     device: Mapped[str | None] = mapped_column(sa.String(64), comment='设备')
+    x_country: Mapped[str | None] = mapped_column(sa.String(64), comment='用户设置的国家')
+    x_language: Mapped[str | None] = mapped_column(sa.String(32), comment='用户设置的语言')
+    x_timezone: Mapped[str | None] = mapped_column(sa.String(32), comment='用户设置的时区')
     msg: Mapped[str] = mapped_column(UniversalText, comment='提示消息')
     login_time: Mapped[datetime] = mapped_column(TimeZone, comment='登录时间')
     created_time: Mapped[datetime] = mapped_column(

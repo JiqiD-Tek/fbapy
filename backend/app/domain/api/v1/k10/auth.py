@@ -41,12 +41,11 @@ async def k10_get_captcha(
         background_tasks: BackgroundTasks,
         phone: Annotated[str | None, Query(description='手机号')] = None,
         email: Annotated[str | None, Query(description='邮箱')] = None,
-        region: Annotated[str | None, Query(description='区域, cn | global')] = "cn",
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 
     if phone:
-        background_tasks.add_task(sms_client.send_code, phone, code, region)
+        background_tasks.add_task(sms_client.send_code, phone, code)
     elif email:
         content = {'code': code, 'expired': int(settings.LOGIN_CAPTCHA_EXPIRE_SECONDS / 60)}
         background_tasks.add_task(send_email, db, email, '验证码', content, 'captcha.html')

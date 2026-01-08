@@ -60,6 +60,10 @@ class LoginLogService:
                 browser=ctx.browser,
                 os=ctx.os,
                 device=ctx.device,
+                # 用户设置
+                x_country=ctx.x_country,
+                x_language=ctx.x_language,
+                x_timezone=ctx.x_timezone,
                 msg=msg,
                 login_time=login_time,
             )
