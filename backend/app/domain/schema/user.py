@@ -22,7 +22,6 @@ class DeviceAuthSchemaBase(SchemaBase):
     model: str = Field(description='设备型号')
     timestamp: int = Field(description='时间戳')
     nonce: str = Field(description='防重放')
-    signature: str = Field(description='签名')
 
 
 class AuthSchemaBase(SchemaBase):
