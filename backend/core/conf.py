@@ -1,3 +1,5 @@
+import shutil
+
 from functools import lru_cache
 from re import Pattern
 from typing import Any, Literal
@@ -5,14 +7,14 @@ from typing import Any, Literal
 from pydantic import model_validator, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from backend.core.path_conf import BASE_PATH
+from backend.core.path_conf import ENV_EXAMPLE_FILE_PATH, ENV_FILE_PATH
 
 
 class Settings(BaseSettings):
     """全局配置"""
 
     model_config = SettingsConfigDict(
-        env_file=f'{BASE_PATH}/.env',
+        env_file=ENV_FILE_PATH,
         env_file_encoding='utf-8',
         extra='ignore',
         case_sensitive=True,
@@ -182,9 +184,6 @@ class Settings(BaseSettings):
     LOG_ACCESS_FILENAME: str = 'fba_access.log'
     LOG_ERROR_FILENAME: str = 'fba_error.log'
 
-    # .env 操作日志
-    OPERA_LOG_ENCRYPT_SECRET_KEY: str  # secrets.token_hex(32)
-
     # 操作日志
     OPERA_LOG_PATH_EXCLUDE: list[str] = [
         '/favicon.ico',
@@ -194,10 +193,8 @@ class Settings(BaseSettings):
         f'{FASTAPI_API_V1_PATH}/auth/login/swagger',
         f'{FASTAPI_API_V1_PATH}/oauth2/github/callback',
         f'{FASTAPI_API_V1_PATH}/oauth2/google/callback',
-        f'{FASTAPI_API_V1_PATH}/oauth2/linux-do/callback',
     ]
-    OPERA_LOG_ENCRYPT_TYPE: int = 1  # 0: AES (性能损耗); 1: md5; 2: ItsDangerous; 3: 不加密, others: 替换为 ******
-    OPERA_LOG_ENCRYPT_KEY_INCLUDE: list[str] = [  # 将加密接口入参参数对应的值
+    OPERA_LOG_REDACT_KEYS: list[str] = [
         'password',
         'old_password',
         'new_password',
@@ -252,15 +249,12 @@ class Settings(BaseSettings):
     OAUTH2_GITHUB_CLIENT_SECRET: str
     OAUTH2_GOOGLE_CLIENT_ID: str
     OAUTH2_GOOGLE_CLIENT_SECRET: str
-    OAUTH2_LINUX_DO_CLIENT_ID: str
-    OAUTH2_LINUX_DO_CLIENT_SECRET: str
 
     # 基础配置
     OAUTH2_STATE_REDIS_PREFIX: str = 'fba:oauth2:state'
     OAUTH2_STATE_EXPIRE_SECONDS: int = 60 * 3  # 3 分钟
     OAUTH2_GITHUB_REDIRECT_URI: str = 'http://127.0.0.1:8000/api/v1/oauth2/github/callback'
     OAUTH2_GOOGLE_REDIRECT_URI: str = 'http://127.0.0.1:8000/api/v1/oauth2/google/callback'
-    OAUTH2_LINUX_DO_REDIRECT_URI: str = 'http://127.0.0.1:8000/api/v1/oauth2/linux-do/callback'
     OAUTH2_FRONTEND_LOGIN_REDIRECT_URI: str = 'http://localhost:5173/oauth2/callback'
     OAUTH2_FRONTEND_BINDING_REDIRECT_URI: str = 'http://localhost:5173/profile'
 
@@ -371,6 +365,8 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """获取全局配置单例"""
+    if not ENV_FILE_PATH.exists():
+        shutil.copy(ENV_EXAMPLE_FILE_PATH, ENV_FILE_PATH)
     return Settings()
 
 

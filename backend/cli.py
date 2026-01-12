@@ -25,13 +25,19 @@ from backend import __version__
 from backend.common.enums import DataBaseType, PrimaryKeyType
 from backend.common.exception.errors import BaseExceptionError
 from backend.core.conf import settings
-from backend.core.path_conf import BASE_PATH
+from backend.core.path_conf import (
+    ENV_EXAMPLE_FILE_PATH,
+    ENV_FILE_PATH,
+    MYSQL_SCRIPT_DIR,
+    POSTGRESQL_SCRIPT_DIR,
+)
 from backend.database.db import async_db_session, create_tables, drop_tables
 from backend.database.redis import redis_client
-from backend.plugin.tools import get_plugin_sql, get_plugins
+from backend.plugin.core import get_plugin_sql, get_plugins
+from backend.plugin.installer import install_git_plugin, install_zip_plugin
 from backend.utils.console import console
-from backend.utils.file_ops import install_git_plugin, install_zip_plugin, parse_sql_script
-from backend.utils.import_parse import import_module_cached
+from backend.utils.dynamic_import import import_module_cached
+from backend.utils.sql_parser import parse_sql_script
 
 output_help = '\n更多信息，尝试 "[cyan]--help[/]"'
 
@@ -44,15 +50,12 @@ class CustomReloadFilter(PythonFilter):
 
 
 def setup_env_file() -> bool:
-    env_path = BASE_PATH / '.env'
-    env_example_path = BASE_PATH / '.env.example'
-
-    if not env_example_path.exists():
+    if not ENV_EXAMPLE_FILE_PATH.exists():
         console.print('.env.example 文件不存在', style='red')
         return False
 
     try:
-        env_content = Path(env_example_path).read_text(encoding='utf-8')
+        env_content = Path(ENV_EXAMPLE_FILE_PATH).read_text(encoding='utf-8')
         console.print('配置数据库连接信息...', style='white')
         db_type = Prompt.ask('数据库类型', choices=['mysql', 'postgresql'], default='postgresql')
         db_host = Prompt.ask('数据库主机', default='127.0.0.1')
@@ -66,9 +69,8 @@ def setup_env_file() -> bool:
         redis_password = Prompt.ask('Redis 密码（留空表示无密码）', password=True, default='')
         redis_db = Prompt.ask('Redis 数据库编号', default='0')
 
-        console.print('生成 Token 和操作日志密钥...', style='white')
+        console.print('生成 Token 密钥...', style='white')
         token_secret = secrets.token_urlsafe(32)
-        opera_log_secret = secrets.token_hex(32)
 
         console.print('写入 .env 文件...', style='white')
         env_content = env_content.replace("DATABASE_TYPE='postgresql'", f"DATABASE_TYPE='{db_type}'")
@@ -91,12 +93,8 @@ def setup_env_file() -> bool:
         settings.REDIS_DATABASE = redis_db
         env_content = re.sub(r"TOKEN_SECRET_KEY='[^']*'", f"TOKEN_SECRET_KEY='{token_secret}'", env_content)
         settings.TOKEN_SECRET_KEY = token_secret
-        env_content = re.sub(
-            r"OPERA_LOG_ENCRYPT_SECRET_KEY='[^']*'", f"OPERA_LOG_ENCRYPT_SECRET_KEY='{opera_log_secret}'", env_content
-        )
-        settings.OPERA_LOG_ENCRYPT_SECRET_KEY = opera_log_secret
 
-        Path(env_path).write_text(env_content, encoding='utf-8')
+        Path(ENV_FILE_PATH).write_text(env_content, encoding='utf-8')
         console.print('.env 文件创建成功', style='green')
     except Exception as e:
         console.print(f'.env 文件创建失败: {e}', style='red')
@@ -173,7 +171,7 @@ async def auto_init() -> None:
     panel_content.append('\n  • Redis 连接信息')
     panel_content.append('\n  • Token 密钥（自动生成）')
 
-    console.print(Panel(panel_content, title=f'fba v{__version__} 环境变量', border_style='cyan', padding=(1, 2)))
+    console.print(Panel(panel_content, title=f'fba (v{__version__}) - 环境变量', border_style='cyan', padding=(1, 2)))
     if not setup_env_file():
         raise cappa.Exit('.env 文件配置失败', code=1)
 
@@ -187,7 +185,7 @@ async def auto_init() -> None:
     panel_content.append('\n  • 主机：')
     panel_content.append(f'{settings.DATABASE_HOST}:{settings.DATABASE_PORT}', style='yellow')
 
-    console.print(Panel(panel_content, title=f'fba v{__version__} 数据库', border_style='cyan', padding=(1, 2)))
+    console.print(Panel(panel_content, title=f'fba (v{__version__}) - 数据库', border_style='cyan', padding=(1, 2)))
     ok = Prompt.ask('即将[red]新建/重建数据库[/red]，确认继续吗？', choices=['y', 'n'], default='n')
 
     if ok.lower() == 'y':
@@ -229,7 +227,7 @@ async def init() -> None:
     else:
         panel_content.append('无', style='dim')
 
-    console.print(Panel(panel_content, title=f'fba v{__version__} 初始化', border_style='cyan', padding=(1, 2)))
+    console.print(Panel(panel_content, title=f'fba (v{__version__}) - 初始化', border_style='cyan', padding=(1, 2)))
     ok = Prompt.ask(
         '即将[red]新建/重建数据库表[/red]并[red]执行所有数据库脚本[/red]，确认继续吗？', choices=['y', 'n'], default='n'
     )
@@ -290,7 +288,7 @@ def run(host: str, port: int, reload: bool, workers: int) -> None:  # noqa: FBT0
     panel_content.append('\n🌐 架构官方文档: ', style='bold magenta')
     panel_content.append('https://fastapi-practices.github.io/fastapi_best_architecture_docs/')
 
-    console.print(Panel(panel_content, title=f'fba v{__version__}', border_style='purple', padding=(1, 2)))
+    console.print(Panel(panel_content, title=f'fba (v{__version__})', border_style='purple', padding=(1, 2)))
     granian.Granian(
         target='backend.main:app',
         interface='asgi',
@@ -364,15 +362,11 @@ async def install_plugin(
 
 async def get_sql_scripts() -> list[str]:
     sql_scripts = []
-    db_dir = (
-        BASE_PATH / 'sql' / 'mysql'
-        if DataBaseType.mysql == settings.DATABASE_TYPE
-        else BASE_PATH / 'sql' / 'postgresql'
-    )
+    db_script_dir = MYSQL_SCRIPT_DIR if DataBaseType.mysql == settings.DATABASE_TYPE else POSTGRESQL_SCRIPT_DIR
     main_sql_file = (
-        db_dir / 'init_test_data.sql'
+        db_script_dir / 'init_test_data.sql'
         if PrimaryKeyType.autoincrement == settings.DATABASE_PK_MODE
-        else db_dir / 'init_snowflake_test_data.sql'
+        else db_script_dir / 'init_snowflake_test_data.sql'
     )
 
     main_sql_path = anyio.Path(main_sql_file)
@@ -406,8 +400,8 @@ async def import_table(
     table_schema: str,
     table_name: str,
 ) -> None:
-    from backend.plugin.code_generator.schema.code import ImportParam
-    from backend.plugin.code_generator.service.code_service import gen_service
+    from backend.plugin.code_generator.schema.gen import ImportParam
+    from backend.plugin.code_generator.service.gen_service import gen_service
 
     try:
         obj = ImportParam(app=app, table_schema=table_schema, table_name=table_name)
@@ -421,7 +415,7 @@ async def import_table(
 
 async def generate() -> None:
     from backend.plugin.code_generator.service.business_service import gen_business_service
-    from backend.plugin.code_generator.service.code_service import gen_service
+    from backend.plugin.code_generator.service.gen_service import gen_service
 
     try:
         ids = []
