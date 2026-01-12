@@ -19,6 +19,7 @@ from starlette_context.plugins import RequestIdPlugin
 from backend import __version__
 from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_custom_logfile, setup_logging
+from backend.common.mqtt_broker import init_mqtt, close_mqtt
 from backend.common.response.response_code import StandardResponseCode
 from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR, UPLOAD_DIR
@@ -66,7 +67,13 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 创建操作日志任务
     create_task(OperaLogMiddleware.consumer())
 
+    # 初始化mqtt连接
+    await init_mqtt()
+
     yield
+
+    # 关闭 mqtt 连接
+    await close_mqtt()
 
     # 释放 snowflake 节点
     await snowflake.shutdown()

@@ -7,9 +7,11 @@
 """
 import uuid
 from typing import Annotated
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Path, Query, Depends
 
 from backend.app.domain.service.feedback import feedback_service
+from backend.app.domain.service.messaging import MessagingService
+from backend.common.mqtt_broker import get_mqtt, MQTTBroker
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -58,14 +60,16 @@ async def get_feedback_paginated(
 async def create_feedback(
         db: CurrentSessionTransaction,
         obj: CreateFeedbackParam,
+        mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
     if obj.status == 0:
         obj.file_url = f"https://media.jiqid.com/K10/feedback/log/{uuid.uuid4().hex}.log"  # 云端日志文件地址
 
     feedback = await feedback_service.create(db=db, obj=obj)
 
-    if obj.status == 'cloud':
-        pass  # TODO mqtt
+    # mqtt
+    messaging_service = MessagingService(mqtt_client=mqtt_client, device_id=obj.device_id)
+    messaging_service.send_request_log(store_url=obj.file_url)
 
     return response_base.success(data=feedback)
 

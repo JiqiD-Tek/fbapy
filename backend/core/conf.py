@@ -141,7 +141,7 @@ class Settings(BaseSettings):
     REQUEST_LIMITER_REDIS_PREFIX: str = 'fba:limiter'
 
     # 时间配置
-    DATETIME_TIMEZONE: str = 'Asia/Shanghai'
+    DATETIME_TIMEZONE: str = 'UTC'  # 如：Asia/Shanghai、UTC
     DATETIME_FORMAT: str = '%Y-%m-%d %H:%M:%S'
 
     # 文件上传
@@ -293,11 +293,11 @@ class Settings(BaseSettings):
     LIVEKIT_API_SECRET: str = ''
 
     # MQTT
-    MQTT_HOST: str = "zh.api.jiqid.net"
+    MQTT_HOST: str = "10.240.225.23"
     MQTT_PORT: int = 1883
     MQTT_USERNAME: str = "admin"
-    MQTT_JWT_SECRET: str = "Qkxc123456"
-    MQTT_PASSWORD: str = "Qkxc123456"
+    MQTT_JWT_SECRET: str = ""
+    MQTT_PASSWORD: str = ""
 
     # QQ音乐
     QQ_MUSIC_URL: str = "https://test.szhkeji.com/rpc_proxy/music_open_api"

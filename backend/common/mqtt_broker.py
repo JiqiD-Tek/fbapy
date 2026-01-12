@@ -463,7 +463,7 @@ async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
     """创建 MQTT 配置并验证设置"""
     try:
         client_id = client_id or f"fbapy_{int(time.time_ns())}"
-        password = jwt.encode(claims={"model": "oh2g"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
+        password = jwt.encode(claims={"model": "k10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
 
         return MQTTConfig(
             host=settings.MQTT_HOST,
