@@ -25,7 +25,7 @@ from backend.database.redis import redis_client
 
 from backend.app.domain.schema.captcha import GetCaptchaDetail
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
-from backend.app.domain.schema.user import AuthLoginParam
+from backend.app.domain.schema.user import AuthLoginParam, MqttLoginParam
 from backend.app.domain.service.auth import auth_service
 from backend.plugin.email.utils.send import send_email
 
@@ -113,11 +113,10 @@ async def k10_logout(
 )
 async def mqtt_login(
         request: Request,
-        username: Annotated[str, Query(description='MAC 地址')],
-        password: Annotated[str, Query(description='设备did')],
+        obj: MqttLoginParam,
 ) -> ResponseModel:
-    credentials = secure_service.derive_credentials(mac=username)
-    if password != credentials["did"]:
+    credentials = secure_service.derive_credentials(mac=obj.username)
+    if obj.password != credentials["did"]:
         raise errors.ForbiddenError(msg='权限不足')
 
     return response_base.success()

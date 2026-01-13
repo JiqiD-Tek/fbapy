@@ -425,7 +425,7 @@ async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
     try:
         client_id = client_id or f"fbapy_{int(time.time_ns())}"
         password = jwt.encode(claims={"model": "K10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
-        # user_name = "C4:1C:9C:09:C9:81"
+        # username = "C4:1C:9C:09:C9:81"
         # password = "FFCE1FC24AFE5283AF39564CCB1559F5"
 
         return MQTTConfig(
