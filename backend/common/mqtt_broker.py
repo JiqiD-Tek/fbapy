@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 """
-@Project : jiqidpy
+@Project : fbapy
 @File    : mqtt_broker.py
 @Author  : guhua@jiqid.com
 @Date    : 2025/09/12 11:22
@@ -54,7 +54,7 @@ class MessageCallback(Protocol):
 
 
 class MQTTConnectionError(Exception):
-    """Custom exception for MQTT connection failures."""
+    """MQTT 连接失败的自定义异常。"""
     pass
 
 
@@ -65,9 +65,11 @@ class MQTTBroker:
         self.connected = False
         self.reconnect_attempts = 0
         self.subscriptions: Dict[str, Dict[int, MessageCallback]] = {}
-        self._message_task: Optional[asyncio.Task] = None
+
         self._connection_event = asyncio.Event()
+        self._disconnect_event = asyncio.Event()
         self._stop_event = asyncio.Event()
+
         self._client_lock = asyncio.Lock()
         self._callback_lock = Lock()
 
@@ -76,7 +78,7 @@ class MQTTBroker:
 
     @property
     def loop(self):
-        """Lazy initialization of event loop"""
+        """事件循环的延迟初始化。"""
         if self._loop is None:
             try:
                 self._loop = asyncio.get_event_loop()
@@ -87,11 +89,11 @@ class MQTTBroker:
     async def connect(self) -> bool:
         async with self._client_lock:
             if self.connected:
-                log.debug("Already connected to MQTT broker")
+                log.debug("已连接到 MQTT Broker")
                 return True
 
             if self._connection_task and not self._connection_task.done():
-                log.debug("Connection already in progress")
+                log.debug("连接任务已在进行中")
                 try:
                     await asyncio.wait_for(
                         self._connection_task,
@@ -99,14 +101,15 @@ class MQTTBroker:
                     )
                     return self.connected
                 except asyncio.TimeoutError:
-                    log.error(f"Connection task timeout after {self.config.connection_timeout}s")
+                    log.error(f"连接任务在 {self.config.connection_timeout}s 后超时")
                     return False
                 except Exception as e:
-                    log.error(f"Unexpected error in connection task: {str(e)}")
+                    log.error(f"连接任务发生意外错误: {str(e)}")
                     return False
 
             self._stop_event.clear()
             self._connection_event.clear()
+            self._disconnect_event.clear()
             self._connection_task = self.loop.create_task(
                 self._connection_loop(),
                 name="mqtt_connection_loop"
@@ -119,80 +122,88 @@ class MQTTBroker:
                 )
                 return self.connected
             except asyncio.TimeoutError:
-                log.error(f"Connection timeout after {self.config.connection_timeout}s")
+                log.error(f"连接在 {self.config.connection_timeout}s 后超时")
                 await self.disconnect()
                 return False
             except Exception as e:
-                log.error(f"Unexpected error during connection: {str(e)}")
+                log.error(f"连接过程中发生意外错误: {str(e)}")
                 await self.disconnect()
                 return False
 
     def _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict, rc: int, *args) -> None:
-        """Callback for when the client connects to the broker."""
+        """客户端连接到 Broker 时的回调。"""
         with self._callback_lock:
             if rc == mqtt.CONNACK_ACCEPTED:
                 self.connected = True
                 self.reconnect_attempts = 0
-                # Schedule event setting on the asyncio loop
-                asyncio.run_coroutine_threadsafe(self._set_connection_event(), self.loop)
-                log.info(f"Connected to MQTT broker {self.config.host}:{self.config.port}")
-                asyncio.run_coroutine_threadsafe(self._resubscribe_all(), self.loop)
+                asyncio.run_coroutine_threadsafe(self._set_event(self._connection_event), self.loop)
+                log.info(f"成功连接到 MQTT Broker {self.config.host}:{self.config.port}")
             else:
-                log.error(f"Connection failed with code {rc}: {mqtt.connack_string(rc)}")
+                log.error(f"连接失败，错误码 {rc}: {mqtt.connack_string(rc)}")
                 self.connected = False
-                asyncio.run_coroutine_threadsafe(self._clear_connection_event(), self.loop)
+                asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self.loop)
 
     def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int, *args) -> None:
-        """Callback for when the client disconnects."""
+        """客户端断开连接时的回调。"""
         with self._callback_lock:
             self.connected = False
-            asyncio.run_coroutine_threadsafe(self._clear_connection_event(), self.loop)
+            asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self.loop)
+            # 触发断开事件，通知连接循环醒来
+            asyncio.run_coroutine_threadsafe(self._set_event(self._disconnect_event), self.loop)
             if rc != mqtt.MQTT_ERR_SUCCESS:
-                log.warning(f"Unexpected disconnect with code {rc}")
-                asyncio.run_coroutine_threadsafe(self._handle_reconnect(), self.loop)
+                log.warning(f"意外断开连接，错误码: {rc}")
 
     def _on_message(self, client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
-        """Callback for when a message is received."""
+        """接收到消息时的回调。"""
         topic = message.topic
+
+        try:
+            payload = message.payload.decode()
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                pass
+        except Exception as e:
+            log.error(f"解码消息负载失败 (主题: {topic}): {e}")
+            return
+
+        message_ctx = {
+            'topic': topic,
+            'payload': payload,
+            'qos': message.qos,
+            'retain': message.retain,
+            'timestamp': time.time()
+        }
+
+        callbacks_to_run = []
         with self._callback_lock:
             for sub_topic, qos_callback in self.subscriptions.items():
                 if self._topic_matches(sub_topic, topic):
-                    for callback in qos_callback.values():
-                        try:
-                            payload = message.payload.decode()
-                            try:
-                                payload = json.loads(payload)
-                            except json.JSONDecodeError:
-                                pass
+                    callbacks_to_run.extend(qos_callback.values())
 
-                            message_ctx = {
-                                'topic': topic,
-                                'payload': payload,
-                                'qos': message.qos,
-                                'retain': message.retain,
-                                'timestamp': time.time()
-                            }
+        for callback in callbacks_to_run:
+            try:
+                if asyncio.iscoroutinefunction(callback):
+                    asyncio.run_coroutine_threadsafe(callback(message_ctx), self.loop)
+                else:
+                    self.loop.call_soon_threadsafe(callback, message_ctx)
+            except Exception as e:
+                log.error(f"调度回调出错 (主题: {topic}): {e}")
 
-                            if asyncio.iscoroutinefunction(callback):
-                                asyncio.run_coroutine_threadsafe(callback(message_ctx), self.loop)
-                            else:
-                                self.loop.call_soon_threadsafe(callback, message_ctx)
-                        except Exception as e:
-                            log.error(f"Error processing message on {topic} for subscription {sub_topic}: {str(e)}")
+    @staticmethod
+    async def _set_event(event: asyncio.Event) -> None:
+        event.set()
 
-    async def _set_connection_event(self) -> None:
-        """Helper to set connection event in the asyncio loop."""
-        self._connection_event.set()
-
-    async def _clear_connection_event(self) -> None:
-        """Helper to clear connection event in the asyncio loop."""
-        self._connection_event.clear()
+    @staticmethod
+    async def _clear_event(event: asyncio.Event) -> None:
+        event.clear()
 
     async def _connection_loop(self) -> None:
+        """核心连接循环。"""
         while not self._stop_event.is_set():
             try:
-                client_id = self.config.client_id or f"jiqidpy_{int(time.time_ns())}"
-                log.info(f"Connecting to MQTT broker {self.config.host}:{self.config.port} (client_id: {client_id})")
+                client_id = self.config.client_id or f"fbapy_{int(time.time_ns())}"
+                log.info(f"正在尝试连接 MQTT Broker (ID: {client_id})")
 
                 self.client = mqtt.Client(
                     client_id=client_id,
@@ -209,52 +220,44 @@ class MQTTBroker:
                 if self.config.ssl:
                     self.client.tls_set_context(self.config.ssl_context)
 
-                if self.config.version == MQTTVersion.V5 and self.config.clean_start:
-                    self.client._clean_start = True
-
-                self.client.connect(
-                    self.config.host,
-                    self.config.port,
-                    keepalive=self.config.keepalive
-                )
+                # 建立连接并启动后台循环
+                self.client.connect(self.config.host, self.config.port, keepalive=self.config.keepalive)
                 self.client.loop_start()
 
-                # Wait for connection event
-                await asyncio.wait_for(
-                    self._connection_event.wait(),
-                    timeout=self.config.connection_timeout
+                # 等待连接成功
+                await asyncio.wait_for(self._connection_event.wait(), timeout=self.config.connection_timeout)
+
+                # 挂起协程，直到断开连接或外部停止
+                self._disconnect_event.clear()
+                await asyncio.wait(
+                    [
+                        self.loop.create_task(self._disconnect_event.wait()),
+                        self.loop.create_task(self._stop_event.wait())
+                    ],
+                    return_when=asyncio.FIRST_COMPLETED
                 )
 
-                # Process messages in a separate task
-                if not self._message_task or self._message_task.done():
-                    self._message_task = self.loop.create_task(
-                        self._process_messages_forever(),
-                        name="mqtt_message_processor"
-                    )
-
-                # Keep the connection alive
-                while self.connected and not self._stop_event.is_set():
-                    await asyncio.sleep(1)
-
+            except asyncio.TimeoutError:
+                log.error("MQTT 连接超时")
             except (OSError, ValueError) as e:
-                log.error(f"MQTT connection failed: {str(e)}")
-                self.connected = False
-                await self._clear_connection_event()
-                await self._handle_reconnect()
+                log.error(f"MQTT 连接失败: {e}")
             except Exception as e:
-                log.error(f"Unexpected error in connection loop: {str(e)}")
-                self.connected = False
-                await self._clear_connection_event()
-                await self._handle_reconnect()
+                log.error(f"连接循环发生意外错误: {e}", exc_info=True)
             finally:
+                self.connected = False
                 if self.client:
                     self.client.loop_stop()
                     self.client.disconnect()
                     self.client = None
 
+                # 如果不是主动停止，则执行退避重连
+                if not self._stop_event.is_set():
+                    await self._handle_reconnect()
+
     async def _handle_reconnect(self) -> None:
+        """执行指数退避重连。"""
         if self.reconnect_attempts >= self.config.max_reconnect_attempts:
-            log.error(f"Maximum reconnection attempts ({self.config.max_reconnect_attempts}) reached")
+            log.error(f"已达到最大重连尝试次数 ({self.config.max_reconnect_attempts})")
             self._stop_event.set()
             return
 
@@ -265,56 +268,44 @@ class MQTTBroker:
         delay = max(0, delay + jitter)
 
         log.warning(
-            f"Reconnection attempt {self.reconnect_attempts}/{self.config.max_reconnect_attempts} in {delay:.2f}s")
+            f"将在 {delay:.2f}s 后进行第 {self.reconnect_attempts}/{self.config.max_reconnect_attempts} 次重连尝试")
         await asyncio.sleep(delay)
 
     async def _resubscribe_all(self) -> None:
+        """重新订阅所有已注册的主题。"""
         if not self.client or not self.connected:
-            log.warning("Cannot resubscribe: client not connected")
             return
 
         for topic, qos_callback in self.subscriptions.items():
             for qos in qos_callback.keys():
                 try:
                     self.client.subscribe(topic, qos=qos)
-                    log.debug(f"Resubscribed to topic: {topic} with QoS: {qos}")
-                except (OSError, ValueError) as e:
-                    log.error(f"Failed to resubscribe to {topic}: {str(e)}")
+                    log.debug(f"已重新订阅主题: {topic} (QoS: {qos})")
+                except Exception as e:
+                    log.error(f"重新订阅 {topic} 失败: {e}")
 
-    async def _process_messages_forever(self) -> None:
-        # paho-mqtt handles message processing in its own loop
-        while self.connected and not self._stop_event.is_set():
-            await asyncio.sleep(1)
-
-    def _topic_matches(self, subscription_topic: str, message_topic: str) -> bool:
-        # 处理共享订阅主题：去掉 $share/group/ 前缀
+    @staticmethod
+    def _topic_matches(subscription_topic: str, message_topic: str) -> bool:
+        """判断 MQTT 消息主题是否匹配订阅主题。"""
         if subscription_topic.startswith('$share/'):
-            # 提取共享订阅后的实际主题
-            parts = subscription_topic.split('/')
-            if len(parts) >= 3:
-                # 从 $share/group/actual/topic 中提取 actual/topic
-                actual_topic = '/'.join(parts[2:])
-                subscription_topic = actual_topic
-
-        # 原有的匹配逻辑
-        def match_segment(sub_seg: str, msg_seg: str) -> bool:
-            if sub_seg == '+' or sub_seg == '#':
-                return True
-            return sub_seg == msg_seg
+            parts = subscription_topic.split('/', 2)
+            if len(parts) == 3:
+                subscription_topic = parts[2]
 
         sub_segments = subscription_topic.split('/')
         msg_segments = message_topic.split('/')
 
         if '#' in sub_segments:
+            if sub_segments[-1] != '#':
+                return False
             idx = sub_segments.index('#')
-            return len(msg_segments) >= idx and all(
-                match_segment(sub_segments[i], msg_segments[i]) for i in range(idx)
-            )
+            if len(msg_segments) < idx:
+                return False
+            return all(s == '+' or s == m for s, m in zip(sub_segments[:idx], msg_segments[:idx]))
 
         if len(sub_segments) != len(msg_segments):
             return False
-
-        return all(match_segment(sub, msg) for sub, msg in zip(sub_segments, msg_segments))
+        return all(s == '+' or s == m for s, m in zip(sub_segments, msg_segments))
 
     async def subscribe(self, topic: str, callback: Optional[MessageCallback], qos: int = 1) -> bool:
         try:
@@ -324,17 +315,12 @@ class MQTTBroker:
                 self.subscriptions[topic][qos] = callback
 
                 if self.connected and self.client:
-                    try:
-                        self.client.subscribe(topic, qos=qos)
-                        log.info(f"Subscribed to topic: {topic} with QoS: {qos}")
-                    except (OSError, ValueError) as e:
-                        log.error(f"Failed to subscribe to {topic}: {str(e)}")
-                        return False
+                    self.client.subscribe(topic, qos=qos)
+                    log.info(f"已订阅主题: {topic} (QoS: {qos})")
 
-                log.info(f"Registered subscription for topic: {topic}")
                 return True
         except Exception as e:
-            log.error(f"Failed to subscribe to {topic}: {str(e)}")
+            log.error(f"订阅 {topic} 失败: {e}")
             return False
 
     async def unsubscribe(self, topic: str) -> bool:
@@ -342,23 +328,18 @@ class MQTTBroker:
             async with self._client_lock:
                 if topic in self.subscriptions:
                     del self.subscriptions[topic]
-                    log.info(f"Unsubscribed from topic: {topic}")
 
                 if self.client and self.connected:
-                    try:
-                        self.client.unsubscribe(topic)
-                        log.debug(f"MQTT unsubscribe sent for topic: {topic}")
-                    except (OSError, ValueError) as e:
-                        log.warning(f"Failed to send MQTT unsubscribe for {topic}: {str(e)}")
-
+                    self.client.unsubscribe(topic)
+                    log.debug(f"已发送取消订阅请求: {topic}")
                 return True
         except Exception as e:
-            log.error(f"Failed to unsubscribe from {topic}: {str(e)}")
+            log.error(f"取消订阅 {topic} 失败: {e}")
             return False
 
     async def publish(self, topic: str, payload: Union[str, dict, bytes], qos: int = 1, retain: bool = False) -> bool:
         if not self.connected or not self.client:
-            log.warning(f"Cannot publish to {topic}: client not connected")
+            log.warning(f"无法发布到 {topic}: 客户端未连接")
             return False
 
         try:
@@ -368,35 +349,22 @@ class MQTTBroker:
                 payload = payload.encode()
 
             self.client.publish(topic, payload, qos=qos, retain=retain)
-            log.debug(f"Published message to {topic} (QoS: {qos}, retain: {retain})")
+            log.debug(f"已发布消息到 {topic} (QoS: {qos}, Retain: {retain})")
             return True
-        except (OSError, ValueError) as e:
-            log.error(f"Failed to publish to {topic}: {str(e)}")
-            return False
         except Exception as e:
-            log.error(f"Unexpected error publishing to {topic}: {str(e)}")
+            log.error(f"发布到 {topic} 失败: {e}")
             return False
 
     async def disconnect(self) -> None:
+        """优雅关闭连接。"""
         self._stop_event.set()
         async with self._client_lock:
-            tasks_to_cancel = []
             if self._connection_task and not self._connection_task.done():
-                tasks_to_cancel.append(self._connection_task)
-            if self._message_task and not self._message_task.done():
-                tasks_to_cancel.append(self._message_task)
-
-            for task in tasks_to_cancel:
-                task.cancel()
-
-            if tasks_to_cancel:
+                self._connection_task.cancel()
                 try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                        timeout=self.config.unsubscribe_timeout
-                    )
-                except asyncio.TimeoutError:
-                    log.warning("Timeout waiting for tasks to cancel")
+                    await asyncio.wait_for(self._connection_task, timeout=self.config.unsubscribe_timeout)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
 
             if self.client:
                 self.client.loop_stop()
@@ -404,31 +372,22 @@ class MQTTBroker:
                 self.client = None
 
             self.connected = False
-            self._message_task = None
             self._connection_task = None
-            await self._clear_connection_event()
-            log.info("MQTT client disconnected")
+            await self._clear_event(self._connection_event)
+            log.info("MQTT 客户端已断开连接")
 
     @asynccontextmanager
     async def context(self):
         try:
             connected = await self.connect()
             if not connected:
-                raise MQTTConnectionError("Failed to connect to MQTT broker")
+                raise MQTTConnectionError("无法连接到 MQTT Broker")
             yield self
         finally:
             await self.disconnect()
 
     def is_connected(self) -> bool:
         return self.connected
-
-    async def wait_for_connection(self, timeout: float = 30.0) -> bool:
-        try:
-            await asyncio.wait_for(self._connection_event.wait(), timeout=timeout)
-            return self.connected
-        except asyncio.TimeoutError:
-            log.warning(f"Connection timeout after {timeout}s")
-            return False
 
 
 class MQTTDependency:
@@ -437,7 +396,7 @@ class MQTTDependency:
 
     @classmethod
     async def get_manager(cls, config: Optional[MQTTConfig] = None) -> MQTTBroker:
-        """获取或创建单一的 AsyncMQTTManager 实例"""
+        """获取或创建单一的 MQTTBroker 实例。"""
         async with cls._lock:
             if cls._instance is None:
                 config = config or await create_mqtt_config()
@@ -445,7 +404,7 @@ class MQTTDependency:
                 connected = await cls._instance.connect()
                 if not connected:
                     cls._instance = None
-                    raise MQTTConnectionError("Failed to initialize MQTT manager")
+                    raise MQTTConnectionError("无法初始化 MQTT 管理器")
                 await register_global_subscriptions(cls._instance)
             return cls._instance
 
@@ -456,53 +415,48 @@ class MQTTDependency:
             if cls._instance:
                 await cls._instance.disconnect()
                 cls._instance = None
-                log.info("MQTT manager closed")
+                log.info("MQTT 管理器已关闭")
 
 
 async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
-    """创建 MQTT 配置并验证设置"""
+    """创建并验证 MQTT 配置。"""
     try:
         client_id = client_id or f"fbapy_{int(time.time_ns())}"
-        password = jwt.encode(claims={"model": "k10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
+        password = jwt.encode(claims={"model": "K10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
 
         return MQTTConfig(
             host=settings.MQTT_HOST,
             port=settings.MQTT_PORT,
             username=settings.MQTT_USERNAME,
-            password=settings.MQTT_PASSWORD,
+            password=password,
             client_id=client_id,
             connection_timeout=getattr(settings, 'MQTT_CONNECTION_TIMEOUT', 30.0)
         )
     except AttributeError as e:
-        log.error(f"缺少 MQTT 配置: {str(e)}")
+        log.error(f"缺少 MQTT 配置项: {str(e)}")
         raise MQTTConnectionError(f"无效的 MQTT 配置: {str(e)}")
 
 
 async def register_global_subscriptions(manager: MQTTBroker) -> None:
-    """注册全局 MQTT 订阅"""
+    """注册全局订阅。"""
 
     async def on_message(message_ctx: Dict[str, Any]) -> None:
-        log.info(f"接收到消息，主题: {message_ctx['topic']}，内容: {message_ctx['payload']}")
+        log.info(f"收到全局消息 | 主题: {message_ctx['topic']} | 内容: {message_ctx['payload']}")
 
-    system_topic = getattr(settings, 'MQTT_SYSTEM_TOPIC', None)
-    if system_topic:
-        await manager.subscribe(system_topic, on_message)
-        log.debug(f"注册全局订阅主题: {system_topic}")
-    else:
-        log.warning("未定义 MQTT_SYSTEM_TOPIC，跳过全局订阅")
+    for topic in settings.MQTT_UP_TOPICS:
+        await manager.subscribe(topic, on_message)
+        log.debug(f"已注册全局订阅: {topic}")
 
 
 async def init_mqtt(config: Optional[MQTTConfig] = None) -> MQTTBroker:
-    """初始化 MQTT 连接并注册全局订阅"""
     return await MQTTDependency.get_manager(config)
 
 
 async def close_mqtt() -> None:
-    """优雅关闭 MQTT 连接"""
     await MQTTDependency.close()
 
 
 async def get_mqtt(config: Optional[MQTTConfig] = None) -> AsyncGenerator[MQTTBroker, None]:
-    """为 FastAPI 提供 MQTT 管理器依赖"""
+    """FastAPI 依赖注入。"""
     manager = await MQTTDependency.get_manager(config)
     yield manager

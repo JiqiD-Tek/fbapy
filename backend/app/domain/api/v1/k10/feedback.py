@@ -5,16 +5,18 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 11:21
 """
-import uuid
+
 from typing import Annotated
 from fastapi import APIRouter, Path, Query, Depends
 
-from backend.app.domain.service.feedback import feedback_service
-from backend.app.domain.service.messaging import MessagingService
 from backend.common.mqtt_broker import get_mqtt, MQTTBroker
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
+
+from backend.app.domain.service.feedback import feedback_service
+from backend.app.domain.service.messaging import MessagingService
+from backend.app.domain.service.storage import StorageService
 
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.app.domain.schema.feedback import GetFeedbackDetail, CreateFeedbackParam, UpdateFeedbackParam, \
@@ -63,13 +65,12 @@ async def create_feedback(
         mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
     if obj.status == 0:
-        obj.file_url = f"https://media.jiqid.com/K10/feedback/log/{uuid.uuid4().hex}.log"  # 云端日志文件地址
+        obj.file_url = StorageService(did=obj.did).image_feedback()
 
     feedback = await feedback_service.create(db=db, obj=obj)
 
-    # mqtt
-    messaging_service = MessagingService(mqtt_client=mqtt_client, device_id=obj.device_id)
-    messaging_service.send_request_log(store_url=obj.file_url)
+    messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
+    await messaging_service.send_request_log(store_url=obj.file_url)
 
     return response_base.success(data=feedback)
 

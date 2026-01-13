@@ -298,6 +298,11 @@ class Settings(BaseSettings):
     MQTT_USERNAME: str = "admin"
     MQTT_JWT_SECRET: str = ""
     MQTT_PASSWORD: str = ""
+    MQTT_UP_TOPICS: list[str] = [
+        "$share/group/K10/+/up/status",
+        "$share/group/K10/+/up/property",
+        "$share/group/K10/+/up/ack",
+    ]
 
     # QQ音乐
     QQ_MUSIC_URL: str = "https://test.szhkeji.com/rpc_proxy/music_open_api"
