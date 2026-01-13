@@ -114,12 +114,15 @@ async def k10_logout(
 async def mqtt_login(
         request: Request,
         obj: MqttLoginParam,
-) -> ResponseModel:
+) -> dict:
     credentials = secure_service.derive_credentials(mac=obj.username)
     if obj.password != credentials["did"]:
-        raise errors.ForbiddenError(msg='权限不足')
+        return {"result": "deny"}
 
-    return response_base.success()
+    return {
+        "result": "allow",
+        "is_superuser": False
+    }
 
 
 @router.post(

@@ -15,7 +15,7 @@ if __name__ == '__main__':
     # 2. 命令行空间位于 backend 目录下
     uvicorn.run(
         app='backend.main:app',
-        host='127.0.0.1',
+        host='0.0.0.0',
         port=8000,
         reload=True,
         reload_excludes=[os.path.abspath('../.venv')],
