@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request, Response, Query
 from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
+from backend.app.domain.service.secure import secure_service
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
 from backend.common.security.jwt import DependsJwtAuth
@@ -102,6 +103,23 @@ async def k10_logout(
         request: Request
 ) -> ResponseModel:
     await auth_service.logout(request=request)
+    return response_base.success()
+
+
+@router.post(
+    '/mqtt_login',
+    summary='mqtt登录',
+    # dependencies=[DependsJwtAuth],
+)
+async def mqtt_login(
+        request: Request,
+        username: Annotated[str, Query(description='MAC 地址')],
+        password: Annotated[str, Query(description='设备did')],
+) -> ResponseModel:
+    credentials = secure_service.derive_credentials(mac=username)
+    if password != credentials["did"]:
+        raise errors.ForbiddenError(msg='权限不足')
+
     return response_base.success()
 
 
