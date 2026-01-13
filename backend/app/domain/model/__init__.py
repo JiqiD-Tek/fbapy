@@ -9,4 +9,3 @@ from backend.app.domain.model.app import App as App
 from backend.app.domain.model.feedback import Feedback as Feedback
 from backend.app.domain.model.user import User as User
 from backend.app.domain.model.device import Device as Device
-from backend.app.domain.model.firmware import Firmware as Firmware

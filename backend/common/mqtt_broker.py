@@ -10,17 +10,19 @@ import asyncio
 import json
 import random
 import time
+import paho.mqtt.client as mqtt
+
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Dict, Any, Union, AsyncGenerator, Protocol
 from collections.abc import Awaitable
 from threading import Lock
-
-import paho.mqtt.client as mqtt
 from jose import jwt
+
 from backend.common.log import log
 from backend.core.conf import settings
+from backend.utils.timezone import timezone
 
 
 class MQTTVersion(Enum):
@@ -172,7 +174,7 @@ class MQTTBroker:
             'payload': payload,
             'qos': message.qos,
             'retain': message.retain,
-            'timestamp': time.time()
+            'timestamp': timezone.now().timestamp(),
         }
 
         callbacks_to_run = []
@@ -405,7 +407,7 @@ class MQTTDependency:
                 if not connected:
                     cls._instance = None
                     raise MQTTConnectionError("无法初始化 MQTT 管理器")
-                await register_global_subscriptions(cls._instance)
+                await register_subscriptions(cls._instance)
             return cls._instance
 
     @classmethod
@@ -437,12 +439,7 @@ async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
         raise MQTTConnectionError(f"无效的 MQTT 配置: {str(e)}")
 
 
-async def register_global_subscriptions(manager: MQTTBroker) -> None:
-    """注册全局订阅。"""
-
-    async def on_message(message_ctx: Dict[str, Any]) -> None:
-        log.info(f"收到全局消息 | 主题: {message_ctx['topic']} | 内容: {message_ctx['payload']}")
-
+async def register_subscriptions(manager: MQTTBroker) -> None:
     for topic in settings.MQTT_UP_TOPICS:
         await manager.subscribe(topic, on_message)
         log.debug(f"已注册全局订阅: {topic}")
@@ -460,3 +457,7 @@ async def get_mqtt(config: Optional[MQTTConfig] = None) -> AsyncGenerator[MQTTBr
     """FastAPI 依赖注入。"""
     manager = await MQTTDependency.get_manager(config)
     yield manager
+
+
+async def on_message(message_ctx: Dict[str, Any]) -> None:
+    log.info(f"收到全局消息 | 主题: {message_ctx['topic']} | 内容: {message_ctx['payload']}")

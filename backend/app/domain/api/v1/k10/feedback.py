@@ -44,11 +44,11 @@ async def get_feedback(
 async def get_feedback_paginated(
         db: CurrentSession,
         name: Annotated[str | None, Query(description='名称')] = None,
-        device_id: Annotated[int | None, Query(description='设备ID')] = None,
+        did: Annotated[str | None, Query(description='设备did')] = None,
         user_id: Annotated[int | None, Query(description='用户ID')] = None,
         status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetFeedbackDetail]]:
-    page_data = await feedback_service.get_list(db=db, name=name, device_id=device_id, user_id=user_id, status=status)
+    page_data = await feedback_service.get_list(db=db, name=name, did=did, user_id=user_id, status=status)
     return response_base.success(data=page_data)
 
 

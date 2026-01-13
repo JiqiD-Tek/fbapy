@@ -19,7 +19,7 @@ class Feedback(Base):
     __tablename__ = 'u_feedback'
 
     id: Mapped[id_key] = mapped_column(init=False)
-    device_id: Mapped[int] = mapped_column(sa.BigInteger, comment='设备ID')
+    did: Mapped[str] = mapped_column(sa.BigInteger, comment='设备did')
     user_id: Mapped[int] = mapped_column(sa.BigInteger, comment='用户ID')
 
     name: Mapped[str | None] = mapped_column(sa.String(100), comment='反馈名称')

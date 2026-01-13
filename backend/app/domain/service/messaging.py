@@ -8,7 +8,6 @@
 import asyncio
 
 import json
-import time
 import uuid
 from typing import Dict
 
@@ -25,15 +24,12 @@ class MessagingService:
     """
 
     def __init__(self, mqtt_client: MQTTBroker, did: str):
-        """
-        :param mqtt_client: paho-mqtt 或其他 MQTT 客户端实例
-        :param did: 设备 ID
-        """
         self.client = mqtt_client
         self.did = did
 
     # ---------------- 公共方法 ----------------
-    def _build_message(self, payload: Dict, msg_type: str, service: str) -> Dict:
+    @staticmethod
+    def _build_message(payload: Dict, msg_type: str, service: str) -> Dict:
         """
         构建通用消息结构
         :param payload: 业务 payload
@@ -63,23 +59,34 @@ class MessagingService:
     async def send_request_log(self, store_url: str) -> str:
         """ 下发指令让设备上报日志 """
         payload = {
-            "action": "report_log",
-            "params": {
-                "store_url": store_url,
-            }
+            "store_url": store_url,
         }
-        topic = f"k10/{self.did}/down/control"
+        topic = f"K10/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="feedback")
         return await self._publish(topic, msg)
 
+    async def send_play_music(self, query: str, album: str, song: str, singer: str, source: str = "wy") -> str:
+        """ 下发点播音乐指令 """
+        payload = {
+            "query": query,
+            "album": album,
+            "song": song,
+            "singer": singer,
+            "source": source,
+        }
 
-async def main():
-    async for client in get_mqtt():
-        service = MessagingService(client, "test_did")
-        rv = await service.send_request_log("store_url")
-        print(rv)
-        break
+        topic = f"K10/{self.did}/down/control"
+        msg = self._build_message(payload, msg_type="command", service="player")
+        return await self._publish(topic, msg)
 
+    async def send_system_control(self, target: str, action: str, value: str) -> str:
+        """ 下发设备控制指令 """
+        payload = {
+            "target": target,
+            "action": action,
+            "value": value,
+        }
 
-if __name__ == '__main__':
-    asyncio.run(main())
+        topic = f"K10/{self.did}/down/control"
+        msg = self._build_message(payload, msg_type="command", service="system")
+        return await self._publish(topic, msg)
