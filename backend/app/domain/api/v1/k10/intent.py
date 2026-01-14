@@ -43,7 +43,7 @@ async def music_intent(
 
 
 @router.post('/alarm', summary='闹钟设置')
-async def music_intent(
+async def alarm_intent(
         obj: AlarmParam,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[dict]:
