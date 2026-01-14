@@ -65,25 +65,39 @@ class MessagingService:
         msg = self._build_message(payload, msg_type="command", service="feedback")
         return await self._publish(topic, msg)
 
-    async def send_play_music(self, query: str, album: str, song: str, singer: str, source: str = "wy") -> str:
+    async def send_play_music(self, action: str, value: str, song: str, artist: str, playlist: str,
+                              platform: str) -> str:
         """ 下发点播音乐指令 """
         payload = {
-            "query": query,
-            "album": album,
-            "song": song,
-            "singer": singer,
-            "source": source,
+            "action": action,  # 操作
+            "value": value,  # 值
+            "song": song,  # 音乐名称
+            "artist": artist,  # 歌手名称
+            "playlist": playlist,  # 歌单名称
+            "platform": platform  # 播放平台
         }
 
         topic = f"K10/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="player")
         return await self._publish(topic, msg)
 
+    async def send_alarm(self, action: str, target_time: str, message: str) -> str:
+        """ 下发设备闹钟指令 """
+        payload = {
+            "action": action,
+            "target_time": target_time,
+            "message": message,
+        }
+
+        topic = f"K10/{self.did}/down/control"
+        msg = self._build_message(payload, msg_type="command", service="alarm")
+        return await self._publish(topic, msg)
+
     async def send_system_control(self, target: str, action: str, value: str) -> str:
         """ 下发设备控制指令 """
         payload = {
-            "target": target,
             "action": action,
+            "target": target,
             "value": value,
         }
 
