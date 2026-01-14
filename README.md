@@ -76,3 +76,9 @@ This project is licensed by the terms of
 the [MIT](https://github.com/fastapi-practices/fastapi_best_architecture/blob/master/LICENSE) license
 
 [![Stargazers over time](https://starchart.cc/fastapi-practices/fastapi_best_architecture.svg?variant=adaptive)](https://starchart.cc/fastapi-practices/fastapi_best_architecture)
+
+# 更新
+
+    git fetch upstream
+
+    git merge upstream/master
