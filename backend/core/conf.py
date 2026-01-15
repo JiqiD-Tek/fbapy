@@ -293,6 +293,11 @@ class Settings(BaseSettings):
     LIVEKIT_API_KEY: str = ''
     LIVEKIT_API_SECRET: str = ''
 
+    # Coze
+    COZE_CLIENT_ID: str = ''
+    COZE_PRIVATE_KEY: str = ''
+    COZE_PUBLIC_KEY_ID: str = ''
+
     # MQTT
     MQTT_HOST: str = "10.240.225.23"
     MQTT_PORT: int = 1883

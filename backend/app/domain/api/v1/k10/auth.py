@@ -140,11 +140,11 @@ async def coze_token(
 
     config = {
         "client_type": "jwt",
-        "client_id": "1123822833044",
         "coze_www_base": "https://www.coze.cn",
         "coze_api_base": "https://api.coze.cn",
-        "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC+d1Mzm8KMknSV\nDNbUFG1VvFS98FgZ5aFluriKpWQkJnjurxa2ySSmGWbz2q6oHeDgvk829kIlJulv\nIMYEdKg4HcHzhnSGhOYlizoBF3LCns8GI005dFHgWZRfa3ptg48KX56SXOCks7Zs\ndelJJv3XXy5a6qNt+4QhiJRmXkmnHPw6GsdcnDL1kZOGdBNPtG4FYfcdogTRj9U6\n3zfdikLFquggtSTe2VaaSm0pibJ4oXJXEHJX9GrwC4BALwaKDobUJwVK61KXbgaA\nijTRSJJR6bZsZYuBv60DVIpuymxixnbL6tA6d+PgaKjIhpU6HwP9VLuCvgHGeaFG\n7LXR3aIRAgMBAAECggEABgDO6rHj0n9sxrKLnxVF9gngu3FmkQZkF/JZ1QKm8PpN\nq5X/uXE/NPcDcb64eqjMM4dt0PXTtuJkCCQGsNi0qGXpCxkT9bKO+HKExsiWP8dT\nD3FMZjLMo9gX2ApNH7W+T3oAnMIGilpn7s+L7J8Mfl3MBNgfoHH3Q6v6MeAEIpso\nKw21IYjkAUIGF+MGAFX5XylLe6TAmw6qmYt6z+QpoPcNEBEpSHjD0k6+dJlOGomT\nVhNKzjnqZa/0EBCPA3cUaQCKy9vAfvWSbZTE+7bJW7Fv49PfQr2iqB4V7XfMBvVi\n8Paq+ZRiwueSNcYKCgl4FENs7GIlanlADOWZH8VTYwKBgQDnf4euUiy0Zr8nlQI3\nT8xnfQg6d1blHM4zyxseuyGphX62UDc+3NWtbIXUQ1QrlykIteaO+SVfwoIUXeRS\nUsGnxOPI66quNGfsxvhmyrdkGYjjE3kzWYls5KUJK/1z4TwuGdIN3cAS7rMOnx24\nDOyi0nmb2WC8KePhygHTftDbWwKBgQDSoAbZpx0BGq9jKWoGKV9Oo4GEBO3txvt3\nwTVgyM6n8RSN2vwTQwaQg4W5HTXjKZW0TUkX0d47IK/S5gzEuU891OcDLMqgZtDp\nh6eWrWI1GB5ktclO5zGYUOIiJEHpApZMH1oWTAZa6ndaMk1P0fBXtnQcdMJoEHas\nBNkeGP4wAwKBgQCELRmgG4Uw37Vm+TpRsHtJ32bSUw9HM6I8ikwKyNfYfcMyfyx7\n9QT/xwXGg0bMuLsSISHqIjEHsvwoes+BfYTasJ1KO9yxKHTqCVUNA9OgEMBKvvSl\nsAq6JPZh/T7yafi9bbq0dhdT9/w+bfU/AAogkUIkDQKhjN1zLq7KPg8sHwKBgQCb\nRfIG3tXZDI0js1JAPJvQY2WFqASneDvGax8ovKDs2iNm+HtAz/a07uDUOR6S2wNM\nKnWqI8OLH2u/NG1RUbODR8MOaiTu3x1ALAt2X1e5AJDXedRwYKwFOAudU9FrL8cR\nU0OckGtW9ucKDW9FWuWuJAmxOLpg8VIrOl+9entZdQKBgQCbcrrAzWt9Vo4v4bAM\nZ8OMvk6mxDN4OWmkKhR7uosYMm4Y+m2kWp/riVQA8liQIDvSKObgBv4B0WNw6U9W\n5RVKfRCtkJZ9eJAFGJb8Z1+kI5bIdb2pzZ8UjeErrG03463hz61B8ynMafZ3OODd\nAihSTfSW9C37xD/HS6im9awMNQ==\n-----END PRIVATE KEY-----",
-        "public_key_id": "7fOXdkLm9jxrfWqcrQwp3ySVKHdltNV14lHJTlFttBk"
+        "client_id": settings.COZE_CLIENT_ID,
+        "private_key": settings.COZE_PRIVATE_KEY,
+        "public_key_id": settings.COZE_PUBLIC_KEY_ID,
     }
 
     from cozepy import load_oauth_app_from_config
