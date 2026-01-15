@@ -10,6 +10,8 @@ import asyncio
 import json
 import random
 import time
+import uuid
+
 import paho.mqtt.client as mqtt
 
 from contextlib import asynccontextmanager
@@ -423,15 +425,20 @@ class MQTTDependency:
 async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
     """创建并验证 MQTT 配置。"""
     try:
-        client_id = client_id or f"fbapy_{int(time.time_ns())}"
+        client_id = client_id or f"fbapy_{uuid.uuid4().hex}"
+
+        # 服务器端认证
+        username = settings.MQTT_USERNAME
         password = jwt.encode(claims={"model": "K10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
+
+        # 设备认证
         # username = "C4:1C:9C:09:C9:81"
         # password = "FFCE1FC24AFE5283AF39564CCB1559F5"
 
         return MQTTConfig(
             host=settings.MQTT_HOST,
             port=settings.MQTT_PORT,
-            username=settings.MQTT_USERNAME,
+            username=username,
             password=password,
             client_id=client_id,
             connection_timeout=getattr(settings, 'MQTT_CONNECTION_TIMEOUT', 30.0)

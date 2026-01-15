@@ -39,11 +39,11 @@ class AuthLoginParam(AuthSchemaBase):
     captcha: str | None = Field(None, description='验证码')
 
 
-class MqttLoginParam(SchemaBase):
-    """用户登录参数"""
+class DeviceAuthParam(SchemaBase):
+    """设备登录参数"""
 
-    username: str | None = Field(None, description='MAC 地址')
-    password: str | None = Field(None, description='设备did')
+    username: str = Field(description='MAC 地址')
+    password: str = Field(description='设备did')
 
 
 class UserSchemaBase(SchemaBase):

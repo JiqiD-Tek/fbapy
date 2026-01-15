@@ -72,6 +72,7 @@ dependencies = [
     "aiosmtplib>=5.0.0",
     "livekit-api>=1.1.0",
     "openai>=2.14.0",
+    "cozepy>=0.20.0",
 ]
 
 [dependency-groups]
