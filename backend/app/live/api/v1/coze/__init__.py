@@ -7,8 +7,8 @@
 """
 from fastapi import APIRouter
 
-from backend.app.vce.api.v1.coze.audio import router as audio_router
-from backend.app.vce.api.v1.coze.chat import router as chat_router
+from backend.app.live.api.v1.coze.audio import router as audio_router
+from backend.app.live.api.v1.coze.chat import router as chat_router
 
 router = APIRouter(prefix='/coze/v1')  # 兼容 coze 请求路径
 

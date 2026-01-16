@@ -8,7 +8,7 @@
 
 from typing import Optional, Dict, Callable
 
-from backend.app.vce.service.coze.service import CozeService
+from backend.app.live.service.coze.service import CozeService
 
 from backend.common.wscore.gateway import connection_gateway
 from backend.common.wscore.coze.models import (
@@ -22,7 +22,6 @@ from backend.common.wscore.coze.audio.transcriptions import (
     TranscriptionsUpdateEvent,
     TranscriptionsMessageUpdateEvent,
     TranscriptionsMessageCompletedEvent,
-    TranscriptionsVadEvent,
 )
 
 
@@ -46,12 +45,6 @@ class TranscriptionsService(CozeService):
         """ 音频数据接收中 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
-
-        status = await conn.vad_client.process_frame(frame=event.data.delta)
-        if status:
-            await conn.output_queue.put(
-                TranscriptionsVadEvent.model_validate(
-                    {"data": TranscriptionsVadEvent.Data.model_validate({"content": conn.vad_client.speech_active})}))
 
         await conn.asr_client.stream_append(audio_chunk=event.data.delta)
 

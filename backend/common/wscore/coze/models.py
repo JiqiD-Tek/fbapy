@@ -53,7 +53,6 @@ class WebsocketsEventType(str, Enum):
     INPUT_AUDIO_BUFFER_COMPLETED = "input_audio_buffer.completed"  # received `input_audio_buffer.complete` event
 
     TRANSCRIPTIONS_CREATED = "transcriptions.created"  # after transcriptions created
-    TRANSCRIPTIONS_VAD = "transcriptions.vad"  # after transcriptions vad
 
     TRANSCRIPTIONS_MESSAGE_UPDATE = "transcriptions.message.update"  # received `transcriptions.update` event
     TRANSCRIPTIONS_MESSAGE_COMPLETED = "transcriptions.message.completed"  # all audio received, can close connection
@@ -83,7 +82,6 @@ class WebsocketsEventType(str, Enum):
 
     CONVERSATION_AUDIO_TRANSCRIPT_UPDATE = "conversation.audio_transcript.update"
     CONVERSATION_AUDIO_TRANSCRIPT_COMPLETED = "conversation.audio_transcript.completed"
-    CONVERSATION_AUDIO_TRANSCRIPT_VAD = "conversation.audio_transcript.vad"
 
     CONVERSATION_AUDIO_URL = "conversation.audio.url"  # get agent audio message url
     CONVERSATION_AUDIO_DELTA = "conversation.audio.delta"  # get agent audio message update

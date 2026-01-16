@@ -10,7 +10,7 @@ from typing import Optional, List, Literal, Dict
 
 from backend.common.log import log
 from backend.common.openapi.amap.amap_client import amap_client
-from backend.common.openapi.weather.open_weather_map import open_weather_map
+from backend.common.openapi.weather_api import open_weather_map
 
 from backend.common.openai.llm.intention.recognizer.action.base import Action, timed_execute, ActionResult
 

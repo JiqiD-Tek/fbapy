@@ -8,7 +8,7 @@ import io
 import wave
 from typing import Optional, Dict, Callable
 
-from backend.app.vce.service.coze.service import CozeService
+from backend.app.live.service.coze.service import CozeService
 
 from backend.core.conf import settings
 from backend.common.exception import errors

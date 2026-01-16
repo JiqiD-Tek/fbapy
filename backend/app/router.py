@@ -4,7 +4,7 @@ from backend.app.admin.api.router import v1 as admin_v1
 from backend.app.task.api.router import v1 as task_v1
 from backend.app.domain.api.router import v1 as domain_v1
 
-# from backend.app.vce.api.router import v1 as vce_v1
+# from backend.app.live.api.router import v1 as live_v1
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ router.include_router(task_v1)
 router.include_router(domain_v1)
 
 
-# router.include_router(vce_v1)
+# router.include_router(live_v1)
 
 
 @router.get("/health", tags=["Health"])

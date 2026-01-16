@@ -20,7 +20,7 @@ from typing import Optional, Callable, Any
 from backend.common.log import log
 from backend.common.openai.speech.base.tts import TTS
 from backend.common.openai.speech.base.tts_cache import TTSCache
-from backend.common.openai.speech.base.ws import AsyncWebSocketClient
+from backend.common.openai.speech.speech_coze.ws import AsyncWebSocketClient
 
 MESSAGE_TYPES = {11: "audio-only server response", 12: "frontend server response", 15: "error message from server"}
 MESSAGE_TYPE_SPECIFIC_FLAGS = {0: "no sequence number", 1: "sequence number > 0",

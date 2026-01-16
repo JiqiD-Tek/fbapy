@@ -21,24 +21,15 @@ class NewsApi(object):
                  language: str = 'action_zh',
                  country: str = 'ch',
                  max_cache_size: int = 1000,
-                 cache_ttl: int = 3600
-                 ):
+                 cache_ttl: int = 3600):
         self.base_url = "https://newsapi.org"
         self.apikey = apikey
         self.language = language  # action action_zh
         self.country = country  # us action_zh
-        self._http_client = HTTPClient(
-            timeout=10.0,  # 10秒超时
-            read=10.0,
-            write=5.0
-        )
+        self._http_client = HTTPClient(timeout=10.0, read=10.0, write=5.0)
 
-        # 使用LRU缓存+TTL
-        self._cache = TTLCache(
-            maxsize=max_cache_size,
-            ttl=cache_ttl
-        )
-        self._lock = asyncio.Lock()  # 防止缓存击穿
+        self._cache = TTLCache(maxsize=max_cache_size, ttl=cache_ttl)
+        self._lock = asyncio.Lock()
 
     async def get_news(self, query):
         if query in self._cache:

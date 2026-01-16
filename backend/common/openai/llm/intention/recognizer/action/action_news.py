@@ -7,7 +7,7 @@
 """
 from typing import Optional, List, Literal, Dict
 
-from backend.common.openapi.news.news_api import news_api
+from backend.common.openapi.news_api import news_api
 
 from backend.common.openai.llm.intention.recognizer.action.base import Action, timed_execute, ActionResult
 

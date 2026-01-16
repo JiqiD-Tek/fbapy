@@ -13,16 +13,14 @@ from fastapi.responses import StreamingResponse
 from backend.common.log import log
 from backend.common.wscore.gateway import connection_gateway
 
-from backend.app.vce.service.coze.chat.chat_service import chat_service
+from backend.app.live.service.coze.chat.chat_service import chat_service
 from backend.core.conf import settings
 
 router = APIRouter()
 
 
 @router.websocket("")
-async def chat(
-        websocket: WebSocket,
-):
+async def chat(websocket: WebSocket):
     """CHAT"""
     await chat_service.receive_loop(websocket)
 

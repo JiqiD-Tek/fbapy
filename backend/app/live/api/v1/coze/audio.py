@@ -8,17 +8,15 @@ from typing import Annotated
 
 from fastapi import WebSocket, APIRouter, Query
 
-from backend.app.vce.service.coze.audio.speech_service import speech_service
-from backend.app.vce.service.coze.audio.transcriptions_service import transcriptions_service
+from backend.app.live.service.coze.audio.speech_service import speech_service
+from backend.app.live.service.coze.audio.transcriptions_service import transcriptions_service
 from backend.common.response.response_schema import ResponseModel, response_base
 
 router = APIRouter()
 
 
 @router.websocket("/speech")
-async def speech(
-        websocket: WebSocket
-):
+async def speech(websocket: WebSocket):
     """websocket TTS"""
     await  speech_service.receive_loop(websocket)
 
@@ -39,8 +37,6 @@ async def text_to_speech(
 
 
 @router.websocket("/transcriptions")
-async def transcriptions(
-        websocket: WebSocket
-):
+async def transcriptions(websocket: WebSocket):
     """websocket ASR"""
     await transcriptions_service.receive_loop(websocket)

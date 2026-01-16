@@ -18,9 +18,8 @@ from collections import deque
 from pydantic import BaseModel
 
 from backend.common.log import log
-from backend.common.openai import VADClient
 from backend.common.openai.speech.base.asr import ASR
-from backend.common.openai.speech.base.ws import AsyncWebSocketClient
+from backend.common.openai.speech.speech_coze.ws import AsyncWebSocketClient
 
 PROTOCOL_VERSION = 0b0001
 DEFAULT_HEADER_SIZE = 0b0001
@@ -257,8 +256,6 @@ class ASRClient(AsyncWebSocketClient, ASR):
 
         self.chunk_batcher = AudioChunkBatcher(max_size=15)  # 30ms * 15 = 450ms
 
-        self.vad_client = VADClient()
-
         # 回调函数
         self.text_append_callback = None  # 增量文本回调 (partial result)
         self.text_finish_callback = None  # 最终结果回调 (final result)
@@ -285,8 +282,6 @@ class ASRClient(AsyncWebSocketClient, ASR):
 
     async def stream_start(self) -> None:
         """Initialize streaming recognition session"""
-        await self.vad_client.reset()
-
         self.asr_config.request.reqid = uuid.uuid4().hex
         header = self._generate_header()
         request_params = self.asr_config.model_dump()

@@ -75,15 +75,6 @@ class TranscriptionsMessageCompletedEvent(WebsocketsEvent):
     event_type: WebsocketsEventType = WebsocketsEventType.TRANSCRIPTIONS_MESSAGE_COMPLETED
 
 
-# resp
-class TranscriptionsVadEvent(WebsocketsEvent):
-    class Data(BaseModel):
-        active: bool
-
-    event_type: WebsocketsEventType = WebsocketsEventType.TRANSCRIPTIONS_VAD
-    data: Data
-
-
 def load_req_event(message: Dict) -> Optional[WebsocketsEvent]:
     event_id = message.get("id") or ""
     event_type = message.get("event_type") or ""
@@ -168,15 +159,6 @@ def load_resp_event(message: Dict) -> Optional[WebsocketsEvent]:
             {
                 "id": event_id,
                 "detail": detail,
-            }
-        )
-
-    if event_type == WebsocketsEventType.TRANSCRIPTIONS_VAD.value:
-        return TranscriptionsVadEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": TranscriptionsVadEvent.Data.model_validate(data),
             }
         )
 

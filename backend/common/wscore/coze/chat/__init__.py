@@ -120,14 +120,6 @@ class ConversationAudioTranscriptCompletedEvent(WebsocketsEvent):
     data: Data
 
 
-class ConversationAudioTranscriptVadEvent(WebsocketsEvent):
-    class Data(BaseModel):
-        content: bool
-
-    event_type: WebsocketsEventType = WebsocketsEventType.CONVERSATION_AUDIO_TRANSCRIPT_VAD
-    data: Data
-
-
 # resp
 class ConversationMessageCompletedEvent(WebsocketsEvent):
     event_type: WebsocketsEventType = WebsocketsEventType.CONVERSATION_MESSAGE_COMPLETED
@@ -301,14 +293,7 @@ def load_resp_event(message: Dict) -> Optional[WebsocketsEvent]:
                 "data": ConversationAudioTranscriptCompletedEvent.Data.model_validate(data),
             }
         )
-    if event_type == WebsocketsEventType.CONVERSATION_AUDIO_TRANSCRIPT_VAD.value:
-        return ConversationAudioTranscriptVadEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": ConversationAudioTranscriptVadEvent.Data.model_validate(data),
-            }
-        )
+
     if event_type == WebsocketsEventType.CONVERSATION_CHAT_REQUIRES_ACTION.value:
         return ConversationChatRequiresActionEvent.model_validate(
             {
