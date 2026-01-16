@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     TOKEN_REFRESH_REDIS_PREFIX: str = 'fba:refresh_token'
     TOKEN_REQUEST_PATH_EXCLUDE: list[str] = [  # JWT / RBAC 路由白名单
         f'{FASTAPI_API_V1_PATH}/auth/login',
-        f'{FASTAPI_API_V1_PATH}/vce/coze/v1/chat',  # 设备聊天
+        f'{FASTAPI_API_V1_PATH}/live/coze/v1/chat',  # 聊天
     ]
     TOKEN_REQUEST_PATH_EXCLUDE_PATTERN: list[Pattern[str]] = [  # JWT / RBAC 路由白名单（正则）
         rf'^{FASTAPI_API_V1_PATH}/monitors/(redis|server)$',
@@ -177,7 +177,7 @@ class Settings(BaseSettings):
     )
 
     # 日志（控制台）
-    LOG_STD_LEVEL: str = 'INFO'
+    LOG_STD_LEVEL: str = 'DEBUG'
 
     # 日志（文件）
     LOG_FILE_ACCESS_LEVEL: str = 'INFO'
@@ -316,47 +316,41 @@ class Settings(BaseSettings):
     QQ_MUSIC_APPKEY: str = ""
 
     # 大模型
-    LLM_MODEL_NAME: str = "doubao-seed-1-6-flash-250615"  # 模型名称 豆包: doubao-seed-1-6-flash-250615  gpt: gpt-4o-mini
-
-    LLM_LANGUAGE: Literal["zh-CN", "en-US", "es-ES"] = "zh-CN"  # 中文 英文 西班牙语
-
     SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[asr, tts]类型  azure  coze
     SPEECH_ENCODING: Literal["wav", "mp3"] = "wav"  # 语音编码格式
 
     # 微软 语音
     AZURE_SPEECH_KEY: SecretStr = ""
-    AZURE_SERVICE_REGION: str = "southeastasia"
-    AZURE_SPEECH_RECOGNITION_LANGUAGE: str = "en-US"
+    AZURE_SPEECH_REGION: str = ""
 
     # 微软 大模型
-    AZURE_OPENAI_ENDPOINT: str = "https://admin-mct0fcqx-eastus2.cognitiveservices.azure.com/"
-
+    AZURE_OPENAI_MODEL: str = ""
+    AZURE_OPENAI_ENDPOINT: str = ""
     AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ""
-    AZURE_OPENAI_API_VERSION: str = "2024-12-01-preview"
-
-    # doubao
-    DOUBAO_API_KEY: SecretStr = ""
-    DOUBAO_BASE_URL: str = "https://ark.cn-beijing.volces.com/api/v3"
+    AZURE_OPENAI_API_VERSION: str = ""
 
     # 火山引擎
-    BYTES_ASR_URL: str = "wss://openspeech.bytedance.com/api/v2/asr"
+    BYTES_ASR_URL: str = ""
     BYTES_ASR_APPID: str = ""
     BYTES_ASR_TOKEN: str = ""
     BYTES_ASR_CLUSTER: str = ""
-    BYTES_ASR_LANGUAGE: str = "zh-CN"
 
-    BYTES_TTS_URL: str = "wss://openspeech.bytedance.com/api/v1/tts/ws_binary"
+    BYTES_TTS_URL: str = ""
     BYTES_TTS_APPID: str = ""
     BYTES_TTS_TOKEN: str = ""
-    BYTES_TTS_CLUSTER: str = "volcano_tts"
-    BYTES_TTS_VOICE_TYPE: str = "BV064_streaming"
+    BYTES_TTS_CLUSTER: str = ""
+    BYTES_TTS_VOICE_TYPE: str = ""
 
     # 音声复刻
-    BYTES_ICL_CLUSTER: str = "volcano_icl"
-    BYTES_ICL_VOICE_TYPE: str = "S_HFruD8as1"
+    BYTES_ICL_CLUSTER: str = ""
+    BYTES_ICL_VOICE_TYPE: str = ""
 
     # 是否启用复刻声音
     BYTES_ICL_STATUS: bool = False
+
+    # 豆包大模型
+    DOUBAO_API_KEY: SecretStr = ""
+    DOUBAO_BASE_URL: str = ""
 
     @model_validator(mode='before')
     @classmethod

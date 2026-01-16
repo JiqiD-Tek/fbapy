@@ -17,11 +17,11 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
 
-from backend.common.openai import (
-    open_speech_manager,
-    ASRClient,
-    TTSClient,
-    LLMClient,
+from backend.common.openai.providers import (
+    open_manager,
+    ASR,
+    TTS,
+    LLM,
 )
 
 from backend.common.wscore.coze.models import WebsocketsEvent
@@ -39,8 +39,8 @@ class ClientConnection:
     """
 
     __slots__ = (
-        'uid', 'websocket', 'chat_params',
-        'llm_client', 'asr_client', 'tts_client',
+        'uid', 'websocket', 'chat_config',
+        'llm', 'asr', 'tts',
         '_loop', '_output_queue', '_send_task', '_last_activity',
         '_is_closed', '__weakref__',
     )
@@ -52,17 +52,14 @@ class ClientConnection:
             uid: 客户端唯一标识
             websocket: 客户端WebSocket连接
         """
-        if not uid:
-            raise ValueError("uid must be a non-empty string")
-
-        self.uid: Final[str] = uid
+        self.uid = uid
+        self.chat_config = None
         self.websocket: Final[WebSocket] = websocket
-        self.chat_params: Optional[dict] = None
 
         # AI服务客户端
-        self.llm_client: Optional[LLMClient] = None
-        self.asr_client: Optional[ASRClient] = None
-        self.tts_client: Optional[TTSClient] = None
+        self.llm: Optional[LLM] = None
+        self.asr: Optional[ASR] = None
+        self.tts: Optional[TTS] = None
 
         self._last_activity: float = time.monotonic()
         self._output_queue: asyncio.Queue[Optional[WebsocketsEvent]] = asyncio.Queue(maxsize=1000)
@@ -136,12 +133,12 @@ class ClientConnection:
 
         # 并发获取多个服务实例
         results = await asyncio.gather(
-            _acquire("LLM", open_speech_manager.acquire_llm),
-            _acquire("ASR", open_speech_manager.acquire_asr),
-            _acquire("TTS", open_speech_manager.acquire_tts),
+            _acquire("ASR", open_manager.acquire_asr),
+            _acquire("TTS", open_manager.acquire_tts),
+            _acquire("LLM", open_manager.acquire_llm),
         )
 
-        self.llm_client, self.asr_client, self.tts_client = results
+        self.llm, self.asr, self.tts = results
 
     async def close(self) -> None:
         """安全关闭连接并释放资源（幂等操作）"""
@@ -169,12 +166,12 @@ class ClientConnection:
                     await release_func(client)
 
         await asyncio.gather(
-            _release(self.llm_client, open_speech_manager.release_llm),
-            _release(self.asr_client, open_speech_manager.release_asr),
-            _release(self.tts_client, open_speech_manager.release_tts),
+            _release(self.llm, open_manager.release_llm),
+            _release(self.asr, open_manager.release_asr),
+            _release(self.tts, open_manager.release_tts),
         )
 
-        self.llm_client = self.asr_client = self.tts_client = None
+        self.llm = self.asr = self.tts = None
 
         # 4. 关闭 WebSocket
         await self.terminate_connection(self.websocket, WebSocketErrorCode.NORMAL_CLOSE)

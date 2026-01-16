@@ -24,22 +24,22 @@ class WebsocketsEventType(str, Enum):
     # error
     ERROR = "error"  # received error event
 
-    # v1/audio/speech
+    # v1/audio/base
     # req
     INPUT_TEXT_BUFFER_APPEND = "input_text_buffer.append"  # send text to server
     INPUT_TEXT_BUFFER_COMPLETE = (
         "input_text_buffer.complete"  # no text to send, after audio all received, can close connection
     )
-    SPEECH_UPDATE = "speech.update"  # send speech config to server
+    SPEECH_UPDATE = "base.update"  # send base config to server
 
     # resp
-    # v1/audio/speech
+    # v1/audio/base
     INPUT_TEXT_BUFFER_COMPLETED = "input_text_buffer.completed"  # received `input_text_buffer.complete` event
 
-    SPEECH_CREATED = "speech.created"  # after speech created
-    SPEECH_AUDIO_URL = "speech.audio.url"  # received `speech.update` event
-    SPEECH_AUDIO_UPDATE = "speech.audio.update"  # received `speech.update` event
-    SPEECH_AUDIO_COMPLETED = "speech.audio.completed"  # all audio received, can close connection
+    SPEECH_CREATED = "base.created"  # after base created
+    SPEECH_AUDIO_URL = "base.audio.url"  # received `base.update` event
+    SPEECH_AUDIO_UPDATE = "base.audio.update"  # received `base.update` event
+    SPEECH_AUDIO_COMPLETED = "base.audio.completed"  # all audio received, can close connection
 
     # v1/audio/transcriptions
     # req

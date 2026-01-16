@@ -4,7 +4,7 @@ from typing import Optional
 
 class CozeError(Exception):
     """
-    base class for all speech_coze errors
+    base class for all coze_service errors
     """
 
     pass

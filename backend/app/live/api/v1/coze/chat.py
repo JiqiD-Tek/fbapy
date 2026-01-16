@@ -26,9 +26,7 @@ async def chat(websocket: WebSocket):
 
 
 @router.get("/tts", summary='获取tts语音', description='获取tts语音')
-async def tts(
-        token: Annotated[str, Query(description='TTS Token，格式为uid.request_id')],
-):
+async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.request_id')]):
     """http TTS"""
     if "." not in token:
         raise KeyError(f"Token格式错误，应为uid.request_id")
@@ -36,7 +34,7 @@ async def tts(
     uid, request_id = token.rsplit('.', maxsplit=1)
     conn = await connection_gateway.get_connection(uid)
 
-    if conn is None or conn.tts_client is None:
+    if conn is None or conn.tts is None:
         raise KeyError(f"TTS client not exist")
 
     if settings.SPEECH_ENCODING == "mp3":
@@ -50,7 +48,7 @@ async def _generate_mp3_response(conn, request_id: str) -> StreamingResponse:
 
     async def audio_generator() -> AsyncGenerator[bytes, None]:
         try:
-            async with conn.tts_client.tts_cache.stream_audio_generator(request_id) as stream:
+            async with conn.tts.tts_cache.stream_audio_generator(request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:
@@ -99,7 +97,7 @@ async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
 
         # 然后流式传输音频数据
         try:
-            async with conn.tts_client.tts_cache.stream_audio_generator(request_id) as stream:
+            async with conn.tts.tts_cache.stream_audio_generator(request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:

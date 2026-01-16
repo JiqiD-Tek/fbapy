@@ -15,7 +15,7 @@ from backend.common.response.response_schema import ResponseModel, response_base
 router = APIRouter()
 
 
-@router.websocket("/speech")
+@router.websocket("/base")
 async def speech(websocket: WebSocket):
     """websocket TTS"""
     await  speech_service.receive_loop(websocket)

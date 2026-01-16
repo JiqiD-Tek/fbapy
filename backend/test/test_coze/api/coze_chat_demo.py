@@ -152,8 +152,8 @@ class ModernAudioChatGUI:
         self.setup_gui()  # 创建GUI组件
 
         coze_api_base = os.getenv("COZE_API_BASE")
-        coze_api_base = 'https://10.240.225.61:8000/api/v1/vce/coze'
-        coze_api_base = 'https://localhost:8000/api/v1/vce/coze'
+        coze_api_base = 'https://10.240.225.61:8000/api/v1/live/coze'
+        coze_api_base = 'https://localhost:8000/api/v1/live/coze'
 
         # coze_api_base = 'https://120.92.9.96:9000/api/v1/coze'  # docker
         # coze_api_base = 'https://jiqidpy.local:32075/api/v1/coze'  # k8s ingress(需要配置域名)

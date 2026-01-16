@@ -209,7 +209,6 @@ class ConnectionGateway:
 
             # ---------- 3️⃣ 注册到连接池 ----------
             conn = ClientConnection(uid, websocket)
-            await conn.chat_params.set_fields(ip=ip)
             await self._pool.add_connection(conn)
 
             # ---------- 4️⃣ 写入 Redis ----------
