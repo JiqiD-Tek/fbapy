@@ -258,7 +258,10 @@ def build_final_router() -> APIRouter:
     extend_plugins, app_plugins = parse_plugin_config()
 
     for plugin in extend_plugins:
-        inject_extend_router(plugin)
+        try:
+            inject_extend_router(plugin)
+        except Exception as e:
+            log.error(f"扩展级插件 {plugin} 路由注入失败：{e!s}")
 
     # 主路由，必须在扩展级插件路由注入后，应用级插件路由注入前导入
     from backend.app.router import router as main_router
