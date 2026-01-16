@@ -12,7 +12,6 @@ from typing import TypeVar, Callable, Any, Optional, Dict, Literal, List
 from dataclasses import dataclass, field
 
 from backend.common.log import log
-from backend.common.device.repository import DeviceStateRepository
 
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
@@ -106,7 +105,7 @@ class Action(abc.ABC):
     async def process(
             self, text: str, content: str,
             conversation_history: Optional[List[Dict[Literal["user", "assistant"], str]]] = None,
-            device_repo: DeviceStateRepository = None,
+            device_repo: dict = None,
             **kwargs
     ) -> ActionResult:
         """执行工具的主要方法

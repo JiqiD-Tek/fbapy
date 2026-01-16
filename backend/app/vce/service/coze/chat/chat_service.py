@@ -52,28 +52,10 @@ class ChatService(CozeService):
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
+        conn.chat_params = event.data.chat_config.parameters  # 对话变量设置
         await self._register_speech_callback(uid)  # 注册asr、tts回调
-
-        vad_task = conn.vad_client.reset()
-        asr_task = conn.asr_client.stream_start()
-
-        await asyncio.gather(vad_task, asr_task)  # 等待并行任务完成
-
-        async def _process_chat_config() -> None:
-            """Process chat configuration updates."""
-            if not event.data.chat_config:
-                return
-
-            if event.data.chat_config.conversation_id:
-                await conn.device_repo.set_fields(conversation_id=event.data.chat_config.conversation_id)  # 设置会话ID
-
-            if event.data.chat_config.parameters:
-                await conn.device_repo.loads_dict(state_dict=event.data.chat_config.parameters)  # 加载设备配置
-
-        await _process_chat_config()
-
-        await conn.output_queue.put(ChatUpdatedEvent.model_validate(
-            {"data": ChatUpdateEvent.Data.model_validate({})}))
+        await conn.asr_client.stream_start()  # 启动asr
+        await conn.output_queue.put(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
@@ -162,13 +144,8 @@ class ChatService(CozeService):
             await conn.output_queue.put(
                 ConversationAudioDeltaEvent.model_validate({"data": Message.build_assistant_audio(delta)}))  # 语音中
 
-        conn.asr_client.set_callbacks(
-            append_cb=on_append_text,
-            finish_cb=on_finish_text,
-        )  # 语音识别(asr)回调
-        conn.tts_client.set_callback(
-            callback=on_audio,
-        )  # 语音合成(tts)回调
+        conn.asr_client.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(asr)回调
+        conn.tts_client.set_callback(callback=on_audio)  # 语音合成(tts)回调
 
     async def _chatgpt_query(self, uid, text) -> None:
         """ 意图识别 """
@@ -180,7 +157,7 @@ class ChatService(CozeService):
             {"data": ConversationAudioUrlEvent.Data.model_validate(
                 {"content": f"{conn.uid}.{tts_req_id}"})}))  # token.uuid.tts_req_id
 
-        intention = await conn.llm_client.query_intention(text, device_repo=conn.device_repo)  # 意图识别
+        intention = await conn.llm_client.query_intention(text, chat_params=conn.chat_params)  # 意图识别
         # 1. 闹钟 2. 音乐 3. 控制
         if intention.meta_data:
             await conn.tts_client.query(text=intention.user_prompt, is_final=True)
@@ -213,12 +190,8 @@ class ChatService(CozeService):
 
         try:
             await conn.llm_client.query_stream(
-                text=text,
-                user_prompt=user_prompt,
-                system_prompt=system_prompt,
-                on_text=on_text,
-                on_chunk=on_chunk,
-                on_finish=on_finish,
+                text=text, user_prompt=user_prompt, system_prompt=system_prompt,
+                on_text=on_text, on_chunk=on_chunk, on_finish=on_finish,
             )
         except asyncio.CancelledError:  # 聊天打断
             await conn.output_queue.put(ConversationChatCanceledEvent.model_validate({}))

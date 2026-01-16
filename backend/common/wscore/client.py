@@ -16,14 +16,12 @@ from typing import Optional, Final, Union
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
-from backend.common.device.repository import DeviceStateRepository
 
 from backend.common.openai import (
     open_speech_manager,
     ASRClient,
     TTSClient,
     LLMClient,
-    VADClient,
 )
 
 from backend.common.wscore.coze.models import WebsocketsEvent
@@ -41,8 +39,8 @@ class ClientConnection:
     """
 
     __slots__ = (
-        'uid', 'websocket', 'device_repo',
-        'vad_client', 'llm_client', 'asr_client', 'tts_client',
+        'uid', 'websocket', 'chat_params',
+        'llm_client', 'asr_client', 'tts_client',
         '_loop', '_output_queue', '_send_task', '_last_activity',
         '_is_closed', '__weakref__',
     )
@@ -59,10 +57,9 @@ class ClientConnection:
 
         self.uid: Final[str] = uid
         self.websocket: Final[WebSocket] = websocket
-        self.device_repo: Optional[DeviceStateRepository] = DeviceStateRepository(device_id=uid)
+        self.chat_params: Optional[dict] = None
 
         # AI服务客户端
-        self.vad_client: Optional[VADClient] = None
         self.llm_client: Optional[LLMClient] = None
         self.asr_client: Optional[ASRClient] = None
         self.tts_client: Optional[TTSClient] = None
@@ -139,13 +136,12 @@ class ClientConnection:
 
         # 并发获取多个服务实例
         results = await asyncio.gather(
-            _acquire("VAD", open_speech_manager.acquire_vad),
             _acquire("LLM", open_speech_manager.acquire_llm),
             _acquire("ASR", open_speech_manager.acquire_asr),
             _acquire("TTS", open_speech_manager.acquire_tts),
         )
 
-        self.vad_client, self.llm_client, self.asr_client, self.tts_client = results
+        self.llm_client, self.asr_client, self.tts_client = results
 
     async def close(self) -> None:
         """安全关闭连接并释放资源（幂等操作）"""
@@ -173,13 +169,12 @@ class ClientConnection:
                     await release_func(client)
 
         await asyncio.gather(
-            _release(self.vad_client, open_speech_manager.release_vad),
             _release(self.llm_client, open_speech_manager.release_llm),
             _release(self.asr_client, open_speech_manager.release_asr),
             _release(self.tts_client, open_speech_manager.release_tts),
         )
 
-        self.vad_client = self.llm_client = self.asr_client = self.tts_client = None
+        self.llm_client = self.asr_client = self.tts_client = None
 
         # 4. 关闭 WebSocket
         await self.terminate_connection(self.websocket, WebSocketErrorCode.NORMAL_CLOSE)

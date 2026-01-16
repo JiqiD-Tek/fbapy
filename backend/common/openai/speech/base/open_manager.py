@@ -14,9 +14,8 @@ from typing import AsyncIterator, TypeVar, Generic, Optional
 from backend.core.conf import settings
 from backend.common.log import log
 from backend.common.openai.llm.llm_client import LLMClient
-from backend.common.openai.speech.base.vad_client import VADClient
 
-T = TypeVar('T')  # 客户端类型泛型: ASRClient, TTSClient, LLMClient, VADClient
+T = TypeVar('T')  # 客户端类型泛型: ASRClient, TTSClient, LLMClient
 
 
 class SpeechManager(ABC, Generic[T]):
@@ -40,7 +39,6 @@ class SpeechManager(ABC, Generic[T]):
         self._asr_pool = asyncio.LifoQueue(self.pool_size)
         self._tts_pool = asyncio.LifoQueue(self.pool_size)
         self._llm_pool = asyncio.LifoQueue(self.pool_size)
-        self._vad_pool = asyncio.LifoQueue(self.pool_size)
 
     async def get_pool_stats(self) -> dict[str, dict[str, int]]:
         """获取所有连接池的使用统计信息
@@ -49,7 +47,6 @@ class SpeechManager(ABC, Generic[T]):
             "asr": await self._get_single_pool_stats(self._asr_pool),
             "tts": await self._get_single_pool_stats(self._tts_pool),
             "llm": await self._get_single_pool_stats(self._llm_pool),
-            "vad": await self._get_single_pool_stats(self._vad_pool),
         }
 
     async def _get_single_pool_stats(self, pool: asyncio.LifoQueue) -> dict[str, int]:
@@ -165,24 +162,6 @@ class SpeechManager(ABC, Generic[T]):
         except asyncio.QueueFull:
             log.warning("LLM对象池满, 销毁对象")
             await self._force_close(client=client, reason="LLM 释放")
-
-    async def acquire_vad(self, uid: Optional[str] = None) -> "VADClient":
-        """获取VAD客户端（默认实现）"""
-        try:
-            vad = self._vad_pool.get_nowait()
-        except asyncio.QueueEmpty:
-            log.warning("VAD对象池空, 构建新对象")
-            vad = VADClient(uid=uid)
-
-        return vad
-
-    async def release_vad(self, client: "VADClient") -> None:
-        """释放VAD客户端（默认实现）"""
-        try:
-            self._vad_pool.put_nowait(client)
-        except asyncio.QueueFull:
-            log.warning("VAD对象池满, 销毁对象")
-            await self._force_close(client=client, reason="VAD 释放")
 
     @staticmethod
     async def _force_close(client: T, reason: str = "无") -> None:

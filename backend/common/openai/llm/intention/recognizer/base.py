@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 
 from backend.common.log import log
 from backend.common.openai.llm.models import llm
-from backend.common.device.repository import DeviceStateRepository
+from backend.common.openai.llm.model import ChatParams
 
 
 @dataclass(frozen=True)
@@ -67,7 +67,7 @@ class Recognizer(ABC):
             self, text: str,
             model_name: str = llm.LITE_MODEL_NAME,
             conversation_history: Optional[List[Dict[Literal["user", "assistant"], str]]] = None,
-            device_repo: DeviceStateRepository = None,
+            chat_params: dict = None,
             **kwargs) -> Intention:
         """
         执行意图识别查询
@@ -75,7 +75,7 @@ class Recognizer(ABC):
             text: 用户输入文本
             model_name: 使用的大模型名称 默认使用最小模型（速度快）
             conversation_history: 对话历史
-            device_repo: 设备存储
+            chat_params: 对话变量
             **kwargs: 传递给意图识别的额外参数
 
         Returns:
@@ -84,8 +84,7 @@ class Recognizer(ABC):
         try:
             llm_response = await self._call_llm(text, model_name, conversation_history)
             intent, content = self.extract_intent_content(llm_response)
-            log.debug(
-                f"意图处理器解析完成: text={text}, response={llm_response}, intent={intent}, content={content}")
+            log.debug(f"意图处理器解析完成: text={text}, response={llm_response}, intent={intent}, content={content}")
 
             action = self._action_registry.get(intent, self._get_default_action())
             try:
@@ -93,7 +92,7 @@ class Recognizer(ABC):
                     text=text,
                     content=content,
                     conversation_history=conversation_history,
-                    device_repo=device_repo,
+                    chat_params=chat_params,
                     **kwargs
                 )
                 return Intention(

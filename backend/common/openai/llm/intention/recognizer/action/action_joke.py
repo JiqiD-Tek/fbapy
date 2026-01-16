@@ -8,9 +8,7 @@
 import random
 from typing import Optional, List, Literal, Dict
 
-from backend.common.device.repository import DeviceStateRepository
-
-from backend.common.openai.llm.intention.action.base import Action, timed_execute, ActionResult
+from backend.common.openai.llm.intention.recognizer.action.base import Action, timed_execute, ActionResult
 
 
 class ActionJoke(Action):
@@ -72,7 +70,7 @@ class ActionJoke(Action):
     async def process(
             self, text: str, content: str,
             conversation_history: Optional[List[Dict[Literal["user", "assistant"], str]]] = None,
-            device_repo: DeviceStateRepository = None,
+            chat_params: dict = None,
             **kwargs
     ) -> ActionResult:
         if content == "unknown":

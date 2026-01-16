@@ -11,9 +11,8 @@ from typing import Optional, List, Literal, Dict
 from backend.common.log import log
 from backend.common.openapi.amap.amap_client import amap_client
 from backend.common.openapi.weather.open_weather_map import open_weather_map
-from backend.common.device.repository import DeviceStateRepository
 
-from backend.common.openai.llm.intention.action.base import Action, timed_execute, ActionResult
+from backend.common.openai.llm.intention.recognizer.action.base import Action, timed_execute, ActionResult
 
 
 class ActionWeather(Action):
@@ -54,13 +53,13 @@ class ActionWeather(Action):
     async def process(
             self, text: str, content: str,
             conversation_history: Optional[List[Dict[Literal["user", "assistant"], str]]] = None,
-            device_repo: DeviceStateRepository = None,
+            chat_params: dict = None,
             **kwargs
     ) -> ActionResult:
         """ content=南京 """
         log.debug(f"获取天气位置: {content}")
 
-        weather = await self._get_weather_info(content=content, device_repo=device_repo)
+        weather = await self._get_weather_info(content=content, chat_params=chat_params)
 
         return ActionResult(
             user_prompt=f"""
@@ -73,7 +72,7 @@ class ActionWeather(Action):
             """
         )
 
-    async def _get_weather_info(self, content: str = "", device_repo: DeviceStateRepository = None) -> str:
+    async def _get_weather_info(self, content: str = "", chat_params: dict = None) -> str:
         """获取天气信息（优化版）
         """
         # 定义默认错误消息
@@ -90,13 +89,10 @@ class ActionWeather(Action):
                 log.error(f"获取天气信息失败，错误信息：{e}")
                 return default_error_msg
 
-        # 尝试通过IP获取位置
-        if device_repo is None:
-            return location_error_msg
 
         try:
             # 通过IP获取城市信息
-            ip = await device_repo.get_field("ip")
+            ip = await chat_params.get("ip")
             location = await self.amap.get_location_by_ip(ip=ip)
             if not location or not location.get("city"):
                 log.debug(f"无法通过IP获取城市信息: {ip}")

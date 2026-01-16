@@ -6,9 +6,8 @@
 @Date    : 2025/05/28 19:55
 """
 from typing import Optional, List, Literal, Dict
-from backend.common.device.repository import DeviceStateRepository
 
-from backend.common.openai.llm.intention.action.base import Action, timed_execute, ActionResult
+from backend.common.openai.llm.intention.recognizer.action.base import Action, timed_execute, ActionResult
 
 
 class ActionChat(Action):
@@ -60,7 +59,7 @@ class ActionChat(Action):
     async def process(
             self, text: str, content: str,
             conversation_history: Optional[List[Dict[Literal["user", "assistant"], str]]] = None,
-            device_repo: DeviceStateRepository = None,
+            chat_params: dict = None,
             **kwargs
     ) -> ActionResult:
         """ content=南京 """

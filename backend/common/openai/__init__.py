@@ -10,7 +10,7 @@ from backend.common.log import log
 from backend.core.conf import settings
 
 from backend.common.openai.llm.llm_client import LLMClient
-from backend.common.openai.speech.base.vad_client import VADClient
+from backend.common.openai.speech.base.vad import VADClient
 
 if settings.SPEECH_TYPE == "azure":
     from backend.common.openai.speech.speech_azure.open_manager import (

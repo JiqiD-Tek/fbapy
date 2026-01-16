@@ -22,7 +22,10 @@ with Progress(
     task = progress.add_task('安装插件依赖...', total=len(_plugins))
     for plugin in _plugins:
         progress.update(task, description=f'[bold magenta]安装插件 {plugin} 依赖...[/]')
-        install_requirements(plugin)
+        try:
+            install_requirements(plugin)
+        except Exception as ex:
+            console.print(Text(f'{_log_prefix}安装插件 {plugin} 依赖失败: {ex}', style='bold red'))
         progress.advance(task)
     progress.update(task, description='[bold green]-[/]')
 

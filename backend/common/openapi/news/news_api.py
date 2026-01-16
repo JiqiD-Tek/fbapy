@@ -25,7 +25,7 @@ class NewsApi(object):
                  ):
         self.base_url = "https://newsapi.org"
         self.apikey = apikey
-        self.language = language  # action_en action_zh
+        self.language = language  # action action_zh
         self.country = country  # us action_zh
         self._http_client = HTTPClient(
             timeout=10.0,  # 10秒超时

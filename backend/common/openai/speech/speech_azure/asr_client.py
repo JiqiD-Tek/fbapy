@@ -15,6 +15,7 @@ from azure.cognitiveservices.speech import SpeechRecognizer, SpeechConfig
 from azure.cognitiveservices.speech.audio import AudioConfig, PushAudioInputStream
 
 from backend.common.log import log
+from backend.common.openai import VADClient
 
 
 class WebsocketTextCallback:
@@ -128,6 +129,8 @@ class ASRClient:
         Args:
             speech_config: 语音服务配置
         """
+        self.vad_client = VADClient()
+
         self.speech_config = speech_config
 
         self._push_input_stream: Optional[PushAudioInputStream] = None
@@ -171,8 +174,9 @@ class ASRClient:
             特性：
             1. 确保每次都是全新会话
         """
-        self._init_recognizer()  # 每次重新开始识别时初始化，确保每次识别都是新的，不会因为上次识别结果导致下次识别结果错误。
+        await self.vad_client.reset()
 
+        self._init_recognizer()  # 每次重新开始识别时初始化，确保每次识别都是新的，不会因为上次识别结果导致下次识别结果错误。
         self.final_text = ''
         self.start_recognition()
 

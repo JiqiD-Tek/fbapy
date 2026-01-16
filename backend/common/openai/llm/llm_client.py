@@ -6,21 +6,18 @@
 @Author  : guhua@jiqid.com
 @Created : 2025/05/20 10:49
 """
-
+import re
 import asyncio
 import traceback
 
 from typing import AsyncGenerator, Callable, Any, Optional, Set, Tuple
 
 from backend.common.openai.llm.intention.recognizer.base import Intention
-from backend.core.conf import settings
 
 from backend.common.log import log
 from backend.common.openai.llm.cache.memory import MemoryCache
 from backend.common.openai.llm.intention import recognizer
 from backend.common.openai.llm.models import llm
-
-from backend.common.device.repository import DeviceStateRepository
 
 
 class LLMClient:
@@ -31,37 +28,30 @@ class LLMClient:
     - 动态流式处理器跟踪
     """
 
-    def __init__(self, uid: str = ""):
+    def __init__(self, uid: str):
         """ 初始化大模型服务客户端 """
-        if not isinstance(uid, str):
-            raise ValueError("UID必须为字符串")
-
         self._uid = uid
         self._cache = MemoryCache(max_size=3)
-        self._access_lock = asyncio.Lock()
-        self._active_processors: Set['StreamProcessor'] = set()
+        self._stream_processor: Optional[StreamProcessor] = None
         self._recognizer = recognizer
         self._llm = llm
 
     async def set_uid(self, uid: str):
-        if not isinstance(uid, str) or not uid:
-            raise ValueError("UID必须为非空字符串")
-        async with self._access_lock:
-            self._uid = uid
-            log.debug(f"设置UID成功-{uid}")
+        self._uid = uid
+        log.debug(f"设置UID成功-{uid}")
 
     @property
     def cache(self) -> MemoryCache:
         """获取聊天缓存实例。"""
         return self._cache
 
-    async def query_intention(self, text: str, device_repo: DeviceStateRepository) -> Intention:
+    async def query_intention(self, text: str, chat_params: dict) -> Intention:
         """ 识别用户意图。 """
         conversation_history = await self.cache.retrieve_related(text)
         log.debug(f"意图识别：查询历史记录 [UID:{self._uid} history_count:{len(conversation_history)}]")
 
         intention = await self._recognizer.detect(
-            text, conversation_history=conversation_history, device_repo=device_repo
+            text, conversation_history=conversation_history, chat_params=chat_params
         )
 
         # 1. 闹钟 2. 音乐 3. 控制 不会继续调用大模型，直接更新对话缓存
@@ -100,36 +90,25 @@ class LLMClient:
             conversation_history=conversation_history,
             stream=True
         )
-        processor = StreamProcessor(stream)
 
-        async with self._access_lock:
-            self._active_processors.add(processor)
+        # 新请求来 → 旧流立即中断
+        if self._stream_processor:
+            await self._stream_processor.stop()
+
+        self._stream_processor = StreamProcessor(stream)
 
         try:
-            response = await processor.run(on_text, on_chunk, on_finish)
+            response = await self._stream_processor.run(on_text, on_chunk, on_finish)
             self.cache.add(query=text, response=response)
         except Exception as ex:
             log.error(f"流式生成失败 [UID:{self._uid} - {ex} - {traceback.format_exc()}]")
-        finally:
-            async with self._access_lock:
-                self._active_processors.discard(processor)
 
     async def close(self) -> None:
-        """安全关闭所有活跃流"""
-        async with self._access_lock:
-            tasks = [processor.stop() for processor in self._active_processors]
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-                log.debug(f"关闭 {len(tasks)} 个活跃流处理器 [UID:{self._uid}]")
-
-            self._active_processors.clear()
-            await self._cache.clear()
+        """安全关闭活跃流"""
+        if self._stream_processor:
+            await self._stream_processor.stop()
+            self._stream_processor = None
             log.info(f"LLM客户端关闭完成 [UID:{self._uid}]")
-
-    @property
-    def active_stream_count(self) -> int:
-        """获取当前活跃流数量"""
-        return len(self._active_processors)
 
 
 class StreamProcessor:
@@ -205,133 +184,136 @@ class StreamProcessor:
 
 
 class TextChunker:
-    """智能文本分块器，按语义边界分割长文本，支持阿拉伯语等语言"""
+    """
+    智能文本分块器，旨在根据语义边界将长文本分割成有意义的块。
+    它会优先在句子或子句的末尾进行分割，同时避免在数字、日期、缩写词等内部错误地断开。
+    """
 
-    PUNCTUATION: Set[str] = {
-        '。', '？', '！', '.', '?', '!',  # 通用句子结束符
-        '，', '؛', ';', '،', ',',  # 子句分隔符（包括阿拉伯语逗号和分号）
-        '：', ':', '—', '-', '–',  # 子句分隔符
-        '۔', '؟', '!',  # 阿拉伯语特定的句子结束符
-        '\n', '…', '...',  # 换行和省略号
-    }
+    # 将标点符号按功能分类，便于逻辑扩展
+    SENTENCE_ENDINGS: Set[str] = {'。', '？', '！', '.', '?', '!'}
+    CLAUSE_SEPARATORS: Set[str] = {'，', '；', ',', '：', ':', '—', '-', '–'}
+    OTHER_BREAKS: Set[str] = {'\n', '…', '...'}
 
-    # 阿拉伯语优先标点
-    AR_PUNCTUATION_PRIORITY: Set[str] = {'،', '؛'}
+    # 合并所有可作为分割依据的标点
+    ALL_PUNCTUATION: Set[str] = SENTENCE_ENDINGS | CLAUSE_SEPARATORS | OTHER_BREAKS
 
-    MIN_CHUNK_SIZE: dict[str, int] = {
-        "zh-CN": 10,
-        "en-US": 30,
-        "ar-SA": 10,  # 降低以适应阿拉伯语短句
-    }
+    DEFAULT_MIN_CHUNK_SIZE: int = 30  # 默认值
 
-    ARABIC_DIGITS: Set[str] = set('٠١٢٣٤٥٦٧٨٩')
+    # 预编译正则表达式以提高性能
+    # 匹配常见的数字格式 (e.g., 3.14, 1,000,000)
+    NUMBER_REGEX = re.compile(r'\d([.,])\d')
+    # 匹配常见的日期和时间格式 (e.g., 2023-01-01, 12:30)
+    DATETIME_REGEX = re.compile(r'\d([-:])\d')
+    # 匹配常见的缩写 (e.g., U.S.A., Ph.D.)
+    ABBREVIATION_REGEX = re.compile(r'\b[A-Z](?:\.[A-Z])+\.?')
+    # 匹配省略号
+    ELLIPSIS_REGEX = re.compile(r'(\.\.\.|\u2026)')  # ... 或 …
 
     @classmethod
-    def split_text(cls, text: str, language: str = settings.LLM_LANGUAGE) -> Tuple[Optional[str], str]:
-        """智能文本分块"""
-        pos = cls._find_optimal_split_pos(text, language)
+    def split_text(cls, text: str) -> Tuple[Optional[str], str]:
+        """
+        从文本开头分割出第一个语义完整的块。
+
+        Args:
+            text (str): 待分割的原始文本。
+
+        Returns:
+            Tuple[Optional[str], str]: 返回一个元组。
+            如果成功分割，第一个元素是分割出的文本块，第二个元素是剩余文本。
+            如果无法找到合适的分割点，第一个元素为 None，第二个元素为原始文本。
+        """
+        if not text:
+            return None, ""
+
+        pos = cls._find_optimal_split_pos(text)
         if pos is None:
             return None, text
 
         chunk = text[:pos].strip()
-        return chunk, text[pos:]
+        remaining_text = text[pos:].strip()
+        return chunk, remaining_text
 
     @classmethod
-    def _find_optimal_split_pos(cls, text: str, language: str) -> Optional[int]:
-        """查找最佳分割位置"""
-        min_chunk_size = cls.MIN_CHUNK_SIZE.get(language, 30)
+    def _find_optimal_split_pos(cls, text: str) -> Optional[int]:
+        """
+        在文本中查找最佳的分割位置。
+        它从最小分块长度开始向后扫描，寻找第一个有效的标点符号作为分割点。
+        """
+        min_chunk_size = cls.DEFAULT_MIN_CHUNK_SIZE
+
+        # 如果文本本身就小于最小分块大小，则不进行分割
         if len(text) < min_chunk_size:
             return None
 
-        validator = cls._is_ar_valid_break if language == "ar-SA" else cls._is_valid_break
-        for pos in range(min_chunk_size, len(text)):
-            if text[pos - 1] not in cls.PUNCTUATION:
-                continue
+        # 从最小长度开始，寻找第一个有效的分割点
+        # 增加搜索范围，以防有效分割点在min_chunk_size之后
+        search_limit = max(min_chunk_size * 2, len(text))
 
-            if validator(text, pos):
+        for pos in range(min_chunk_size, search_limit):
+            # 确保 pos-1 在文本范围内
+            if pos > len(text):
+                break
+
+            if text[pos - 1] in cls.ALL_PUNCTUATION and cls._is_valid_break(text, pos):
+                return pos
+
+        # 如果在扩展搜索范围内仍未找到，则在整个文本中从后往前找最后一个有效分割点
+        for pos in range(len(text), min_chunk_size, -1):
+            if text[pos - 1] in cls.ALL_PUNCTUATION and cls._is_valid_break(text, pos):
                 return pos
 
         return None
 
-    @staticmethod
-    def _is_ar_valid_break(text: str, pos: int) -> bool:
+    @classmethod
+    def _is_valid_break(cls, text: str, pos: int) -> bool:
         """
-        判断当前位置是否允许分割，优化为阿拉伯语特性
-        :param text: 完整文本
-        :param pos: 待检查位置
-        :return: 是否允许分割
+        使用预编译的正则表达式和逻辑判断，验证一个位置是否是有效的分割点。
+        这可以防止在数字、日期、缩写词等中间断开。
         """
-        char = text[pos - 1]
-        prev_char = text[pos] if pos < len(text) else None  # 逻辑右侧（RTL）
-        next_char = text[pos - 2] if pos >= 2 else None  # 逻辑左侧（RTL）
+        # 检查点是标点符号前面的位置
+        break_char = text[pos - 1]
 
-        # 阿拉伯语数字格式（١٢٣٫٤٥، ١٬٠٠٠）
-        if char in {'.', '٫', ','} and prev_char and prev_char in TextChunker.ARABIC_DIGITS:
-            if next_char and (next_char in TextChunker.ARABIC_DIGITS or next_char in {'"', "'", '”', '’'}):
-                return False
+        # 检查周围的上下文，以防在特殊格式中间断开
+        # 上下文窗口可以根据需要调整
+        context_start = max(0, pos - 10)
+        context_end = min(len(text), pos + 10)
+        context = text[context_start:context_end]
 
-        # 时间/日期（١٢:٣٠، ٢٠٢٣-٠١-٠١）
-        if char in {':', '-'} and prev_char and next_char:
-            if prev_char in TextChunker.ARABIC_DIGITS and next_char in TextChunker.ARABIC_DIGITS:
-                return False
+        # 将当前位置映射到上下文中的相对位置
+        relative_pos = pos - context_start
 
-        # 缩写词（م.ع.، د.）
-        if char in {'.', '٫'} and pos >= 3:
-            fragment = text[max(0, pos - 3):pos]
-            if '٫' in fragment[:-1]:
-                return False
+        # 规则 1: 数字格式 (e.g., 3.14, 1,000)
+        if break_char in {'.', ','}:
+            # 查找所有匹配项，检查是否有任何一个跨越了我们的分割点
+            for match in cls.NUMBER_REGEX.finditer(context):
+                if match.start(1) < relative_pos <= match.end(1):
+                    return False
 
-        # 连字符词组（عالي-الجودة）或阿拉伯语连字符（ـ）
-        if char in {'-', '–', '—', 'ـ'} and prev_char and next_char:
-            if prev_char.isalnum() and next_char.isalnum():
-                return False
+        # 规则 2: 日期/时间格式 (e.g., 2023-01-01, 12:30)
+        if break_char in {'-', ':'}:
+            for match in cls.DATETIME_REGEX.finditer(context):
+                if match.start(1) < relative_pos <= match.end(1):
+                    return False
 
-        # 省略号（... 或 … 或 ⋯）
-        if char in {'.', '…', '⋯'} and pos >= 3:
-            fragment = text[max(0, pos - 3):pos]
-            if fragment in {'...', '…', '⋯'} or fragment.endswith('..'):
-                return False
+        # 规则 3: 缩写词 (e.g., U.S.A.)
+        if break_char == '.':
+            for match in cls.ABBREVIATION_REGEX.finditer(context):
+                # 如果分割点在缩写词的内部
+                if match.start() < relative_pos - 1 and relative_pos <= match.end():
+                    return False
 
-        # 避免在定冠词“ال”后分割
-        if pos < len(text) - 1 and text[pos:pos + 2] == 'ال':
-            return False
+        # 规则 4: 省略号 (...)
+        if break_char == '.':
+            for match in cls.ELLIPSIS_REGEX.finditer(context):
+                if match.start() < relative_pos - 1 and relative_pos <= match.end():
+                    return False
 
-        return True
-
-    @staticmethod
-    def _is_valid_break(text: str, pos: int) -> bool:
-        """
-        判断当前位置是否允许分割，通用语言（非阿拉伯语）
-        """
-        char = text[pos - 1]
-        prev_char = text[pos - 2] if pos >= 2 else None
-        next_char = text[pos] if pos < len(text) else None
-
-        # 数字格式（3.14, 1,000）
-        if char in {'.', ','} and prev_char and prev_char.isdigit():
-            if next_char and (next_char.isdigit() or next_char in {'"', "'", '”', '’'}):
-                return False
-
-        # 时间/日期（12:30, 2023-01-01）
-        if char in {':', '-'} and prev_char and next_char:
-            if prev_char.isdigit() and next_char.isdigit():
-                return False
-
-        # 缩写词（U.S.A., Ph.D.）
-        if char == '.' and pos >= 3:
-            fragment = text[max(0, pos - 4):pos]
-            if fragment.isupper() or '.' in fragment[:-1]:
-                return False
-
-        # 连字符词组（state-of-the-art）
-        if char in {'-', '–', '—'} and prev_char and next_char:
-            if prev_char.isalnum() and next_char.isalnum():
-                return False
-
-        # 省略号（... 或 … 或 ⋯）
-        if char in {'.', '…', '⋯'} and pos >= 3:
-            fragment = text[max(0, pos - 3):pos]
-            if fragment in {'...', '…', '⋯'} or fragment.endswith('..'):
+        # 规则 5: 连字符词组 (e.g., state-of-the-art)
+        # 原始逻辑已经很有效，这里保留
+        if break_char in {'-', '–', '—'}:
+            prev_char = text[pos - 2] if pos > 1 else None
+            next_char = text[pos] if pos < len(text) else None
+            if prev_char and next_char and prev_char.isalnum() and next_char.isalnum():
                 return False
 
         return True

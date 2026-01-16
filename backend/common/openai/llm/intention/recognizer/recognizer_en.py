@@ -8,14 +8,13 @@
 
 from typing import Any, Dict
 
-from backend.common.openai.llm.intention.action.action_en.action_alarm import ActionAlarm
-from backend.common.openai.llm.intention.action.action_en.action_control import ActionControl
-from backend.common.openai.llm.intention.action.action_en.action_music import ActionMusic
-from backend.common.openai.llm.intention.action.action_en.action_news import ActionNews
-from backend.common.openai.llm.intention.action.action_en.action_story import ActionStory
-from backend.common.openai.llm.intention.action.action_en.action_joke import ActionJoke
-from backend.common.openai.llm.intention.action.action_en.action_weather import ActionWeather
-from backend.common.openai.llm.intention.action.action_en.action_chat import ActionChat
+from backend.common.openai.llm.intention.recognizer.action.action_control import ActionControl
+from backend.common.openai.llm.intention.recognizer.action import ActionMusic
+from backend.common.openai.llm.intention.recognizer.action import ActionNews
+from backend.common.openai.llm.intention.recognizer.action import ActionStory
+from backend.common.openai.llm.intention.recognizer.action.action_joke import ActionJoke
+from backend.common.openai.llm.intention.recognizer.action import ActionWeather
+from backend.common.openai.llm.intention.recognizer.action.action_chat import ActionChat
 
 from backend.common.openai.llm.intention.recognizer.base import Recognizer
 
@@ -28,7 +27,7 @@ class RecognizerEN(Recognizer):
         return {
             cls.name: cls() for cls in [
                 ActionWeather, ActionNews, ActionMusic,
-                ActionStory, ActionJoke, ActionAlarm, ActionControl,
+                ActionStory, ActionJoke,  ActionControl,
             ]
         }
 
