@@ -110,7 +110,7 @@ main() {
     log_info "步骤 2: 构建 Docker 镜像..."
     cd "$PROJECT_DIR"
     local IMAGE_NAME="fbapy"
-    docker build -f Dockerfile -t "${IMAGE_NAME}:${IMAGE_VERSION}" .
+    DOCKER_BUILDKIT=1 docker build -f Dockerfile -t "${IMAGE_NAME}:${IMAGE_VERSION}" .
     log_success "镜像构建完成: ${IMAGE_NAME}:${IMAGE_VERSION}"
 
     # 3. 清理悬空镜像
