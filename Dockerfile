@@ -34,11 +34,11 @@ RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debi
     && apt-get install -y --no-install-recommends curl ca-certificates supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-COPY deploy/uv/uv-installer.sh /uv-installer.sh
-COPY deploy/uv/uv-x86_64-unknown-linux-gnu.tar.gz /uv-x86_64-unknown-linux-gnu.tar.gz
+COPY deploy/uv/uv-x86_64-unknown-linux-gnu.tar.gz /tmp/uv.tar.gz
 
-RUN sh /uv-installer.sh --local /uv-x86_64-unknown-linux-gnu.tar.gz \
-    && rm /uv-installer.sh /uv-x86_64-unknown-linux-gnu.tar.gz
+RUN mkdir -p /usr/local/bin \
+    && tar -xzf /tmp/uv.tar.gz -C /usr/local/bin \
+    && rm /tmp/uv.tar.gz
 
 ENV PATH="/root/.local/bin/:$PATH"
 
