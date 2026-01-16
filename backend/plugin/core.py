@@ -267,7 +267,10 @@ def build_final_router() -> APIRouter:
     from backend.app.router import router as main_router
 
     for plugin in app_plugins:
-        inject_app_router(plugin, main_router)
+        try:
+            inject_app_router(plugin, main_router)
+        except Exception as e:
+            log.error(f"应用级插件 {plugin} 路由注入失败：{e!s}")
 
     return main_router
 
