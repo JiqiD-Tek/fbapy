@@ -16,7 +16,7 @@ from typing import Optional, Final, Union
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
-from backend.common.openai.assistant import Assistant
+from backend.common.agents.assistant import Assistant
 
 from backend.common.wscore.coze.models import WebsocketsEvent
 from backend.common.wscore.exception.errors import WebSocketErrorCode

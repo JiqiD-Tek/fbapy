@@ -72,6 +72,7 @@ dependencies = [
     "cozepy>=0.20.0",
     "langchain-community>=0.4.1",
     "ddgs>=9.10.0",
+    "docstring-parser>=0.17.0",
 ]
 
 [dependency-groups]

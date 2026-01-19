@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     FASTAPI_DESCRIPTION: str = 'FastAPI Best Architecture'
     FASTAPI_DOCS_URL: str = '/docs'
     FASTAPI_REDOC_URL: str = '/redoc'
-    FASTAPI_OPENAPI_URL: str | None = '/openapi'
+    FASTAPI_OPENAPI_URL: str | None = '/api_clients'
     FASTAPI_STATIC_FILES: bool = True
 
     # .env 数据库
@@ -193,7 +193,7 @@ class Settings(BaseSettings):
         '/favicon.ico',
         '/docs',
         '/redoc',
-        '/openapi',
+        '/api_clients',
         f'{FASTAPI_API_V1_PATH}/auth/login/swagger',
         f'{FASTAPI_API_V1_PATH}/oauth2/github/callback',
         f'{FASTAPI_API_V1_PATH}/oauth2/google/callback',
