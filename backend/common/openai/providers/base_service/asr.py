@@ -18,14 +18,6 @@ class ASR(ABC):
     - 确保子类实现必要的语音处理功能
     """
 
-    @abstractmethod
-    async def set_uid(self, uid: str) -> None:
-        """设置会话唯一标识符
-
-        参数：
-            uid: 唯一会话ID，用于跟踪识别会话
-        """
-
     def set_callbacks(self,
                       append_cb: Optional[Callable[[str], None]] = None,
                       finish_cb: Optional[Callable[[str], None]] = None) -> None:

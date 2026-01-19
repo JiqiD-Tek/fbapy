@@ -39,14 +39,14 @@ class TranscriptionsService(CozeService):
 
         await self._register_speech_callback(uid)  # 注册asr回调
 
-        await conn.asr.stream_start()
+        await conn.assistant.asr.stream_start()
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.asr.stream_append(audio_chunk=event.data.delta)
+        await conn.assistant.asr.stream_append(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
@@ -86,7 +86,7 @@ class TranscriptionsService(CozeService):
                     {"data": TranscriptionsMessageUpdateEvent.Data.model_validate({"content": text})}))
             await conn.output_queue.put(TranscriptionsMessageCompletedEvent.model_validate({}))
 
-        conn.asr.set_callbacks(
+        conn.assistant.asr.set_callbacks(
             append_cb=on_append_text,
             finish_cb=on_finish_text
         )  # 语音识别(asr)回调

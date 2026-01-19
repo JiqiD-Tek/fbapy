@@ -16,7 +16,10 @@ from backend.common.openai.core.classifier import Intention, Recognizer
 
 from backend.common.log import log
 from backend.common.openai.core.cache.memory import MemoryCache
-from backend.common.wscore.client import ClientConnection
+
+from backend.common.openai.providers.azure_service.asr import AzureASR
+from backend.common.openai.providers.azure_service.llm import AzureLLM
+from backend.common.openai.providers.azure_service.tts import AzureTTS
 
 
 class Assistant:
@@ -27,12 +30,18 @@ class Assistant:
     - 动态流式处理器跟踪
     """
 
-    def __init__(self, conn: ClientConnection):
+    def __init__(self, uid: str):
         """ 初始化大模型服务客户端 """
-        self._conn = conn
+        self.uid = uid
+
         self._cache = MemoryCache(max_size=3)
         self._stream_processor: Optional[StreamProcessor] = None
-        self._recognizer = Recognizer(llm=self._conn.llm)
+
+        self.asr = AzureASR()
+        self.llm = AzureLLM()
+        self.tts = AzureTTS()
+
+        self._recognizer = Recognizer(llm=self.llm)
 
     @property
     def cache(self) -> MemoryCache:
@@ -42,7 +51,7 @@ class Assistant:
     async def query_intention(self, text: str, chat_config) -> Intention:
         """ 识别用户意图。 """
         conversation_history = await self.cache.retrieve_related(text)
-        log.debug(f"意图识别：查询历史记录 [UID:{self._conn.uid} history_count:{len(conversation_history)}]")
+        log.debug(f"意图识别：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
 
         intention = await self._recognizer.detect(
             text, conversation_history=conversation_history, chat_config=chat_config
@@ -51,7 +60,7 @@ class Assistant:
         # 1. 闹钟 2. 音乐 3. 控制 不会继续调用大模型，直接更新对话缓存
         if intention.meta_data:
             self.cache.add(query=text, response=intention.user_prompt)
-            log.debug(f"意图缓存更新 [UID:{self._conn.uid}]")
+            log.debug(f"意图缓存更新 [UID:{self.uid}]")
 
         return intention
 
@@ -76,9 +85,9 @@ class Assistant:
             on_finish: 最终结果回调
         """
         conversation_history = await self.cache.retrieve_related(text)
-        log.debug(f"流式生成：查询历史记录 [UID:{self._conn.uid} history_count:{len(conversation_history)}]")
+        log.debug(f"流式生成：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
 
-        stream = await self._conn.llm.query(
+        stream = await self.llm.query(
             text=user_prompt or text,
             system_prompt=system_prompt,
             conversation_history=conversation_history,
@@ -95,14 +104,14 @@ class Assistant:
             response = await self._stream_processor.run(on_text, on_chunk, on_finish)
             self.cache.add(query=text, response=response)
         except Exception as ex:
-            log.error(f"流式生成失败 [UID:{self._conn.uid} - {ex} - {traceback.format_exc()}]")
+            log.error(f"流式生成失败 [UID:{self.uid} - {ex} - {traceback.format_exc()}]")
 
     async def close(self) -> None:
         """安全关闭活跃流"""
         if self._stream_processor:
             await self._stream_processor.stop()
             self._stream_processor = None
-            log.info(f"LLM客户端关闭完成 [UID:{self._conn.uid}]")
+            log.info(f"LLM客户端关闭完成 [UID:{self.uid}]")
 
 
 class StreamProcessor:

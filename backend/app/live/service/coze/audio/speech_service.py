@@ -13,7 +13,6 @@ from backend.app.live.service.coze.service import CozeService
 from backend.core.conf import settings
 from backend.common.exception import errors
 from backend.common.ali_oss import oss_client
-from backend.common.openai.providers import open_manager
 
 from backend.common.wscore.gateway import connection_gateway
 from backend.common.wscore.coze.models import (
@@ -46,16 +45,16 @@ class SpeechService(CozeService):
             else:
                 raw_data.extend(data)
 
-        client = await open_manager.acquire_tts(uid=uid, encoding=encoding)
-        client.set_callback(audio_callback)
-
-        await client.query(text, is_final=True)
-        try:
-            await asyncio.wait_for(completion_event.wait(), timeout=30.0)
-        except asyncio.TimeoutError:
-            raise errors.ServerError(msg="TTS转换超时")
-        finally:
-            await open_manager.release_tts(client)  # 释放tts资源
+        # client = await open_manager.acquire_tts(uid=uid, encoding=encoding)
+        # client.set_callback(audio_callback)
+        #
+        # await client.query(text, is_final=True)
+        # try:
+        #     await asyncio.wait_for(completion_event.wait(), timeout=30.0)
+        # except asyncio.TimeoutError:
+        #     raise errors.ServerError(msg="TTS转换超时")
+        # finally:
+        #     await open_manager.release_tts(client)  # 释放tts资源
 
         if encoding.lower() == "wav":
             audio_data = self._pcm_to_wav(
@@ -83,7 +82,7 @@ class SpeechService(CozeService):
 
         await self._register_speech_callback(uid)  # 注册tts回调
 
-        tts_req_id = await conn.tts.tts_cache.create_new_request()  # 初始化语音id
+        tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
         await conn.output_queue.put(SpeechAudioUrlEvent.model_validate(
             {"data": SpeechAudioUrlEvent.Data.model_validate(
                 {"content": f"{conn.uid}.{tts_req_id}"})}))  # 音频播放token
@@ -93,14 +92,14 @@ class SpeechService(CozeService):
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.tts.query(text=event.data.delta, is_final=False)
+        await conn.assistant.tts.query(text=event.data.delta, is_final=False)
 
     async def on_input_text_buffer_complete(self, uid: str, event: InputTextBufferCompleteEvent):
         """ 文本内容接受完成 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.tts.query(text='', is_final=True)
+        await conn.assistant.tts.query(text='', is_final=True)
 
     def to_dict(
             self, origin: Optional[Dict[WebsocketsEventType, Callable]] = None

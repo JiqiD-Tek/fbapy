@@ -18,7 +18,7 @@ from collections import deque
 from pydantic import BaseModel
 
 from backend.common.log import log
-from backend.common.openai.base.asr import ASR
+from backend.common.openai.providers.base_service.asr import ASR
 from backend.common.openai.providers.coze_service.ws import AsyncWebSocketClient
 
 PROTOCOL_VERSION = 0b0001

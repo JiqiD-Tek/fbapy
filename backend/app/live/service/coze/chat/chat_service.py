@@ -8,7 +8,6 @@ import asyncio
 from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
-from backend.common.openai.assistant import Assistant
 
 from backend.common.wscore.gateway import connection_gateway
 from backend.common.wscore.coze.models import (
@@ -55,7 +54,7 @@ class ChatService(CozeService):
         conn.chat_config = event.data.chat_config  # 对话变配置
 
         await self._register_speech_callback(uid)  # 注册asr、tts回调
-        await conn.asr.stream_start()  # 启动asr
+        await conn.assistant.asr.stream_start()  # 启动asr
 
         await conn.output_queue.put(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
 
@@ -64,21 +63,21 @@ class ChatService(CozeService):
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.asr.stream_append(audio_chunk=event.data.delta)
+        await conn.assistant.asr.stream_append(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.asr.stream_finish()
+        await conn.assistant.asr.stream_finish()
 
     async def on_conversation_chat_cancel(self, uid: str, event: ConversationChatCancelEvent):
         """ 对话取消 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        await conn.llm_client.close()  # 打断
+        await conn.assistant.close()  # 打断
 
     async def on_conversation_chat_submit_tool_outputs(self, uid: str, event: ConversationChatSubmitToolOutputsEvent):
         """ 调用工具 """
@@ -127,7 +126,7 @@ class ChatService(CozeService):
 
         async def on_audio(delta: bytes | None) -> None:
             """ tts合成语音回调 """
-            await conn.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
+            await conn.assistant.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
 
             if delta == b"":  # 对话完成，大模型输出完成所有分块
                 await conn.output_queue.put(ConversationAudioCompletedEvent.model_validate({}))  # 语音完成
@@ -138,21 +137,20 @@ class ChatService(CozeService):
             await conn.output_queue.put(
                 ConversationAudioDeltaEvent.model_validate({"data": Message.build_assistant_audio(delta)}))  # 语音中
 
-        conn.asr.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(asr)回调
-        conn.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
+        conn.assistant.asr.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(asr)回调
+        conn.assistant.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
 
     async def _chatgpt_query(self, uid, text) -> None:
         """ 意图识别 """
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        tts_req_id = await conn.tts.tts_cache.create_new_request()  # 初始化语音id
+        tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
         await conn.output_queue.put(ConversationAudioUrlEvent.model_validate(
             {"data": ConversationAudioUrlEvent.Data.model_validate(
                 {"content": f"{conn.uid}.{tts_req_id}"})}))  # token.uuid.tts_req_id
 
-        assistant = Assistant(conn=conn)  # 应该一个用户一个 TODO
-        intention = await assistant.query_intention(text, chat_config=conn.chat_config)  # 意图识别
+        intention = await conn.assistant.query_intention(text, chat_config=conn.chat_config)  # 意图识别
         # 1. 音乐
         if intention.meta_data:
             await conn.tts_client.query(text=intention.user_prompt, is_final=True)
@@ -176,7 +174,7 @@ class ChatService(CozeService):
 
         async def on_chunk(chunk_text: str, is_final: bool = False) -> None:
             """ 大模型流式内容分段，按段进行TTS """
-            await conn.tts.query(text=chunk_text, is_final=is_final)  # 分块文本
+            await conn.assistant.tts.query(text=chunk_text, is_final=is_final)  # 分块文本
 
         async def on_finish(final_text: str) -> None:
             """ 大模型完整流式内容 """
@@ -184,7 +182,7 @@ class ChatService(CozeService):
                 {"data": Message.build_assistant_answer(final_text)}))  # 完整文本
 
         try:
-            await conn.llm_client.query_stream(
+            await conn.assistant.query_stream(
                 text=text, user_prompt=user_prompt, system_prompt=system_prompt,
                 on_text=on_text, on_chunk=on_chunk, on_finish=on_finish,
             )

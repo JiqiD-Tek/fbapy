@@ -19,17 +19,6 @@ class TTS(ABC):
     """
 
     @abstractmethod
-    async def set_uid(self, uid: str) -> None:
-        """设置会话唯一标识符
-
-        参数：
-            uid: 唯一会话ID，用于跟踪合成任务
-        典型用途：
-        - 多路音频流区分
-        - 日志追踪
-        """
-
-    @abstractmethod
     def set_callback(
             self,
             callback: Optional[Callable[[bytes], None]] = None
@@ -43,18 +32,6 @@ class TTS(ABC):
         回调触发场景：
         - 实时流式合成时逐块返回音频
         - 合成结束时返回None作为终止信号
-        """
-
-    @abstractmethod
-    async def submit(self, text: str) -> None:
-        """提交文本进行异步合成(非阻塞模式)
-
-        参数：
-            text: 待合成文本
-        典型特征：
-        - 立即返回不等待合成完成
-        - 通过set_callback设置的函数接收结果
-        - 适合实时流式场景
         """
 
     @abstractmethod

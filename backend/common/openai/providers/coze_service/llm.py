@@ -7,7 +7,7 @@
 """
 
 from backend.core.conf import settings
-from backend.common.openai.base.llm import LLM
+from backend.common.openai.providers.base_service.llm import LLM
 
 
 class CozeLLM(LLM):
@@ -20,7 +20,7 @@ class CozeLLM(LLM):
     LITE_MODEL_NAME: str = "doubao-seed-1-6-flash-250615"
     THINK_MODEL_NAME: str = "doubao-1.5-pro-32k-250115"
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = "doubao-1.5-pro-32k-250115"):
         super().__init__(
             api_key=settings.DOUBAO_API_KEY.get_secret_value(),
             base_url=settings.DOUBAO_BASE_URL,

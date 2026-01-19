@@ -9,7 +9,7 @@ from typing import Optional, List, Literal, Dict
 
 from backend.common.log import log
 from backend.common.openai.core.prompt import build_user_prompt
-from backend.common.openapi.weather_api import open_weather_map
+from backend.common.openai.core.openapi.weather_api import open_weather_map
 
 from backend.common.openai.core.tools.base import Tool, timed_execute, ToolResult
 

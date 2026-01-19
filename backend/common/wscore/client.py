@@ -16,13 +16,7 @@ from typing import Optional, Final, Union
 from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
-
-from backend.common.openai.providers import (
-    open_manager,
-    ASR,
-    TTS,
-    LLM,
-)
+from backend.common.openai.assistant import Assistant
 
 from backend.common.wscore.coze.models import WebsocketsEvent
 from backend.common.wscore.exception.errors import WebSocketErrorCode
@@ -39,8 +33,7 @@ class ClientConnection:
     """
 
     __slots__ = (
-        'uid', 'websocket', 'chat_config',
-        'llm', 'asr', 'tts',
+        'uid', 'websocket', 'chat_config', 'assistant',
         '_loop', '_output_queue', '_send_task', '_last_activity',
         '_is_closed', '__weakref__',
     )
@@ -53,13 +46,10 @@ class ClientConnection:
             websocket: 客户端WebSocket连接
         """
         self.uid = uid
-        self.chat_config = None
         self.websocket: Final[WebSocket] = websocket
 
-        # AI服务客户端
-        self.llm: Optional[LLM] = None
-        self.asr: Optional[ASR] = None
-        self.tts: Optional[TTS] = None
+        self.chat_config = None
+        self.assistant = Assistant(uid)
 
         self._last_activity: float = time.monotonic()
         self._output_queue: asyncio.Queue[Optional[WebsocketsEvent]] = asyncio.Queue(maxsize=1000)
@@ -124,22 +114,6 @@ class ClientConnection:
             log.warning(f"[{self.uid}] 已关闭，跳过初始化")
             return
 
-        async def _acquire(name: str, func):
-            try:
-                return await func(uid=self.uid)
-            except Exception as e:
-                log.error(f"[{self.uid}] 初始化 {name} 失败: {e}")
-                return None
-
-        # 并发获取多个服务实例
-        results = await asyncio.gather(
-            _acquire("ASR", open_manager.acquire_asr),
-            _acquire("TTS", open_manager.acquire_tts),
-            _acquire("LLM", open_manager.acquire_llm),
-        )
-
-        self.llm, self.asr, self.tts = results
-
     async def close(self) -> None:
         """安全关闭连接并释放资源（幂等操作）"""
         if self._is_closed:
@@ -164,14 +138,6 @@ class ClientConnection:
             if client:
                 with suppress(Exception):
                     await release_func(client)
-
-        await asyncio.gather(
-            _release(self.llm, open_manager.release_llm),
-            _release(self.asr, open_manager.release_asr),
-            _release(self.tts, open_manager.release_tts),
-        )
-
-        self.llm = self.asr = self.tts = None
 
         # 4. 关闭 WebSocket
         await self.terminate_connection(self.websocket, WebSocketErrorCode.NORMAL_CLOSE)

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 
 from backend.app.domain.service.messaging import MessagingService
 from backend.common.mqtt_broker import get_mqtt, MQTTBroker
-from backend.common.openapi.weather_api import open_weather_map
+from backend.common.openai.core.openapi.weather_api import open_weather_map
 
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
 

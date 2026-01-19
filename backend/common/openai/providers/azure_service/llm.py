@@ -11,7 +11,7 @@ from openai import AsyncAzureOpenAI
 
 from backend.common.log import log
 from backend.core.conf import settings
-from backend.common.openai.base.llm import LLM
+from backend.common.openai.providers.base_service.llm import LLM
 
 
 class AzureLLM(LLM):
@@ -22,7 +22,7 @@ class AzureLLM(LLM):
     LITE_MODEL_NAME: str = "gpt-4o-mini"
     THINK_MODEL_NAME: str = "gpt-4o-mini"
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str = "gpt-4o-mini"):
         super().__init__(model_name=model_name)
         self.endpoint = settings.AZURE_OPENAI_ENDPOINT
         self.subscription_key = settings.AZURE_OPENAI_SUBSCRIPTION_KEY.get_secret_value()

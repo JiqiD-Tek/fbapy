@@ -18,8 +18,8 @@ from pydantic import BaseModel
 from typing import Optional, Callable, Any
 
 from backend.common.log import log
-from backend.common.openai.base.tts import TTS
-from backend.common.openai.base.tts_cache import TTSCache
+from backend.common.openai.providers.base_service.tts import TTS
+from backend.common.openai.providers.base_service.tts_cache import TTSCache
 from backend.common.openai.providers.coze_service.ws import AsyncWebSocketClient
 
 MESSAGE_TYPES = {11: "audio-only server response", 12: "frontend server response", 15: "error message from server"}
