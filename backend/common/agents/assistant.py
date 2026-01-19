@@ -17,13 +17,13 @@ from backend.common.agents.classifier import Intention, Classifier
 from backend.common.log import log
 from backend.common.agents.cache.memory import MemoryCache
 
-from backend.common.agents.providers.azure_service.asr import AzureASR as ASR
-from backend.common.agents.providers.azure_service.llm import AzureLLM as LLM
-from backend.common.agents.providers.azure_service.tts import AzureTTS as TTS
+# from backend.common.agents.providers.azure_service.asr import AzureASR as ASR
+# from backend.common.agents.providers.azure_service.llm import AzureLLM as LLM
+# from backend.common.agents.providers.azure_service.tts import AzureTTS as TTS
 
-# from backend.common.agents.providers.coze_service.asr import CozeASR as ASR
-# from backend.common.agents.providers.coze_service.llm import CozeLLM as LLM
-# from backend.common.agents.providers.coze_service.tts import CozeTTS as TTS
+from backend.common.agents.providers.coze_service.asr import CozeASR as ASR
+from backend.common.agents.providers.coze_service.llm import CozeLLM as LLM
+from backend.common.agents.providers.coze_service.tts import CozeTTS as TTS
 
 
 class Assistant:

@@ -13,8 +13,9 @@ import asyncio
 import traceback
 
 from pydantic import BaseModel
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Union
 
+from backend.common.agents.core.utils import aio
 from backend.common.log import log
 from backend.common.agents.providers.base_service.tts import TTS
 from backend.common.agents.providers.base_service.tts_cache import TTSCache
@@ -148,6 +149,9 @@ class CozeTTS(AsyncWebSocketClient, TTS):
     """优化的TTS合成客户端（支持WebSocket流式传输）
     """
 
+    class _FlushSentinel:
+        ...
+
     def __init__(self, url: str = settings.BYTES_TTS_URL):
         """初始化TTS客户端 """
         self.tts_config = get_tts_config()
@@ -162,6 +166,28 @@ class CozeTTS(AsyncWebSocketClient, TTS):
 
         # 事件循环引用
         self.loop = asyncio.get_event_loop()
+
+        self._input_ch = aio.Chan[Union[str, CozeTTS._FlushSentinel]]()
+
+        # 启动事件循环
+        asyncio.create_task(self.run())
+
+    async def run(self):
+
+        async def _input_task() -> None:
+            async for data in self._input_ch:
+                pass
+
+        async def _recv_task() -> None:
+            while True:
+                pass
+
+        tasks = [
+            asyncio.create_task(_input_task()),
+            asyncio.create_task(_recv_task()),
+        ]
+
+        await asyncio.gather(*tasks)
 
     @property
     def tts_cache(self) -> Optional[TTSCache]:
@@ -197,6 +223,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         try:
             await self.ensure_connection()
             await self._conn.send(request)
+
             while True:
                 try:
                     resp = await asyncio.wait_for(self._conn.recv(), timeout=10.0)
@@ -219,7 +246,6 @@ class CozeTTS(AsyncWebSocketClient, TTS):
 
         except Exception as e:
             log.critical(f"TTS处理器发生未捕获异常 - {e} - {traceback.print_exc()}", exc_info=True)
-            raise  # 保留原始异常栈
 
     def _prepare_request(self, text: str, operation: str = None) -> bytearray:
         """

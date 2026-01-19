@@ -319,11 +319,11 @@ class CozeASR(AsyncWebSocketClient, ASR):
         """
         Send request and parse response
         """
-        request = header
+        data = header
         compressed_payload = gzip.compress(payload)
-        request.extend(len(compressed_payload).to_bytes(4, 'big'))
-        request.extend(compressed_payload)
-        resp = await self.send(request)
+        data.extend(len(compressed_payload).to_bytes(4, 'big'))
+        data.extend(compressed_payload)
+        resp = await self.request(data)
         return self._parse_response(resp)
 
     @staticmethod

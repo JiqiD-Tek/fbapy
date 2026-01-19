@@ -138,7 +138,7 @@ class AsyncWebSocketClient(object):
             log.error(f"发送数据失败: {type(e).__name__}: {str(e)}")
             raise RuntimeError("数据发送失败") from e
 
-    async def send(self, data: Any, timeout: float = 10.0) -> Any:
+    async def request(self, data: Any, timeout: float = 10.0) -> Any:
         """安全发送数据并返回响应 """
         await self.ensure_connection()
 

@@ -8,7 +8,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import ConfigDict, Field, EmailStr
+from pydantic import ConfigDict, Field
 
 from backend.common.schema import SchemaBase
 
@@ -28,7 +28,7 @@ class AuthSchemaBase(SchemaBase):
     """用户认证基础模型"""
 
     phone: Optional[str] = Field(None, description='手机号')
-    email: Optional[EmailStr] = Field(None, description='邮箱')
+    email: Optional[str] = Field(None, description='邮箱')
     device: DeviceAuthSchemaBase = Field(description='设备认证信息')
 
 
@@ -52,7 +52,7 @@ class UserSchemaBase(SchemaBase):
     phone: Optional[str] = Field(None, description='手机号')
     username: Optional[str] = Field(None, description='用户名')
     nickname: Optional[str] = Field(None, description='昵称')
-    email: Optional[EmailStr] = Field(None, description='邮箱')
+    email: Optional[str] = Field(None, description='邮箱')
     avatar: Optional[str] = Field(None, description='头像')
     sex: Optional[int] = Field(None, description='性别(1男 2女)')
     birthday: Optional[datetime] = Field(None, description='生日')
