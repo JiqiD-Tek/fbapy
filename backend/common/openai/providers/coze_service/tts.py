@@ -139,7 +139,8 @@ def get_tts_config(icl=settings.BYTES_ICL_STATUS, encoding: str = "wav"):
         **{
             'cluster': settings.BYTES_ICL_CLUSTER if icl else settings.BYTES_TTS_CLUSTER,
             'voice_type': settings.BYTES_ICL_VOICE_TYPE if icl else settings.BYTES_TTS_VOICE_TYPE,
-        }
+        },
+        uid=uuid.uuid4().hex,
     )
 
 

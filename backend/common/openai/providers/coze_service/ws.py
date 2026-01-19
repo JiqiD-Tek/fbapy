@@ -16,14 +16,7 @@ from backend.common.log import log
 
 
 class AsyncWebSocketClient(object):
-    """高性能WebSocket客户端
-
-    特性：
-    - 自动重连机制
-    - 线程安全的消息收发
-    - 详细的连接状态监控
-    - 支持大消息传输(1GB)
-    """
+    """高性能WebSocket客户端 """
 
     def __init__(self, url: str, token: str = ""):
         """
@@ -64,17 +57,7 @@ class AsyncWebSocketClient(object):
             initial_delay: float = 1.0,
             timeout: float = 10.0
     ) -> None:
-        """确保WebSocket连接处于活跃状态，支持自动重连
-
-        Args:
-            max_retries: 最大重试次数 (默认3次)
-            initial_delay: 初始重试延迟(秒) (默认1秒，采用指数退避)
-            timeout: 单次连接超时时间(秒) (默认10秒)
-
-        Raises:
-            ConnectionError: 当所有重试失败后抛出
-            RuntimeError: 当连接处于无效状态时抛出
-        """
+        """确保WebSocket连接处于活跃状态，支持自动重连 """
         if self.is_connected:
             return
 
@@ -114,11 +97,7 @@ class AsyncWebSocketClient(object):
         log.debug(f"WebSocket连接建立成功: {self._url}")
 
     async def connect(self, timeout: float = 10.0) -> None:
-        """建立WebSocket连接
-
-        Args:
-            timeout: 连接超时时间（秒）
-        """
+        """建立WebSocket连接 """
         if self.is_connected:
             return
 
@@ -160,12 +139,7 @@ class AsyncWebSocketClient(object):
             raise RuntimeError("数据发送失败") from e
 
     async def send(self, data: Any, timeout: float = 10.0) -> Any:
-        """安全发送数据并返回响应
-        Args:
-            data: 可序列化的消息数据
-            timeout: 发送/接收超时时间(秒)，默认30秒
-
-        """
+        """安全发送数据并返回响应 """
         await self.ensure_connection()
 
         async with self._lock:

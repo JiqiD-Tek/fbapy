@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project ：jiqid-py
-@File    ：asr.py
+@File    ：asr_client.py
 @Author  ：guhua@jiqid.com
 @Date    ：2025/05/15 16:35
 """
@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from backend.common.log import log
 from backend.common.openai.providers.base_service.asr import ASR
 from backend.common.openai.providers.coze_service.ws import AsyncWebSocketClient
+
 from backend.core.conf import settings
 
 PROTOCOL_VERSION = 0b0001
@@ -241,6 +242,7 @@ def get_asr_config():
         cluster=settings.BYTES_ASR_CLUSTER,
         token=settings.BYTES_ASR_TOKEN,
         language="zh-CN",
+        uid=uuid.uuid4().hex,
     )
 
 
@@ -249,15 +251,26 @@ class CozeASR(AsyncWebSocketClient, ASR):
     """
 
     def __init__(self, url: str = settings.BYTES_ASR_URL):
-        """初始化ASR客户端 """
+        """初始化ASR客户端
+
+        参数：
+            url: WebSocket服务端地址 (ws:// 或 wss://)
+            asr_config: ASR配置对象，需包含：
+                - app.token: 认证令牌
+
+        初始化流程：
+            1. 初始化WebSocket连接
+            2. 配置音频批处理器
+            3. 设置空回调函数
+        """
         self.asr_config = get_asr_config()
         super().__init__(url=url, token=self.asr_config.app.token)
 
         self.chunk_batcher = AudioChunkBatcher(max_size=15)  # 30ms * 15 = 450ms
 
         # 回调函数
-        self.append_callback = None
-        self.finish_callback = None
+        self.append_callback = None  # 增量文本回调 (partial result)
+        self.finish_callback = None  # 最终结果回调 (final result)
 
     def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
         """设置回调函数 """

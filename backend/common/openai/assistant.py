@@ -17,9 +17,9 @@ from backend.common.openai.core.classifier import Intention, Recognizer
 from backend.common.log import log
 from backend.common.openai.core.cache.memory import MemoryCache
 
-from backend.common.openai.providers.azure_service.asr import AzureASR
-from backend.common.openai.providers.azure_service.llm import AzureLLM
-from backend.common.openai.providers.azure_service.tts import AzureTTS
+# from backend.common.openai.providers.azure_service.asr import AzureASR
+# from backend.common.openai.providers.azure_service.llm import AzureLLM
+# from backend.common.openai.providers.azure_service.tts import AzureTTS
 
 from backend.common.openai.providers.coze_service.asr import CozeASR
 from backend.common.openai.providers.coze_service.llm import CozeLLM
