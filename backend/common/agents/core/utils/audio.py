@@ -9,7 +9,7 @@ import aiofiles
 
 from livekit import rtc
 
-from ..log import logger
+from loguru import logger
 from .aio.utils import cancel_and_wait
 
 # deprecated aliases
