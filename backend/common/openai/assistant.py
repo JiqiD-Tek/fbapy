@@ -12,27 +12,22 @@ import traceback
 
 from typing import AsyncGenerator, Callable, Any, Optional, Set, Tuple
 
-from backend.common.openai.core.classifier import Intention, Recognizer
+from backend.common.openai.core.classifier import Intention, Classifier
 
 from backend.common.log import log
 from backend.common.openai.core.cache.memory import MemoryCache
 
-# from backend.common.openai.providers.azure_service.asr import AzureASR
-# from backend.common.openai.providers.azure_service.llm import AzureLLM
-# from backend.common.openai.providers.azure_service.tts import AzureTTS
+from backend.common.openai.providers.azure_service.asr import AzureASR as ASR
+from backend.common.openai.providers.azure_service.llm import AzureLLM as LLM
+from backend.common.openai.providers.azure_service.tts import AzureTTS as TTS
 
-from backend.common.openai.providers.coze_service.asr import CozeASR
-from backend.common.openai.providers.coze_service.llm import CozeLLM
-from backend.common.openai.providers.coze_service.tts import CozeTTS
+# from backend.common.openai.providers.coze_service.asr import CozeASR as ASR
+# from backend.common.openai.providers.coze_service.llm import CozeLLM as LLM
+# from backend.common.openai.providers.coze_service.tts import CozeTTS as TTS
 
 
 class Assistant:
-    """大模型服务的高并发客户端(意图识别、内容生成)
-
-    特性：
-    - 线程安全的异步请求管理
-    - 动态流式处理器跟踪
-    """
+    """大模型服务的高并发客户端(意图识别、内容生成) """
 
     def __init__(self, uid: str):
         """ 初始化大模型服务客户端 """
@@ -41,11 +36,11 @@ class Assistant:
         self._cache = MemoryCache(max_size=3)
         self._stream_processor: Optional[StreamProcessor] = None
 
-        self.asr = CozeASR()
-        self.llm = CozeLLM()
-        self.tts = CozeTTS()
+        self.asr = ASR()
+        self.llm = LLM()
+        self.tts = TTS()
 
-        self._recognizer = Recognizer(llm=self.llm)
+        self._classifier = Classifier(llm=self.llm)
 
     @property
     def cache(self) -> MemoryCache:
@@ -57,7 +52,7 @@ class Assistant:
         conversation_history = await self.cache.retrieve_related(text)
         log.debug(f"意图识别：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
 
-        intention = await self._recognizer.detect(
+        intention = await self._classifier.detect(
             text, conversation_history=conversation_history, chat_config=chat_config
         )
 

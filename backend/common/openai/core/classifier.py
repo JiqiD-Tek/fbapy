@@ -38,7 +38,7 @@ class Intention:
     meta_data: Dict[str, Any] = field(default_factory=dict)
 
 
-class Recognizer(object):
+class Classifier(object):
     """意图识别类"""
 
     # 预编译正则表达式，支持引号和灵活的空格、分隔符

@@ -78,17 +78,24 @@ class LLM:
         self.base_url: str = base_url
         self.model_name: str = model_name
 
-        self.async_client: Optional[AsyncOpenAI] = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-            http_client=httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=15.0, read=5.0, write=5.0, pool=5.0),
-                follow_redirects=True,
-                limits=httpx.Limits(
-                    max_connections=50, max_keepalive_connections=50, keepalive_expiry=120
-                ),
+        self._async_client: Optional[AsyncOpenAI] = None
+
+    @property
+    def async_client(self):
+        if self._async_client is None:
+            log.debug("初始化 大模型客户端(异步)")
+            self._async_client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                http_client=httpx.AsyncClient(
+                    timeout=httpx.Timeout(connect=15.0, read=5.0, write=5.0, pool=5.0),
+                    follow_redirects=True,
+                    limits=httpx.Limits(
+                        max_connections=50, max_keepalive_connections=50, keepalive_expiry=120
+                    ),
+                )
             )
-        )
+        return self._async_client
 
     async def query(
             self,
