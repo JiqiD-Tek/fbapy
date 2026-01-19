@@ -9,7 +9,8 @@ import httpx
 import asyncio
 
 from dataclasses import dataclass
-from typing import Optional, AsyncGenerator, List, Dict, Literal
+from typing import Optional, AsyncGenerator, List, Dict
+from types import TracebackType
 
 from openai import AsyncOpenAI
 
@@ -71,74 +72,23 @@ class LLM:
             api_key: str = "",
             base_url: str = "",
             model_name: str = "",
-            timeout: Optional[float] = 60.0,
-            read: Optional[float] = 60.0,
-            write: Optional[float] = 30.0,
-            http_client: Optional[httpx.AsyncClient] = None,
     ):
-        """
-           Args:
-               api_key: 模型API密钥
-               base_url: 基础请求地址
-               model_name: 默认模型名称
-               http_client: 自定义HTTP客户端
-       """
 
         self.api_key: str = api_key
         self.base_url: str = base_url
         self.model_name: str = model_name
-        self.timeout: float = timeout
-        self.read: float = read
-        self.write: float = write
-        self._http_client: httpx.AsyncClient = http_client or self._create_http_client()
-        self._async_client: Optional[AsyncOpenAI] = None
 
-    def _create_http_client(self) -> httpx.AsyncClient:
-        """大模型高并发专用HTTP客户端，具备：
-        - 智能连接池
-        - 流式长超时
-        - 多层容错
-        - 资源监控
-        """
-        limits = httpx.Limits(
-            max_keepalive_connections=20,
-            max_connections=100,
-            keepalive_expiry=300.0
-        )
-
-        transport = httpx.AsyncHTTPTransport(
-            retries=3,
-            http2=True,
-            limits=limits,
-        )
-
-        return httpx.AsyncClient(
-            http2=True,
-            timeout=httpx.Timeout(
-                timeout=self.timeout,  # 全局超时兜底
-                read=self.read,  # 读取超时
-                write=self.write,  # 发送超时
-                pool=10.0  # 连接池超时
-            ),
-            limits=limits,
-            transport=transport,
-            headers={"User-Agent": "ModelClient/2.0"},
-            max_redirects=3,
-            follow_redirects=True,
-            verify=False,  # 可根据生产环境启用SSL验证
-        )
-
-    @property
-    def async_client(self) -> AsyncOpenAI:
-        """获取异步客户端(懒加载)"""
-        if self._async_client is None:
-            self._async_client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                http_client=self._http_client
+        self.async_client: Optional[AsyncOpenAI] = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            http_client=httpx.AsyncClient(
+                timeout=httpx.Timeout(connect=15.0, read=5.0, write=5.0, pool=5.0),
+                follow_redirects=True,
+                limits=httpx.Limits(
+                    max_connections=50, max_keepalive_connections=50, keepalive_expiry=120
+                ),
             )
-            log.debug("LLM异步客户端已初始化")
-        return self._async_client
+        )
 
     async def query(
             self,
@@ -151,24 +101,6 @@ class LLM:
             stream: bool = False,
             **kwargs,
     ) -> AsyncGenerator[str, None] | str:
-        """
-                统一查询接口
-
-                Args:
-                    text: 用户输入文本
-                    system_prompt: 自定义系统提示
-                    model_name: 指定模型名称
-                    conversation_history: 对话历史
-                    config: 生成配置
-                    extra_body: 其他配置
-                    stream: 是否流式输出
-
-                Returns:
-                    流式模式返回AsyncGenerator，否则返回完整文本
-
-                Raises:
-                    RuntimeError: 模型调用失败
-        """
 
         messages = self._build_messages(text, system_prompt, conversation_history)
         model_name = model_name or self.model_name
@@ -270,15 +202,16 @@ class LLM:
         messages.append({"role": "user", "content": text})
         return messages
 
-    async def close(self) -> None:
-        """关闭HTTP客户端和异步资源。
+    async def aclose(self) -> None:
+        ...
 
-        确保所有连接和资源被正确释放。
-        """
-        if self._async_client is not None:
-            await self._async_client.close()
-            self._async_client = None
-            log.debug("LLM异步客户端已关闭")
-        if not self._http_client.is_closed:
-            await self._http_client.aclose()
-            log.debug("HTTP客户端已关闭")
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
+        await self.aclose()

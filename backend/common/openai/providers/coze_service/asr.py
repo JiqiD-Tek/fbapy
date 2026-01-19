@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from backend.common.log import log
 from backend.common.openai.providers.base_service.asr import ASR
 from backend.common.openai.providers.coze_service.ws import AsyncWebSocketClient
+from backend.core.conf import settings
 
 PROTOCOL_VERSION = 0b0001
 DEFAULT_HEADER_SIZE = 0b0001
@@ -234,46 +235,34 @@ class AudioChunkBatcher:
         return bytes(result)
 
 
+def get_asr_config():
+    return create_asr_config(
+        appid=settings.BYTES_ASR_APPID,
+        cluster=settings.BYTES_ASR_CLUSTER,
+        token=settings.BYTES_ASR_TOKEN,
+        language="zh-CN",
+    )
+
+
 class CozeASR(AsyncWebSocketClient, ASR):
     """优化的ASR识别客户端（支持WebSocket流式传输）
     """
 
-    def __init__(self, url: str, asr_config: AsrConfig):
-        """初始化ASR客户端
-
-        参数：
-            url: WebSocket服务端地址 (ws:// 或 wss://)
-            asr_config: ASR配置对象，需包含：
-                - app.token: 认证令牌
-
-        初始化流程：
-            1. 初始化WebSocket连接
-            2. 配置音频批处理器
-            3. 设置空回调函数
-        """
-        super().__init__(url=url, token=asr_config.app.token)
-        self.asr_config = asr_config
+    def __init__(self, url: str = settings.BYTES_ASR_URL):
+        """初始化ASR客户端 """
+        self.asr_config = get_asr_config()
+        super().__init__(url=url, token=self.asr_config.app.token)
 
         self.chunk_batcher = AudioChunkBatcher(max_size=15)  # 30ms * 15 = 450ms
 
         # 回调函数
-        self.text_append_callback = None  # 增量文本回调 (partial result)
-        self.text_finish_callback = None  # 最终结果回调 (final result)
+        self.append_callback = None
+        self.finish_callback = None
 
-    async def set_uid(self, uid: str):
-        self.asr_config.user.uid = uid
-
-    def set_callbacks(self,
-                      append_cb: Optional[Callable[[str], None]] = None,
-                      finish_cb: Optional[Callable[[str], None]] = None) -> None:
-        """设置回调函数
-
-        参数：
-            append_cb: 增量识别结果回调（每识别出一部分文本时触发）
-            finish_cb: 最终识别结果回调（整句识别完成时触发）
-        """
-        self.text_append_callback = append_cb
-        self.text_finish_callback = finish_cb
+    def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
+        """设置回调函数 """
+        self.append_callback = append_cb
+        self.finish_callback = finish_cb
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         """安全关闭TTS客户端并释放所有资源
@@ -298,7 +287,7 @@ class CozeASR(AsyncWebSocketClient, ASR):
 
         header = self._generate_header(message_type=CLIENT_AUDIO_ONLY_REQUEST)
         resp = await self._send_request(header, audio_chunk)
-        await self._handler_resp(resp, self.text_append_callback)
+        await self._handler_resp(resp, self.append_callback)
 
     async def stream_finish(self) -> None:
         """Finalize streaming recognition session"""
@@ -309,7 +298,7 @@ class CozeASR(AsyncWebSocketClient, ASR):
             message_type_specific_flags=NEG_SEQUENCE
         )
         resp = await self._send_request(header, audio_chunk)
-        await self._handler_resp(resp, self.text_finish_callback)
+        await self._handler_resp(resp, self.finish_callback)
 
         await self.close(reason="ASR 结束")  # asr 不支持websocket复用链接，所以每次请求都关闭链接
 

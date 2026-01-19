@@ -5,14 +5,12 @@
 @Author  ：guhua@jiqid.com
 @Date    ：2025/05/15 16:35
 """
-import time
 import uuid
 import json
 import gzip
 
 import asyncio
 import traceback
-from contextlib import suppress
 
 from pydantic import BaseModel
 from typing import Optional, Callable, Any
@@ -21,6 +19,7 @@ from backend.common.log import log
 from backend.common.openai.providers.base_service.tts import TTS
 from backend.common.openai.providers.base_service.tts_cache import TTSCache
 from backend.common.openai.providers.coze_service.ws import AsyncWebSocketClient
+from backend.core.conf import settings
 
 MESSAGE_TYPES = {11: "audio-only server response", 12: "frontend server response", 15: "error message from server"}
 MESSAGE_TYPE_SPECIFIC_FLAGS = {0: "no sequence number", 1: "sequence number > 0",
@@ -132,26 +131,27 @@ def create_tts_config(
     return config
 
 
+def get_tts_config(icl=settings.BYTES_ICL_STATUS, encoding: str = "wav"):
+    return create_tts_config(
+        appid=settings.BYTES_TTS_APPID,
+        token=settings.BYTES_TTS_TOKEN,
+        encoding="pcm" if encoding == "wav" else "mp3",
+        **{
+            'cluster': settings.BYTES_ICL_CLUSTER if icl else settings.BYTES_TTS_CLUSTER,
+            'voice_type': settings.BYTES_ICL_VOICE_TYPE if icl else settings.BYTES_TTS_VOICE_TYPE,
+        }
+    )
+
+
 class CozeTTS(AsyncWebSocketClient, TTS):
     """优化的TTS合成客户端（支持WebSocket流式传输）
     """
 
-    def __init__(self, url: str, tts_config: TTSConfig):
-        """初始化TTS客户端
+    def __init__(self, url: str = settings.BYTES_TTS_URL):
+        """初始化TTS客户端 """
+        self.tts_config = get_tts_config()
 
-        参数：
-            url: WebSocket服务端地址 (ws:// 或 wss://)
-            tts_config: TTS配置对象，需包含：
-                - app.token: 认证令牌
-
-        初始化流程：
-            1. 建立WebSocket连接
-            2. 初始化合成任务队列
-            3. 启动后台处理任务
-            4. 初始化音频缓存
-        """
-        super().__init__(url=url, token=tts_config.app.token)
-        self.tts_config = tts_config
+        super().__init__(url=url, token=self.tts_config.app.token)
 
         # 音频回调函数
         self._audio_callback = None
@@ -159,154 +159,52 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         # 音频缓存系统
         self._tts_cache = TTSCache(maxsize=10, ttl=3600)
 
-        # 合成任务队列（带背压控制）
-        self._tts_queue = asyncio.Queue(maxsize=1000)
-
-        # 状态管理
-        self._is_active = asyncio.Event()
-        self._is_active.set()
-
         # 事件循环引用
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._tts_task: Optional[asyncio.Task] = None
-        self.start_tts_task()
-
-    @property
-    def loop(self):
-        """Lazy initialization of event loop"""
-        if self._loop is None:
-            try:
-                self._loop = asyncio.get_event_loop()
-            except RuntimeError:
-                self._loop = asyncio.new_event_loop()
-        return self._loop
+        self.loop = asyncio.get_event_loop()
 
     @property
     def tts_cache(self) -> Optional[TTSCache]:
         return self._tts_cache
 
-    async def set_uid(self, uid: str):
-        self.tts_config.user.uid = uid
-
-    def start_tts_task(self) -> None:
-        self.loop.create_task(
-            self._tts_worker(),
-            name=f"TTSWorker-{id(self)}"
-        )
-
     def set_callback(self, callback: Optional[Callable[[bytes], None]] = None):
         self._audio_callback = callback
-
-    def stop_speaking(self):
-        log.debug("停止语音合成")
-        self._is_active.clear()
 
     async def close(self, code: int = 1000, reason: str = "") -> None:
         """安全关闭TTS客户端并释放所有资源
         """
         try:
-            log.info("开始关闭TTS处理器...")
-
-            # 1. 停止后台任务
-            self._tts_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._tts_task  # 等待任务结束
-
-            # 2. 清空处理队列
-            while not self._tts_queue.empty():
-                with suppress(asyncio.QueueEmpty):
-                    self._tts_queue.get_nowait()
-                    self._tts_queue.task_done()
-
-            # 3. 关闭父类连接
             await super().close(reason="TTS 关闭")
-
-            # 4. 清理缓存
             await self._tts_cache.close()
-
-            # 5. 更新状态
-            self._is_active.clear()
-            log.debug("TTS处理器关闭完成")
-
         except Exception as e:
             log.error(f"关闭TTS处理器时发生异常: {e}", exc_info=True)
-        finally:
-            # 最终资源检查
-            if not self._tts_task.done():
-                self._tts_task.cancel()
-            if not self._tts_queue.empty():
-                self._tts_queue = asyncio.Queue()  # 重置队列
-
-    async def submit(self, text: str, is_final: bool = False) -> None:
-        log.debug(f"提交TTS submit合成请求: [text={text} | size={len(text)} | is_final={is_final}]")
-        self._is_active.set()
-        self.loop.call_soon_threadsafe(self._tts_queue.put_nowait, (text, "submit", is_final))
 
     async def query(self, text: str, is_final: bool = False) -> None:
         log.debug(f"提交TTS query合成请求: [text={text} | size={len(text)} | is_final={is_final}]")
-        self._is_active.set()
-        self.loop.call_soon_threadsafe(self._tts_queue.put_nowait, (text, "query", is_final))
 
-    async def _tts_worker(self):
-        while True:
+        def invoke():
             try:
-                # 1. 安全获取队列任务（带超时防止永久阻塞）
-                text, operation, is_final = await asyncio.wait_for(
-                    self._tts_queue.get(),
-                    timeout=60.0  # 60秒无任务则超时
-                )
+                request = self._prepare_request(text, operation="query")
+                coro = self._handle_request(request, is_final=is_final)
+                if asyncio.iscoroutine(coro):
+                    asyncio.create_task(coro)
+            except Exception as e:
+                log.error(f"识别结果回调: {e}")
 
-                # 2. 处理请求（隔离处理阶段的异常）
-                try:
-                    start_time = time.perf_counter()
-                    request = await self._prepare_request(text, operation=operation)
-                    await self._handle_request(request, is_final=is_final)
-                    elapsed_ms = (time.perf_counter() - start_time) * 1000
-                    log.debug(f"请求处理耗时: {elapsed_ms:.2f}ms | 请求长度: {len(request)}字节")
-                except Exception as ex:
-                    log.error(f"请求处理失败 - {ex}", exc_info=True)
-
-                # 3. 标记任务完成（支持队列join同步）
-                self._tts_queue.task_done()
-
-            except asyncio.CancelledError:
-                log.info("TTS处理器被终止")
-                break
-            except asyncio.TimeoutError:
-                continue
-            except Exception as ex:
-                log.critical(f"TTS处理器发生未捕获异常 - {ex} - {traceback.print_exc()}", exc_info=True)
-                await asyncio.sleep(1)  # 避免错误循环占用CPU
+        self.loop.call_soon_threadsafe(invoke)
 
     async def _handle_request(self, request: bytearray, is_final: bool = False) -> None:
         try:
-            if not self._is_active.is_set():
-                return
-
-            # 1. 确保连接就绪
             await self.ensure_connection()
-
-            # 2. 发送请求数据
             await self._conn.send(request)
-
-            # 3. 接收响应数据流
             while True:
                 try:
-                    resp = await asyncio.wait_for(
-                        self._conn.recv(),
-                        timeout=10.0  # 防止无响应卡死
-                    )
-                    # 跳过非活跃状态数据
-                    if not self._is_active.is_set():
-                        continue
-
+                    resp = await asyncio.wait_for(self._conn.recv(), timeout=10.0)
                     if self._audio_callback is None:
                         continue
 
-                    # 4. 解析响应数据
                     done = await self._parse_response(resp, self._audio_callback)
                     if done:
-                        break  # 服务端指示完成
+                        break
 
                 except asyncio.TimeoutError:
                     log.warning("TTS响应超时，可能服务端无数据")
@@ -315,17 +213,14 @@ class CozeTTS(AsyncWebSocketClient, TTS):
                     log.error(f"TTS处理器发生未捕获异常 - {e} - {traceback.format_exc()}")
                     raise
 
-            # 5. 最终确认处理
-            if (is_final
-                    and self._is_active.is_set()
-                    and self._audio_callback):
+            if is_final and self._audio_callback:
                 await self._audio_callback(b'')  # 发送空数据表示结束
 
         except Exception as e:
             log.critical(f"TTS处理器发生未捕获异常 - {e} - {traceback.print_exc()}", exc_info=True)
             raise  # 保留原始异常栈
 
-    async def _prepare_request(self, text: str, operation: str = None) -> bytearray:
+    def _prepare_request(self, text: str, operation: str = None) -> bytearray:
         """
         Prepare the request payload with optional operation type
         """

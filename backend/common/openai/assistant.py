@@ -21,6 +21,10 @@ from backend.common.openai.providers.azure_service.asr import AzureASR
 from backend.common.openai.providers.azure_service.llm import AzureLLM
 from backend.common.openai.providers.azure_service.tts import AzureTTS
 
+from backend.common.openai.providers.coze_service.asr import CozeASR
+from backend.common.openai.providers.coze_service.llm import CozeLLM
+from backend.common.openai.providers.coze_service.tts import CozeTTS
+
 
 class Assistant:
     """大模型服务的高并发客户端(意图识别、内容生成)
@@ -37,9 +41,9 @@ class Assistant:
         self._cache = MemoryCache(max_size=3)
         self._stream_processor: Optional[StreamProcessor] = None
 
-        self.asr = AzureASR()
-        self.llm = AzureLLM()
-        self.tts = AzureTTS()
+        self.asr = CozeASR()
+        self.llm = CozeLLM()
+        self.tts = CozeTTS()
 
         self._recognizer = Recognizer(llm=self.llm)
 

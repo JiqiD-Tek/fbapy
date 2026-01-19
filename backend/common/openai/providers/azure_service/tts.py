@@ -22,11 +22,8 @@ class AzureTTS(TTS):
     """TTS客户端"""
 
     def __init__(self):
-        # 简化的回调
-        self._stream = PushAudioOutputStream(push_stream_callback=PushAudioOutputStreamCallback())
-
         # 创建合成器
-        self._synthesizer = _create_speech_synthesizer(stream=self._stream)
+        self._synthesizer = _create_speech_synthesizer()
 
         # 注册事件回调
         self._synthesizer.synthesis_completed.connect(self._on_synthesis_completed)
@@ -75,11 +72,11 @@ class AzureTTS(TTS):
 
     def _on_synthesis_completed(self, evt: speechsdk.SessionEventArgs):
         """合成完成回调"""
-        log.debug("TTS合成完成")
+        log.debug("合成完成回调")
 
     def _on_synthesis_canceled(self, evt: speechsdk.SessionEventArgs):
         """合成取消回调"""
-        log.warning("TTS合成取消")
+        log.warning("合成取消回调")
 
     async def _cleanup(self):
         """关闭资源"""
@@ -99,15 +96,14 @@ class AzureTTS(TTS):
         await self._cleanup()
 
 
-def _create_speech_synthesizer(
-        *, stream: speechsdk.audio.PushAudioOutputStream
-) -> speechsdk.SpeechSynthesizer:
+def _create_speech_synthesizer() -> speechsdk.SpeechSynthesizer:
     speech_config = speechsdk.SpeechConfig(
         subscription=settings.AZURE_SPEECH_KEY.get_secret_value(),
         region=settings.AZURE_SPEECH_REGION,
         speech_recognition_language="zh-CN",
     )
 
+    stream = PushAudioOutputStream(push_stream_callback=PushAudioOutputStreamCallback())
     audio_config = speechsdk.audio.AudioOutputConfig(stream=stream)
     return speechsdk.SpeechSynthesizer(
         speech_config=speech_config, audio_config=audio_config,
