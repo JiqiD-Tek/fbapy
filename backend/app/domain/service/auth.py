@@ -127,7 +127,6 @@ class AuthService:
             log.error(f'登陆错误: {e}')
             task = BackgroundTask(
                 login_log_service.create,
-                db=db,
                 user_uuid=user.uuid if user else uuid4_str(),
                 username=user.username if user else obj.phone,
                 login_time=timezone.now(),
@@ -141,7 +140,6 @@ class AuthService:
         else:
             background_tasks.add_task(
                 login_log_service.create,
-                db=db,
                 user_uuid=user.uuid,
                 username=user.username,
                 login_time=timezone.now(),
