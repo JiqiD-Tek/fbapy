@@ -63,8 +63,8 @@ class AuthService:
             return user
 
         user_param = CreateUserParam(
-            nickname=None, email=None, avatar=None, sex=None, birthday=None,
-            phone=obj.phone,
+            username=obj.phone or obj.email, phone=obj.phone, email=obj.email,
+            nickname=None, avatar=None, sex=None, birthday=None,
         )
         user = await user_dao.create(db, user_param)
         await self._register_device(db, user, obj)
@@ -128,7 +128,7 @@ class AuthService:
             task = BackgroundTask(
                 login_log_service.create,
                 user_uuid=user.uuid if user else uuid4_str(),
-                username=user.username if user else obj.phone,
+                username=user.username if user else '',
                 login_time=timezone.now(),
                 status=LoginLogStatusType.fail.value,
                 msg=e.msg,
