@@ -23,32 +23,18 @@ from backend.common.wscore.exception.errors import WebSocketErrorCode
 
 
 class ClientConnection:
-    """客户端连接管理
-
-    职责：
-    - 管理WebSocket连接生命周期
-    - 维护AI服务客户端实例
-    - 处理消息发送队列
-    - 跟踪连接活跃状态
-    """
+    """客户端连接管理 """
 
     __slots__ = (
-        'uid', 'websocket', 'chat_config', 'assistant',
+        'uid', 'websocket', 'assistant',
         '_loop', '_output_queue', '_send_task', '_last_activity',
         '_is_closed', '__weakref__',
     )
 
     def __init__(self, uid: str, websocket: WebSocket):
-        """初始化连接
-
-        Args:
-            uid: 客户端唯一标识
-            websocket: 客户端WebSocket连接
-        """
+        """初始化连接 """
         self.uid = uid
         self.websocket: Final[WebSocket] = websocket
-
-        self.chat_config = None
         self.assistant = Assistant(uid)
 
         self._last_activity: float = time.monotonic()
@@ -78,12 +64,10 @@ class ClientConnection:
 
     async def _send_loop(self) -> None:
         """Process outgoing message queue with timeout and error handling."""
-        queue_timeout = 60.0
-
         while not self._is_closed:
             try:
                 # 1. 带超时的队列获取
-                event = await asyncio.wait_for(self._output_queue.get(), timeout=queue_timeout)
+                event = await asyncio.wait_for(self._output_queue.get(), timeout=60.0)
                 if event is None:  # Termination signal
                     break
 
@@ -167,9 +151,6 @@ class ClientConnection:
             log.error(f"[{self.uid}] 发送失败: {ex}")
             raise
 
-    # -------------------------------------------------------------------------
-    # 工具与属性
-    # -------------------------------------------------------------------------
     @staticmethod
     async def terminate_connection(websocket: WebSocket,
                                    error_code: WebSocketErrorCode,
@@ -181,9 +162,9 @@ class ClientConnection:
                 timeout=3.0
             )
 
-    @property
-    def output_queue(self) -> asyncio.Queue[WebsocketsEvent]:
-        return self._output_queue
+    def put_nowait(self, event: WebsocketsEvent):
+        """Put an event into the output queue."""
+        return self._output_queue.put(event)
 
     @property
     def last_activity(self) -> float:

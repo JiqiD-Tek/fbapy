@@ -13,8 +13,8 @@ import azure.cognitiveservices.speech as speechsdk
 from azure.cognitiveservices.speech.audio import PushAudioOutputStream, PushAudioOutputStreamCallback
 
 from backend.common.log import log
-from backend.common.agents.providers.base_service.tts import TTS
-from backend.common.agents.providers.base_service.tts_cache import TTSCache
+from backend.common.agents.providers.base.tts import TTS
+from backend.common.agents.providers.base.tts_cache import TTSCache
 from backend.core.conf import settings
 
 

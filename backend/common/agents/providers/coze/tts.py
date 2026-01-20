@@ -17,9 +17,9 @@ from typing import Optional, Callable, Any, Union
 
 from backend.common.agents.core.utils import aio
 from backend.common.log import log
-from backend.common.agents.providers.base_service.tts import TTS
-from backend.common.agents.providers.base_service.tts_cache import TTSCache
-from backend.common.agents.providers.coze_service.ws import AsyncWebSocketClient
+from backend.common.agents.providers.base.tts import TTS
+from backend.common.agents.providers.base.tts_cache import TTSCache
+from backend.common.agents.providers.coze.ws import AsyncWebSocketClient
 from backend.core.conf import settings
 
 MESSAGE_TYPES = {11: "audio-only server response", 12: "frontend server response", 15: "error message from server"}
@@ -170,7 +170,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         self._input_ch = aio.Chan[Union[str, CozeTTS._FlushSentinel]]()
 
         # 启动事件循环
-        asyncio.create_task(self.run())
+        # asyncio.create_task(self.run())
 
     async def run(self):
 

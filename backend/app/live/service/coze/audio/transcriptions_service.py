@@ -76,15 +76,15 @@ class TranscriptionsService(CozeService):
             return
 
         async def on_append_text(text: str):
-            await conn.output_queue.put(
+            await conn.put_nowait(
                 TranscriptionsMessageUpdateEvent.model_validate(
                     {"data": TranscriptionsMessageUpdateEvent.Data.model_validate({"content": text})}))
 
         async def on_finish_text(text: str):
-            await conn.output_queue.put(
+            await conn.put_nowait(
                 TranscriptionsMessageUpdateEvent.model_validate(
                     {"data": TranscriptionsMessageUpdateEvent.Data.model_validate({"content": text})}))
-            await conn.output_queue.put(TranscriptionsMessageCompletedEvent.model_validate({}))
+            await conn.put_nowait(TranscriptionsMessageCompletedEvent.model_validate({}))
 
         conn.assistant.asr.set_callbacks(
             append_cb=on_append_text,

@@ -12,18 +12,16 @@ import traceback
 
 from typing import AsyncGenerator, Callable, Any, Optional, Set, Tuple
 
-from backend.common.agents.classifier import Intention, Classifier
+from backend.common.agents.core.llm.llm import ChatChunk
+from backend.common.agents.prompt import build_user_prompt, SYSTEM_PROMPT
+from backend.common.agents.tools import get_weather
 
 from backend.common.log import log
 from backend.common.agents.cache.memory import MemoryCache
 
-# from backend.common.agents.providers.azure_service.asr import AzureASR as ASR
-# from backend.common.agents.providers.azure_service.llm import AzureLLM as LLM
-# from backend.common.agents.providers.azure_service.tts import AzureTTS as TTS
-
-from backend.common.agents.providers.coze_service.asr import CozeASR as ASR
-from backend.common.agents.providers.coze_service.llm import CozeLLM as LLM
-from backend.common.agents.providers.coze_service.tts import CozeTTS as TTS
+from backend.common.agents.providers.coze.asr import CozeASR as ASR
+from backend.common.agents.providers.coze.tts import CozeTTS as TTS
+from backend.common.agents.adapters.coze.llm import CozeLLM as LLM
 
 
 class Assistant:
@@ -32,65 +30,33 @@ class Assistant:
     def __init__(self, uid: str):
         """ 初始化大模型服务客户端 """
         self.uid = uid
-
-        self._cache = MemoryCache(max_size=3)
-        self._stream_processor: Optional[StreamProcessor] = None
+        self.chat_config = None
 
         self.asr = ASR()
-        self.llm = LLM()
         self.tts = TTS()
+        self.llm = LLM(tools=[get_weather])
+        self.cache = MemoryCache(max_size=3)
 
-        self._classifier = Classifier(llm=self.llm)
+        self._stream_processor: Optional[StreamProcessor] = None
 
-    @property
-    def cache(self) -> MemoryCache:
-        """获取聊天缓存实例。"""
-        return self._cache
-
-    async def query_intention(self, text: str, chat_config) -> Intention:
-        """ 识别用户意图。 """
-        conversation_history = await self.cache.retrieve_related(text)
-        log.debug(f"意图识别：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
-
-        intention = await self._classifier.detect(
-            text, conversation_history=conversation_history, chat_config=chat_config
-        )
-
-        # 1. 闹钟 2. 音乐 3. 控制 不会继续调用大模型，直接更新对话缓存
-        if intention.meta_data:
-            self.cache.add(query=text, response=intention.user_prompt)
-            log.debug(f"意图缓存更新 [UID:{self.uid}]")
-
-        return intention
+        log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
     async def query_stream(
             self,
             text: str,
-            user_prompt: Optional[str] = None,
-            system_prompt: Optional[str] = None,
             on_text: Optional[Callable[[str], Any]] = None,
             on_chunk: Optional[Callable[[str, bool], Any]] = None,
             on_finish: Optional[Callable[[str], Any]] = None,
     ) -> None:
-        """
-        执行流式文本生成查询。
-
-        Args:
-            text: 原始输入文本
-            user_prompt: 用户提示词
-            system_prompt: 系统提示词
-            on_text: 文本回调
-            on_chunk: 分块回调
-            on_finish: 最终结果回调
-        """
+        """ 执行流式文本生成查询。 """
         conversation_history = await self.cache.retrieve_related(text)
         log.debug(f"流式生成：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
 
-        stream = await self.llm.query(
-            text=user_prompt or text,
-            system_prompt=system_prompt,
+        user_prompt = build_user_prompt(text, self.chat_config)
+        stream = self.llm.query(
+            user_prompt=user_prompt,
+            system_prompt=SYSTEM_PROMPT,
             conversation_history=conversation_history,
-            stream=True
         )
 
         # 新请求来 → 旧流立即中断
@@ -116,8 +82,8 @@ class Assistant:
 class StreamProcessor:
     """高效流式文本处理器（支持即时中断）"""
 
-    def __init__(self, stream: AsyncGenerator[str, None]):
-        self.stream: AsyncGenerator[str, None] = stream
+    def __init__(self, stream: AsyncGenerator[ChatChunk, None]):
+        self.stream: AsyncGenerator[ChatChunk, None] = stream
         self._pending_chunk: str = ""
         self._is_active: asyncio.Event = asyncio.Event()
         self._is_active.set()
@@ -137,18 +103,18 @@ class StreamProcessor:
         """处理文本流并触发回调"""
         full_text = ''
         try:
-            async for text in self.stream:
+            async for chat_chunk in self.stream:
                 if not self._is_active.is_set():
                     log.debug("流数据处理器关闭")
                     raise asyncio.CancelledError
 
-                if not text:
+                if chat_chunk.delta.tool_calls:  # 跳过工具调用
                     continue
 
-                full_text += text
-                await self._invoke_callback(on_text, text)
+                full_text += chat_chunk.delta.content
+                await self._invoke_callback(on_text, chat_chunk.delta.content)
 
-                if chunk_text := await self._process_chunk(text):
+                if chunk_text := await self._process_chunk(chat_chunk.delta.content):
                     await self._invoke_callback(on_chunk, chunk_text, False)
 
             await self._invoke_callback(on_chunk, self._pending_chunk.strip(), True)  # 最后一块文本

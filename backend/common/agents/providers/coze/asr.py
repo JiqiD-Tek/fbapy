@@ -18,8 +18,8 @@ from collections import deque
 from pydantic import BaseModel
 
 from backend.common.log import log
-from backend.common.agents.providers.base_service.asr import ASR
-from backend.common.agents.providers.coze_service.ws import AsyncWebSocketClient
+from backend.common.agents.providers.base.asr import ASR
+from backend.common.agents.providers.coze.ws import AsyncWebSocketClient
 
 from backend.core.conf import settings
 

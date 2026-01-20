@@ -14,7 +14,7 @@ jobs:
         with:
           ref: master
 
-      - uses: rhysd/changelog-from-release/tools@v3
+      - uses: rhysd/changelog-from-release/action@v3
         with:
           file: CHANGELOG.md
           pull_request: true

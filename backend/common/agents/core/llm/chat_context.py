@@ -234,7 +234,7 @@ class ChatContext:
                     valid_tools.add(get_function_info(tool).name)
                 elif is_raw_function_tool(tool):
                     valid_tools.add(get_raw_function_info(tool).name)
-                # TODO(theomonnom): other tools
+                # TODO(theomonnom): other action
 
         for item in self.items:
             if exclude_function_call and item.type in [

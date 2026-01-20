@@ -7,16 +7,11 @@
 """
 
 from backend.core.conf import settings
-from backend.common.agents.providers.base_service.llm import LLM
+from backend.common.agents.providers.base.llm import LLM
 
 
 class CozeLLM(LLM):
     """ Coze 大模型 """
-    MODEL_NAMES = [
-        "doubao-seed-1-6-flash-250615",
-        "doubao-1-5-lite-32k-250115",  # 响应时间 ~10ms
-        "doubao-1.5-pro-32k-250115",  # 响应时间 ~20ms
-    ]
     LITE_MODEL_NAME: str = "doubao-seed-1-6-flash-250615"
     THINK_MODEL_NAME: str = "doubao-1.5-pro-32k-250115"
 

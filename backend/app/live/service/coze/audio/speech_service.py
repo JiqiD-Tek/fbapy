@@ -83,7 +83,7 @@ class SpeechService(CozeService):
         await self._register_speech_callback(uid)  # 注册tts回调
 
         tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
-        await conn.output_queue.put(SpeechAudioUrlEvent.model_validate(
+        await conn.put_nowait(SpeechAudioUrlEvent.model_validate(
             {"data": SpeechAudioUrlEvent.Data.model_validate(
                 {"content": f"{conn.uid}.{tts_req_id}"})}))  # 音频播放token
 
@@ -126,10 +126,10 @@ class SpeechService(CozeService):
             await conn.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
 
             if delta == b"":
-                await conn.output_queue.put(SpeechAudioCompletedEvent.model_validate({}))  # 音频完成
+                await conn.put_nowait(SpeechAudioCompletedEvent.model_validate({}))  # 音频完成
                 return
 
-            await conn.output_queue.put(
+            await conn.put_nowait(
                 SpeechAudioUpdateEvent.model_validate(
                     {"data": SpeechAudioUpdateEvent.Data.model_validate({"delta": delta})}))  # 音频更新
 

@@ -34,7 +34,7 @@ from typing import (
 from typing_extensions import NotRequired, Required, TypedDict, TypeGuard
 
 
-# TODO: refactor Tool inheritance, all tools (FunctionTool, RawFunctionTool, ProviderTool) should inherit from Tool
+# TODO: refactor Tool inheritance, all action (FunctionTool, RawFunctionTool, ProviderTool) should inherit from Tool
 class ProviderTool(ABC):  # noqa: B024
     pass
 
@@ -306,7 +306,7 @@ class ToolContext:
                 self._provider_tools.append(tool)
                 continue
             else:
-                # TODO(theomonnom): MCP servers & other tools
+                # TODO(theomonnom): MCP servers & other action
                 raise ValueError(f"unknown tool type: {type(tool)}")
 
             if info.name in self._tools_map:

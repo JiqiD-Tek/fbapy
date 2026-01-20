@@ -142,7 +142,7 @@ services:
       MIRROR_ENABLE: "false"
       REINDEX_PERIOD_MINUTES: "1440"  # 24小时
       SYNC_PERIOD_MINUTES: "720"      # 12小时
-      IGNORE_PATHS: ".repo,.git,*.o,*.so,*.a,out,target,build,dist,tools/prebuilt"
+      IGNORE_PATHS: ".repo,.git,*.o,*.so,*.a,out,target,build,dist,action/prebuilt"
       TZ: ${TZ:-Asia/Shanghai}
     volumes:
       - ${DATA_ROOT}/opengrok/src:/opengrok/src  # 源代码目录

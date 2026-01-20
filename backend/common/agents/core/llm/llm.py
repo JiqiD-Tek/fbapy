@@ -140,28 +140,11 @@ class LLM:
         self._tools = tools
         self._strict_tool_schema = strict_tool_schema
 
-        self._async_client: Optional[AsyncOpenAI] = None
-
-    @property
-    def async_client(self):
-        if self._async_client is None:
-            log.debug("初始化 大模型客户端(异步)")
-            self._async_client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,
-                http_client=httpx.AsyncClient(
-                    timeout=httpx.Timeout(connect=15.0, read=5.0, write=5.0, pool=5.0),
-                    follow_redirects=True,
-                    limits=httpx.Limits(
-                        max_connections=50, max_keepalive_connections=50, keepalive_expiry=120
-                    ),
-                )
-            )
-        return self._async_client
+        self.async_client = None
 
     async def query(
             self,
-            text: str,
+            user_prompt: str,
             system_prompt: Optional[str] = None,
             model_name: Optional[str] = None,
             conversation_history: Optional[List[Dict[str, str]]] = None,
@@ -169,7 +152,7 @@ class LLM:
             extra_body: Optional[Dict] = None,
             **kwargs,
     ) -> AsyncGenerator[ChatChunk, None]:
-        messages = self._build_messages(text, system_prompt, conversation_history)
+        messages = self._build_messages(user_prompt, system_prompt, conversation_history)
         model_name = model_name or self.model_name
         llm_config = config or LLMConfig()
 
@@ -297,7 +280,7 @@ class LLM:
 
     def _build_messages(
             self,
-            text: str,
+            user_prompt: str,
             system_prompt: Optional[str],
             history: Optional[List[Dict[str, str]]]
     ) -> List[Dict[str, str]]:
@@ -311,7 +294,7 @@ class LLM:
                 for role, content in [("user", turn["user"]), ("assistant", turn["assistant"])]
             ])
 
-        messages.append({"role": "user", "content": text})
+        messages.append({"role": "user", "content": user_prompt})
         return messages
 
     async def aclose(self) -> None:
@@ -353,69 +336,3 @@ def to_fnc_ctx(
             tools.append(schema)  # type: ignore
 
     return tools
-
-
-async def main():
-    @function_tool()
-    async def get_weather(
-            city: str
-    ):
-        """
-        Retrieve current weather information for a given city.
-
-        IMPORTANT:
-        - The 'city' parameter MUST be in English.
-        - If the user provides a city name in any other language (e.g., "北京", "Москва"),
-          you MUST translate it to English before processing.
-
-        Returns:
-            A short text summary of the weather, or an error message if
-            the request fails.
-        """
-
-        log.info(f"[get_weather] Retrieving weather for English city name: {city}")
-        try:
-            return "good weather"
-        except Exception as e:
-            log.error(f"[get_weather] Exception for {city}: {e}")
-            return f"I'm sorry, an error occurred while retrieving the weather for {city}."
-
-    from backend.core.conf import settings
-    llm = LLM(
-        api_key=settings.DOUBAO_API_KEY.get_secret_value(),
-        base_url=settings.DOUBAO_BASE_URL,
-        model_name="doubao-1.5-lite-32k-250115",
-        tools=[get_weather]
-    )
-    system_prompt = """
-    System Prompt: Family Voice Assistant 'Papaya'
-
-    Role Definition:
-    - Identity: A warm and caring family companion named "Papaya".
-    - Style: Natural, friendly, and slightly playful, with thoughtful responses.
-    - Goal: Provide safe, concise, text-only responses suitable for all ages (children, adults, seniors).
-
-    # Task
-    Provide assistance by using the tools you have access to when needed.
-    """
-    log.debug("LLM调用开始")
-    async for chunk in llm.query(
-            text="你叫什么名字",
-            system_prompt=system_prompt):
-        log.debug(chunk)
-
-    log.debug("LLM调用开始")
-    async for chunk in llm.query(
-            text="你叫什么名字",
-            system_prompt=system_prompt):
-        log.debug(chunk)
-
-    log.debug("LLM调用开始")
-    async for chunk in llm.query(
-            text="南京明天的天气如何",
-            system_prompt=system_prompt):
-        log.debug(chunk)
-
-
-if __name__ == '__main__':
-    asyncio.run(main())

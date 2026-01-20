@@ -335,7 +335,7 @@ def prepare_function_arguments(
         raw_fields = _shallow_model_dump(model)
     elif is_raw_function_tool(fnc):
         # e.g async def open_gate(self, raw_arguments: dict[str, object]):
-        # raw_arguments is required when using raw function tools
+        # raw_arguments is required when using raw function action
         raw_fields = {
             "raw_arguments": args_dict,
         }

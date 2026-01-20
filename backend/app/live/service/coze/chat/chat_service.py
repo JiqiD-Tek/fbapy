@@ -51,12 +51,12 @@ class ChatService(CozeService):
         if not (conn := await connection_gateway.get_connection(uid)):
             return
 
-        conn.chat_config = event.data.chat_config  # 对话变配置
+        conn.assistant.chat_config = event.data.chat_config  # 对话变配置
 
         await self._register_speech_callback(uid)  # 注册asr、tts回调
         await conn.assistant.asr.stream_start()  # 启动asr
 
-        await conn.output_queue.put(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
+        await conn.put_nowait(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
@@ -113,13 +113,13 @@ class ChatService(CozeService):
 
         async def on_append_text(text: str) -> None:
             """ asr识别回调 """
-            await conn.output_queue.put(
+            await conn.put_nowait(
                 ConversationAudioTranscriptUpdateEvent.model_validate(
                     {"data": ConversationAudioTranscriptUpdateEvent.Data.model_validate({"content": text})}))
 
         async def on_finish_text(text: str) -> None:
             """ asr识别完成回调 """
-            await conn.output_queue.put(ConversationAudioTranscriptCompletedEvent.model_validate(
+            await conn.put_nowait(ConversationAudioTranscriptCompletedEvent.model_validate(
                 {"data": ConversationAudioTranscriptCompletedEvent.Data.model_validate({"content": text})}))
 
             await self._chatgpt_query(uid, text)  # final_text -> 大模型处理 -> 语音合成
@@ -129,12 +129,12 @@ class ChatService(CozeService):
             await conn.assistant.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
 
             if delta == b"":  # 对话完成，大模型输出完成所有分块
-                await conn.output_queue.put(ConversationAudioCompletedEvent.model_validate({}))  # 语音完成
-                await conn.output_queue.put(ConversationChatCompletedEvent.model_validate(
+                await conn.put_nowait(ConversationAudioCompletedEvent.model_validate({}))  # 语音完成
+                await conn.put_nowait(ConversationChatCompletedEvent.model_validate(
                     {"data": Chat.model_validate({"id": "", "conversation_id": ""})}))
                 return
 
-            await conn.output_queue.put(
+            await conn.put_nowait(
                 ConversationAudioDeltaEvent.model_validate({"data": Message.build_assistant_audio(delta)}))  # 语音中
 
         conn.assistant.asr.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(asr)回调
@@ -146,30 +146,13 @@ class ChatService(CozeService):
             return
 
         tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
-        await conn.output_queue.put(ConversationAudioUrlEvent.model_validate(
+        await conn.put_nowait(ConversationAudioUrlEvent.model_validate(
             {"data": ConversationAudioUrlEvent.Data.model_validate(
                 {"content": f"{conn.uid}.{tts_req_id}"})}))  # token.uuid.tts_req_id
 
-        intention = await conn.assistant.query_intention(text, chat_config=conn.chat_config)  # 意图识别
-        # 1. 音乐
-        if intention.meta_data:
-            await conn.tts_client.query(text=intention.user_prompt, is_final=True)
-            await conn.output_queue.put(ConversationMessageCompletedEvent.model_validate(
-                {"data": Message.build_assistant_answer(intention.user_prompt, intention.meta_data)}))  # 文本 + 元数据
-            return
-
-        # 大模型意图
-        await self._chatgpt_query_stream(
-            uid=uid, text=text, user_prompt=intention.user_prompt, system_prompt=intention.system_prompt)
-
-    async def _chatgpt_query_stream(self, uid, text, user_prompt, system_prompt) -> None:
-        """ 请求大模型 """
-        if not (conn := await connection_gateway.get_connection(uid)):
-            return
-
         async def on_text(resp_text: str) -> None:
             """ 大模型生成流式内容 """
-            await conn.output_queue.put(ConversationMessageDeltaEvent.model_validate(
+            await conn.put_nowait(ConversationMessageDeltaEvent.model_validate(
                 {"data": Message.build_assistant_answer(resp_text)}))  # 流式文本
 
         async def on_chunk(chunk_text: str, is_final: bool = False) -> None:
@@ -178,16 +161,13 @@ class ChatService(CozeService):
 
         async def on_finish(final_text: str) -> None:
             """ 大模型完整流式内容 """
-            await conn.output_queue.put(ConversationMessageCompletedEvent.model_validate(
+            await conn.put_nowait(ConversationMessageCompletedEvent.model_validate(
                 {"data": Message.build_assistant_answer(final_text)}))  # 完整文本
 
         try:
-            await conn.assistant.query_stream(
-                text=text, user_prompt=user_prompt, system_prompt=system_prompt,
-                on_text=on_text, on_chunk=on_chunk, on_finish=on_finish,
-            )
+            await conn.assistant.query_stream(text=text, on_text=on_text, on_chunk=on_chunk, on_finish=on_finish)
         except asyncio.CancelledError:  # 聊天打断
-            await conn.output_queue.put(ConversationChatCanceledEvent.model_validate({}))
+            await conn.put_nowait(ConversationChatCanceledEvent.model_validate({}))
 
 
 chat_service = ChatService()
