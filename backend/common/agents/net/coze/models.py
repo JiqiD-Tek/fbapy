@@ -13,7 +13,7 @@ from typing import Optional, Dict, List, Any
 
 from pydantic import BaseModel, ConfigDict
 
-from backend.common.wscore.coze.exception import CozeAPIError
+from backend.common.agents.net.coze.exception import CozeAPIError
 
 
 class WebsocketsEventType(str, Enum):

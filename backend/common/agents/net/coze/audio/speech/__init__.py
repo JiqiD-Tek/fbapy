@@ -11,7 +11,7 @@ from typing import Dict, Optional
 from pydantic import BaseModel, field_serializer
 from backend.common.log import log
 
-from backend.common.wscore.coze.models import WebsocketsEvent, WebsocketsEventType, OutputAudio
+from backend.common.agents.net.coze.models import WebsocketsEvent, WebsocketsEventType, OutputAudio
 
 
 # req

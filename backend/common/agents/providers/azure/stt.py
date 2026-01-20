@@ -1,14 +1,25 @@
+# -*- coding: UTF-8 -*-
+"""
+@Project ：jiqid-py
+@File    ：stt.py
+@Author  ：guhua@jiqid.com
+@Date    ：2025/06/12 10:26
+"""
+
 import asyncio
-from typing import Callable, Optional
+from typing import Optional
 import azure.cognitiveservices.speech as speechsdk
 from backend.common.log import log
+from backend.common.agents.core.stt.stt import STT
 from backend.core.conf import settings
 
 
-class AzureASR:
+class AzureSTT(STT):
     """语音识别客户端"""
 
-    def __init__(self):
+    def __init__(self, language: str = "zh-CN", **kwargs):
+        super().__init__(language=language, **kwargs)
+        self._language = language
 
         self._stream: Optional[speechsdk.audio.PushAudioInputStream] = None
         self._recognizer: Optional[speechsdk.SpeechRecognizer] = None
@@ -19,18 +30,19 @@ class AzureASR:
         self._append_callback = None
         self._finish_callback = None
 
-        # 事件循环引用
-        self.loop = asyncio.get_event_loop()
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
         """设置回调函数"""
         self._append_callback = append_cb
         self._finish_callback = finish_cb
 
-    async def stream_start(self) -> None:
+    async def start(self) -> None:
         """启动语音识别流"""
+        self.loop = asyncio.get_running_loop()
+
         self._stream = speechsdk.audio.PushAudioInputStream()
-        self._recognizer = _create_speech_recognizer(stream=self._stream)
+        self._recognizer = _create_speech_recognizer(stream=self._stream, language=self._language)
 
         self._recognizer.recognizing.connect(self._on_recognizing)
         self._recognizer.recognized.connect(self._on_recognized)
@@ -45,6 +57,9 @@ class AzureASR:
     def _on_recognizing(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """识别中回调"""
         log.debug(f"识别中回调: {evt.result.text}")
+        if not self.loop:
+            log.error("loop is None")
+            return
 
         if self._append_callback:
             def invoke():
@@ -102,11 +117,11 @@ class AzureASR:
         if evt.reason == speechsdk.CancellationReason.Error:
             log.error(f"错误详情: {evt.error_details}")
 
-    async def stream_append(self, audio_chunk: bytes) -> None:
+    async def push(self, audio_chunk: bytes) -> None:
         """追加音频数据"""
         self._stream.write(audio_chunk)
 
-    async def stream_finish(self) -> None:
+    async def flush(self) -> None:
         """结束识别"""
         self._stream.close()
 
@@ -118,7 +133,11 @@ class AzureASR:
 
     async def _cleanup(self):
         """清理资源"""
-        await self.stream_finish()
+        await self.flush()
+
+    async def aclose(self):
+        """清理资源"""
+        await self._cleanup()
 
     async def __aenter__(self):
         return self
@@ -128,12 +147,12 @@ class AzureASR:
 
 
 def _create_speech_recognizer(
-        *, stream: speechsdk.audio.AudioInputStream
+        *, stream: speechsdk.audio.AudioInputStream, language: str
 ) -> speechsdk.SpeechRecognizer:
     speech_config = speechsdk.SpeechConfig(
         subscription=settings.AZURE_SPEECH_KEY.get_secret_value(),
         region=settings.AZURE_SPEECH_REGION,
-        speech_recognition_language="zh-CN",
+        speech_recognition_language=language,
     )
 
     # speech_config.set_property(

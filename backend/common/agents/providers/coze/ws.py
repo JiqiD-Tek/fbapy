@@ -18,12 +18,8 @@ from backend.common.log import log
 class AsyncWebSocketClient(object):
     """高性能WebSocket客户端 """
 
-    def __init__(self, url: str, token: str = ""):
-        """
-        Args:
-            url: WebSocket服务地址 (ws:// or wss://)
-            token: 认证令牌
-        """
+    def __init__(self, *, url: str, token: str, **kwargs):
+        super().__init__(**kwargs)
         self._url = url
         self._token = token
 
@@ -174,7 +170,7 @@ class AsyncWebSocketClient(object):
                 )
                 raise RuntimeError("消息处理失败") from e
 
-    async def close(self, code: int = 1000, reason: str = "无") -> None:
+    async def aclose(self, code: int = 1000, reason: str = "无") -> None:
         """优雅关闭WebSocket连接
 
         Args:

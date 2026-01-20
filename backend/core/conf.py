@@ -319,7 +319,7 @@ class Settings(BaseSettings):
     QQ_MUSIC_APPKEY: str = ""
 
     # 大模型
-    SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[asr, tts]类型  azure  coze
+    SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[stt, tts]类型  azure  coze
     SPEECH_ENCODING: Literal["wav", "mp3"] = "wav"  # 语音编码格式
 
     # 微软 语音

@@ -6,282 +6,162 @@
 @Author  : guhua@jiqid.com
 @Created : 2025/05/20 10:49
 """
-import re
+
 import asyncio
 import traceback
 
-from typing import AsyncGenerator, Callable, Any, Optional, Set, Tuple
+from typing import AsyncGenerator, Callable, Any, Optional
 
+from backend.utils.timezone import TimeZone
 from backend.common.agents.core.llm.llm import ChatChunk
-from backend.common.agents.prompt import build_user_prompt, SYSTEM_PROMPT
+from backend.common.agents.prompt import SYSTEM_PROMPT
 from backend.common.agents.tools import get_weather
 
 from backend.common.log import log
 from backend.common.agents.cache.memory import MemoryCache
 
-from backend.common.agents.providers.coze.asr import CozeASR as ASR
+from backend.common.agents.providers.coze.stt import CozeSTT as STT
 from backend.common.agents.providers.coze.tts import CozeTTS as TTS
-from backend.common.agents.adapters.coze.llm import CozeLLM as LLM
+from backend.common.agents.providers.coze.llm import CozeLLM as LLM
 
 
 class Assistant:
     """大模型服务的高并发客户端(意图识别、内容生成) """
 
-    def __init__(self, uid: str):
+    def __init__(self, uid: str, chat_config=None):
         """ 初始化大模型服务客户端 """
         self.uid = uid
-        self.chat_config = None
+        self.username = chat_config.parameters.get("username", "Lover")
+        self.language = chat_config.parameters.get("language", "zh-CN")
+        self.tz = chat_config.parameters.get("timezone", "Asia/Shanghai")
 
-        self.asr = ASR()
-        self.tts = TTS()
+        self.stt = STT(language=self.language)
+        self.tts = TTS(language=self.language)
         self.llm = LLM(tools=[get_weather])
-        self.cache = MemoryCache(max_size=3)
+        self.cache = MemoryCache(max_size=5)
 
         self._stream_processor: Optional[StreamProcessor] = None
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
-    async def query_stream(
-            self,
-            text: str,
-            on_text: Optional[Callable[[str], Any]] = None,
-            on_chunk: Optional[Callable[[str, bool], Any]] = None,
-            on_finish: Optional[Callable[[str], Any]] = None,
-    ) -> None:
-        """ 执行流式文本生成查询。 """
+    async def query_stream(self, text: str, on_token=None, on_finish=None) -> None:
+        """ 执行流式文本生成查询 """
         conversation_history = await self.cache.retrieve_related(text)
-        log.debug(f"流式生成：查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
+        log.debug(f"查询历史记录 [UID:{self.uid} history_count:{len(conversation_history)}]")
 
-        user_prompt = build_user_prompt(text, self.chat_config)
         stream = self.llm.query(
-            user_prompt=user_prompt,
+            user_prompt=self.render_user_prompt(text),
             system_prompt=SYSTEM_PROMPT,
             conversation_history=conversation_history,
         )
 
-        # 新请求来 → 旧流立即中断
         if self._stream_processor:
-            await self._stream_processor.stop()
-
-        self._stream_processor = StreamProcessor(stream)
+            await self._stream_processor.aclose()  # 新请求来 → 旧流立即中断
+        self._stream_processor = StreamProcessor(stream, tts=self.tts)
 
         try:
-            response = await self._stream_processor.run(on_text, on_chunk, on_finish)
+            response = await self._stream_processor.run(on_token, on_finish)
+            log.debug(f"流式生成成功 [UID:{self.uid} query:{text} - {len(response)} - {response}]")
             self.cache.add(query=text, response=response)
         except Exception as ex:
             log.error(f"流式生成失败 [UID:{self.uid} - {ex} - {traceback.format_exc()}]")
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """安全关闭活跃流"""
         if self._stream_processor:
-            await self._stream_processor.stop()
+            await self._stream_processor.aclose()
             self._stream_processor = None
-            log.info(f"LLM客户端关闭完成 [UID:{self.uid}]")
+
+        await asyncio.gather(
+            self.stt.aclose(),
+            self.tts.aclose(),
+            self.llm.aclose(),
+        )
+
+        log.debug(f"LLM客户端关闭完成 [UID:{self.uid}]")
+
+    def render_user_prompt(self, text: str, api_data=None):
+        """初始化用户提示"""
+        now = TimeZone(tz=self.tz).now()
+        current_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        current_weekday = now.strftime("%A")
+
+        api_data_block = f"""- API data:
+        ```json
+        {api_data}
+        ```""" if api_data else ""
+
+        user_prompt = f"""
+        Context:
+        - Language: {self.language}
+        - User name: {self.username}
+        - Time: {current_time} ({current_weekday})
+        {api_data_block}
+
+        Instructions:
+        - Respond naturally and politely to the user's message
+        - Use {self.language} only
+        - Be concise and clear
+        - Do NOT explain your reasoning
+        - Do NOT use emojis or emoticons
+        - Output plain text only
+
+        User message:
+        {text}
+        """
+
+        return user_prompt.strip()
 
 
 class StreamProcessor:
-    """高效流式文本处理器（支持即时中断）"""
+    """高效流式文本处理器"""
 
-    def __init__(self, stream: AsyncGenerator[ChatChunk, None]):
+    def __init__(self, stream: AsyncGenerator[ChatChunk, None], tts: TTS):
         self.stream: AsyncGenerator[ChatChunk, None] = stream
-        self._pending_chunk: str = ""
+        self.tts: TTS = tts
+
         self._is_active: asyncio.Event = asyncio.Event()
         self._is_active.set()
 
-    async def stop(self):
-        """优雅关闭流处理器"""
+    async def aclose(self):
+        """关闭流处理器"""
         self._is_active.clear()
         log.debug("流处理器关闭")
 
-    async def run(
-            self,
-            on_text: Callable[[str], Any],
-            on_chunk: Callable[[str, bool], Any],
-            on_finish: Callable[[str], Any],
-            on_error: Optional[Callable[[Exception], Any]] = None
-    ) -> str:
+    async def run(self, on_token, on_finish, on_error=None) -> str:
         """处理文本流并触发回调"""
-        full_text = ''
+        full_text = ""
         try:
             async for chat_chunk in self.stream:
                 if not self._is_active.is_set():
                     log.debug("流数据处理器关闭")
                     raise asyncio.CancelledError
 
-                if chat_chunk.delta.tool_calls:  # 跳过工具调用
+                if chat_chunk.delta.tool_calls:  # 工具调用
                     continue
 
+                await self._invoke(on_token, chat_chunk.delta.content)
                 full_text += chat_chunk.delta.content
-                await self._invoke_callback(on_text, chat_chunk.delta.content)
+                self.tts.push_text(token=chat_chunk.delta.content)
 
-                if chunk_text := await self._process_chunk(chat_chunk.delta.content):
-                    await self._invoke_callback(on_chunk, chunk_text, False)
-
-            await self._invoke_callback(on_chunk, self._pending_chunk.strip(), True)  # 最后一块文本
-
-            await self._invoke_callback(on_finish, full_text)
-            log.debug(f"流处理完成 - 长度:{len(full_text)} - 文本:{full_text}")
+            await self._invoke(on_finish, full_text)
             return full_text
-
         except asyncio.CancelledError:
             log.warning(f"流处理被取消 - {traceback.format_exc()}", exc_info=True)
             raise
-
         except Exception as ex:
             log.error(f"流处理错误 - {ex} - {traceback.format_exc()}", exc_info=True)
             if on_error:
-                await self._invoke_callback(on_error, ex)
+                await self._invoke(on_error, ex)
             raise
-
-    async def _process_chunk(self, text: str) -> Optional[str]:
-        """处理文本块并返回可合成的片段"""
-        self._pending_chunk += text
-
-        chunk, self._pending_chunk = TextChunker.split_text(self._pending_chunk)
-        return chunk
+        finally:
+            log.debug("流处理完成")
+            self.tts.flush()
 
     @staticmethod
-    async def _invoke_callback(callback: Callable, *args: Any) -> None:
-        """ 安全调用回调函数。 """
+    async def _invoke(callback: Callable, *args: Any) -> None:
+        """ 安全调用回调函数 """
         try:
-            result = callback(*args)
-            if asyncio.iscoroutine(result):
-                await result
+            await callback(*args)
         except Exception as ex:
             log.error(f"回调执行失败 [callback: {callback.__name__} - {ex} - {traceback.format_exc()}]")
-
-
-class TextChunker:
-    """
-    智能文本分块器，旨在根据语义边界将长文本分割成有意义的块。
-    它会优先在句子或子句的末尾进行分割，同时避免在数字、日期、缩写词等内部错误地断开。
-    """
-
-    # 将标点符号按功能分类，便于逻辑扩展
-    SENTENCE_ENDINGS: Set[str] = {'。', '？', '！', '.', '?', '!'}
-    CLAUSE_SEPARATORS: Set[str] = {'，', '；', ',', '：', ':', '—', '-', '–'}
-    OTHER_BREAKS: Set[str] = {'\n', '…', '...'}
-
-    # 合并所有可作为分割依据的标点
-    ALL_PUNCTUATION: Set[str] = SENTENCE_ENDINGS | CLAUSE_SEPARATORS | OTHER_BREAKS
-
-    DEFAULT_MIN_CHUNK_SIZE: int = 30  # 默认值
-
-    # 预编译正则表达式以提高性能
-    # 匹配常见的数字格式 (e.g., 3.14, 1,000,000)
-    NUMBER_REGEX = re.compile(r'\d([.,])\d')
-    # 匹配常见的日期和时间格式 (e.g., 2023-01-01, 12:30)
-    DATETIME_REGEX = re.compile(r'\d([-:])\d')
-    # 匹配常见的缩写 (e.g., U.S.A., Ph.D.)
-    ABBREVIATION_REGEX = re.compile(r'\b[A-Z](?:\.[A-Z])+\.?')
-    # 匹配省略号
-    ELLIPSIS_REGEX = re.compile(r'(\.\.\.|\u2026)')  # ... 或 …
-
-    @classmethod
-    def split_text(cls, text: str) -> Tuple[Optional[str], str]:
-        """
-        从文本开头分割出第一个语义完整的块。
-
-        Args:
-            text (str): 待分割的原始文本。
-
-        Returns:
-            Tuple[Optional[str], str]: 返回一个元组。
-            如果成功分割，第一个元素是分割出的文本块，第二个元素是剩余文本。
-            如果无法找到合适的分割点，第一个元素为 None，第二个元素为原始文本。
-        """
-        if not text:
-            return None, ""
-
-        pos = cls._find_optimal_split_pos(text)
-        if pos is None:
-            return None, text
-
-        chunk = text[:pos].strip()
-        remaining_text = text[pos:].strip()
-        return chunk, remaining_text
-
-    @classmethod
-    def _find_optimal_split_pos(cls, text: str) -> Optional[int]:
-        """
-        在文本中查找最佳的分割位置。
-        它从最小分块长度开始向后扫描，寻找第一个有效的标点符号作为分割点。
-        """
-        min_chunk_size = cls.DEFAULT_MIN_CHUNK_SIZE
-
-        # 如果文本本身就小于最小分块大小，则不进行分割
-        if len(text) < min_chunk_size:
-            return None
-
-        # 从最小长度开始，寻找第一个有效的分割点
-        # 增加搜索范围，以防有效分割点在min_chunk_size之后
-        search_limit = max(min_chunk_size * 2, len(text))
-
-        for pos in range(min_chunk_size, search_limit):
-            # 确保 pos-1 在文本范围内
-            if pos > len(text):
-                break
-
-            if text[pos - 1] in cls.ALL_PUNCTUATION and cls._is_valid_break(text, pos):
-                return pos
-
-        # 如果在扩展搜索范围内仍未找到，则在整个文本中从后往前找最后一个有效分割点
-        for pos in range(len(text), min_chunk_size, -1):
-            if text[pos - 1] in cls.ALL_PUNCTUATION and cls._is_valid_break(text, pos):
-                return pos
-
-        return None
-
-    @classmethod
-    def _is_valid_break(cls, text: str, pos: int) -> bool:
-        """
-        使用预编译的正则表达式和逻辑判断，验证一个位置是否是有效的分割点。
-        这可以防止在数字、日期、缩写词等中间断开。
-        """
-        # 检查点是标点符号前面的位置
-        break_char = text[pos - 1]
-
-        # 检查周围的上下文，以防在特殊格式中间断开
-        # 上下文窗口可以根据需要调整
-        context_start = max(0, pos - 10)
-        context_end = min(len(text), pos + 10)
-        context = text[context_start:context_end]
-
-        # 将当前位置映射到上下文中的相对位置
-        relative_pos = pos - context_start
-
-        # 规则 1: 数字格式 (e.g., 3.14, 1,000)
-        if break_char in {'.', ','}:
-            # 查找所有匹配项，检查是否有任何一个跨越了我们的分割点
-            for match in cls.NUMBER_REGEX.finditer(context):
-                if match.start(1) < relative_pos <= match.end(1):
-                    return False
-
-        # 规则 2: 日期/时间格式 (e.g., 2023-01-01, 12:30)
-        if break_char in {'-', ':'}:
-            for match in cls.DATETIME_REGEX.finditer(context):
-                if match.start(1) < relative_pos <= match.end(1):
-                    return False
-
-        # 规则 3: 缩写词 (e.g., U.S.A.)
-        if break_char == '.':
-            for match in cls.ABBREVIATION_REGEX.finditer(context):
-                # 如果分割点在缩写词的内部
-                if match.start() < relative_pos - 1 and relative_pos <= match.end():
-                    return False
-
-        # 规则 4: 省略号 (...)
-        if break_char == '.':
-            for match in cls.ELLIPSIS_REGEX.finditer(context):
-                if match.start() < relative_pos - 1 and relative_pos <= match.end():
-                    return False
-
-        # 规则 5: 连字符词组 (e.g., state-of-the-art)
-        # 原始逻辑已经很有效，这里保留
-        if break_char in {'-', '–', '—'}:
-            prev_char = text[pos - 2] if pos > 1 else None
-            next_char = text[pos] if pos < len(text) else None
-            if prev_char and next_char and prev_char.isalnum() and next_char.isalnum():
-                return False
-
-        return True

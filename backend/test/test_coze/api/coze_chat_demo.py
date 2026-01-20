@@ -432,7 +432,7 @@ class ModernAudioChatGUI:
         self.is_playing = False
         if self.playback_stream:
             self.playback_stream.stop_stream()
-            self.playback_stream.close()
+            self.playback_stream.aclose()
 
         # 关闭WebSocket连接
         if self.chat_client:

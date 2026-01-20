@@ -48,7 +48,7 @@ RUN wget -O /usr/local/bin/repo https://mirrors.tuna.tsinghua.edu.cn/git/git-rep
 # ---------------------
 # Java 环境
 # ---------------------
-ENV JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV PATH=$JAVA_HOME/bin:$PATH
 
 # ---------------------

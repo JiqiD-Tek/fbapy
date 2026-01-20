@@ -10,12 +10,12 @@ from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
 
-from backend.common.wscore.gateway import connection_gateway
-from backend.common.wscore.coze.models import (
+from backend.common.agents.net.channel_gateway import channel_gateway
+from backend.common.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent
 )
-from backend.common.wscore.coze.audio.transcriptions import (
+from backend.common.agents.net.coze.audio.transcriptions import (
     load_req_event,
     InputAudioBufferAppendEvent,
     InputAudioBufferCompleteEvent,
@@ -34,26 +34,26 @@ class TranscriptionsService(CozeService):
 
     async def on_transcriptions_update(self, uid: str, event: TranscriptionsUpdateEvent):
         """ 配置更新 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
         await self._register_speech_callback(uid)  # 注册asr回调
 
-        await conn.assistant.asr.stream_start()
+        await channel.assistant.stt.start()
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.asr.stream_append(audio_chunk=event.data.delta)
+        await channel.assistant.stt.push(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.asr.stream_finish()
+        await channel.stt.flush()
 
     def to_dict(self, origin: Optional[Dict[WebsocketsEventType, Callable]] = None):
         res = {
@@ -72,24 +72,24 @@ class TranscriptionsService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（ASR）"""
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
         async def on_append_text(text: str):
-            await conn.put_nowait(
+            await channel.put_nowait(
                 TranscriptionsMessageUpdateEvent.model_validate(
                     {"data": TranscriptionsMessageUpdateEvent.Data.model_validate({"content": text})}))
 
         async def on_finish_text(text: str):
-            await conn.put_nowait(
+            await channel.put_nowait(
                 TranscriptionsMessageUpdateEvent.model_validate(
                     {"data": TranscriptionsMessageUpdateEvent.Data.model_validate({"content": text})}))
-            await conn.put_nowait(TranscriptionsMessageCompletedEvent.model_validate({}))
+            await channel.put_nowait(TranscriptionsMessageCompletedEvent.model_validate({}))
 
-        conn.assistant.asr.set_callbacks(
+        channel.assistant.stt.set_callbacks(
             append_cb=on_append_text,
             finish_cb=on_finish_text
-        )  # 语音识别(asr)回调
+        )  # 语音识别(stt)回调
 
 
 transcriptions_service = TranscriptionsService()

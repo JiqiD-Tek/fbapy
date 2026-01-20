@@ -18,7 +18,7 @@ from collections import deque
 from pydantic import BaseModel
 
 from backend.common.log import log
-from backend.common.agents.providers.base.asr import ASR
+from backend.common.agents.core.stt.stt import STT
 from backend.common.agents.providers.coze.ws import AsyncWebSocketClient
 
 from backend.core.conf import settings
@@ -168,133 +168,90 @@ def create_asr_config(
 
 
 @dataclass
-class AudioChunkBatcher:
-    """异步安全的音频分块批处理器
-
-    特性：
-    - 线程安全的批量处理
-    - 支持基于数量(max_size)的自动批处理
-    - 内存高效的字节拼接
-    - 完善的异常处理
-    """
-
-    chunks: Deque[bytes] = field(default_factory=deque, init=False)
+class AudioChunkBuffer:
+    """异步安全的音频分块批处理器 """
     max_size: int = field(default=10)
+    buffer: Deque[bytes] = field(default_factory=deque, init=False)
     async_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
-    def __post_init__(self):
-        """参数校验和初始化"""
-        if self.max_size <= 0:
-            raise ValueError("批处理大小必须为正整数")
-
-    async def append(self, chunk: bytes) -> Optional[bytes]:
-        """添加音频数据块，达到阈值时返回完整批次
-
-        参数:
-            chunk: 二进制音频数据块
-
-        返回:
-            当积累到max_size时返回拼接后的批次数据
-            否则返回None
-        """
+    async def put(self, chunk: bytes) -> Optional[bytes]:
+        """添加音频数据块，达到阈值时返回完整批次 """
         if not chunk:
-            raise ValueError("不能添加空数据块")
+            return None
 
         async with self.async_lock:
-            self.chunks.append(chunk)
+            self.buffer.append(chunk)
 
-            if len(self.chunks) >= self.max_size:
-                return self._take_batch()
+            if len(self.buffer) >= self.max_size:
+                return self._take()
 
             return None
 
     async def flush(self) -> bytes:
-        """强制取出当前所有数据并清空缓冲区
-
-        典型使用场景:
-        - 处理结束时获取剩余数据
-        - 定时批量处理
-        """
+        """强制取出当前所有数据并清空缓冲区 """
         async with self.async_lock:
-            return self._take_batch()
+            return self._take()
 
-    def _take_batch(self) -> bytes:
+    def _take(self) -> bytes:
         """内部方法：拼接并返回当前所有数据块"""
-        if not self.chunks:
+        if not self.buffer:
             return b""
 
-        # 预分配内存提高拼接效率
-        total_size = sum(len(c) for c in self.chunks)
+        total_size = sum(len(c) for c in self.buffer)
         result = bytearray(total_size)
         offset = 0
 
-        for chunk in self.chunks:
+        for chunk in self.buffer:
             result[offset:offset + len(chunk)] = chunk
             offset += len(chunk)
 
-        self.chunks.clear()
+        self.buffer.clear()
         return bytes(result)
 
 
-def get_asr_config():
+def get_stt_config(language: str):
     return create_asr_config(
         appid=settings.BYTES_ASR_APPID,
         cluster=settings.BYTES_ASR_CLUSTER,
         token=settings.BYTES_ASR_TOKEN,
-        language="zh-CN",
+        language=language,
         uid=uuid.uuid4().hex,
     )
 
 
-class CozeASR(AsyncWebSocketClient, ASR):
-    """优化的ASR识别客户端（支持WebSocket流式传输）
+class CozeSTT(AsyncWebSocketClient, STT):
+    """优化的STT识别客户端
     """
 
-    def __init__(self, url: str = settings.BYTES_ASR_URL):
+    def __init__(self, url: str = settings.BYTES_ASR_URL, language: str = "zh-CN"):
         """初始化ASR客户端
-
-        参数：
-            url: WebSocket服务端地址 (ws:// 或 wss://)
-            asr_config: ASR配置对象，需包含：
-                - app.token: 认证令牌
-
-        初始化流程：
-            1. 初始化WebSocket连接
-            2. 配置音频批处理器
-            3. 设置空回调函数
         """
-        self.asr_config = get_asr_config()
+        self.asr_config = get_stt_config(language=language)
         super().__init__(url=url, token=self.asr_config.app.token)
 
-        self.chunk_batcher = AudioChunkBatcher(max_size=15)  # 30ms * 15 = 450ms
+        self.chunk_batcher = AudioChunkBuffer(max_size=15)  # 30ms * 15 = 450ms
 
-        # 回调函数
-        self.append_callback = None  # 增量文本回调 (partial result)
-        self.finish_callback = None  # 最终结果回调 (final result)
+        self.append_callback = None
+        self.finish_callback = None
 
     def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
         """设置回调函数 """
         self.append_callback = append_cb
         self.finish_callback = finish_cb
 
-    async def close(self, code: int = 1000, reason: str = "") -> None:
-        """安全关闭TTS客户端并释放所有资源
-        """
-        await super().close(reason="ASR 关闭")
-
-    async def stream_start(self) -> None:
+    async def start(self) -> None:
         """Initialize streaming recognition session"""
         self.asr_config.request.reqid = uuid.uuid4().hex
         header = self._generate_header()
         request_params = self.asr_config.model_dump()
         payload = json.dumps(request_params).encode()
 
-        await self.close(reason="ASR 开始")  # asr 不支持websocket复用链接，所以每次请求都关闭链接
+        await self.aclose(reason="ASR 开始")  # stt 不支持websocket复用链接，所以每次请求都关闭链接
         await self._send_request(header, payload)
 
-    async def stream_append(self, audio_chunk: bytes) -> None:
+    async def push(self, audio_chunk: bytes) -> None:
         """ Append audio chunk to streaming recognition """
-        audio_chunk = await self.chunk_batcher.append(audio_chunk)
+        audio_chunk = await self.chunk_batcher.put(audio_chunk)
         if audio_chunk is None:
             return
 
@@ -302,7 +259,7 @@ class CozeASR(AsyncWebSocketClient, ASR):
         resp = await self._send_request(header, audio_chunk)
         await self._handler_resp(resp, self.append_callback)
 
-    async def stream_finish(self) -> None:
+    async def flush(self) -> None:
         """Finalize streaming recognition session"""
         audio_chunk = await self.chunk_batcher.flush()
 
@@ -313,7 +270,12 @@ class CozeASR(AsyncWebSocketClient, ASR):
         resp = await self._send_request(header, audio_chunk)
         await self._handler_resp(resp, self.finish_callback)
 
-        await self.close(reason="ASR 结束")  # asr 不支持websocket复用链接，所以每次请求都关闭链接
+        await self.aclose(reason="ASR 结束")  # stt 不支持websocket复用链接，所以每次请求都关闭链接
+
+    async def aclose(self, code: int = 1000, reason: str = "") -> None:
+        """安全关闭TTS客户端并释放所有资源
+        """
+        await super().aclose(reason="ASR 关闭")
 
     async def _send_request(self, header: bytearray, payload: bytes) -> dict:
         """

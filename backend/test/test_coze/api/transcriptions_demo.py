@@ -28,15 +28,15 @@ async def demo():
 
     async def _trans():
         log.info("start")
-        await client.stream_start()
+        await client.start()
 
         offset = 0
         while offset < len(audio_data):
             audio_chunk = audio_data[offset:offset + 10000]
-            await client.stream_append(audio_chunk=audio_chunk)
+            await client.push(audio_chunk=audio_chunk)
             offset += 10000
 
-        await client.stream_finish()
+        await client.flush()
 
     await _trans()
     await asyncio.sleep(1)

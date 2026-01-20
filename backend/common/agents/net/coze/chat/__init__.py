@@ -11,13 +11,13 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from backend.common.log import log
-from backend.common.wscore.coze.audio.transcriptions import (
+from backend.common.agents.net.coze.audio.transcriptions import (
     InputAudioBufferCompletedEvent,
     InputAudioBufferAppendEvent,
     InputAudioBufferCompleteEvent
 )
 
-from backend.common.wscore.coze.models import (
+from backend.common.agents.net.coze.models import (
     WebsocketsEvent,
     WebsocketsEventType,
     InputAudio,

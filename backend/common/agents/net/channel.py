@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 @Project : jiqid-py
-@File    : client.py
+@File    : channel.py
 @Author  : guhua@jiqid.com
 @Created : 2025/04/16 14:29
 """
@@ -18,49 +18,24 @@ from fastapi import WebSocket, WebSocketDisconnect
 from backend.common.log import log
 from backend.common.agents.assistant import Assistant
 
-from backend.common.wscore.coze.models import WebsocketsEvent
-from backend.common.wscore.exception.errors import WebSocketErrorCode
+from backend.common.agents.net.coze.models import WebsocketsEvent
+from backend.common.agents.net.exception.errors import WebSocketErrorCode
 
 
-class ClientConnection:
-    """客户端连接管理 """
-
-    __slots__ = (
-        'uid', 'websocket', 'assistant',
-        '_loop', '_output_queue', '_send_task', '_last_activity',
-        '_is_closed', '__weakref__',
-    )
+class Channel:
+    """通道连接管理 """
 
     def __init__(self, uid: str, websocket: WebSocket):
         """初始化连接 """
         self.uid = uid
         self.websocket: Final[WebSocket] = websocket
-        self.assistant = Assistant(uid)
+        self.assistant: Optional[Assistant] = None
 
         self._last_activity: float = time.monotonic()
         self._output_queue: asyncio.Queue[Optional[WebsocketsEvent]] = asyncio.Queue(maxsize=1000)
         self._is_closed: bool = False
 
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._send_task: Optional[asyncio.Task] = None
-        self._start_send_loop()
-
-    @property
-    def loop(self):
-        """Lazy initialization of event loop"""
-        if self._loop is None:
-            try:
-                self._loop = asyncio.get_event_loop()
-            except RuntimeError:
-                self._loop = asyncio.new_event_loop()
-        return self._loop
-
-    def _start_send_loop(self) -> None:
-        """Start the message sending loop."""
-        if not self._is_closed:
-            self._send_task = self.loop.create_task(
-                self._send_loop(), name=f"SendLoop-{self.uid}"
-            )
+        self._send_task = asyncio.create_task(self._send_loop(), name=f"SendLoop-{self.uid}")
 
     async def _send_loop(self) -> None:
         """Process outgoing message queue with timeout and error handling."""
@@ -71,7 +46,7 @@ class ClientConnection:
                 if event is None:  # Termination signal
                     break
 
-                # 2. 执行发送数据给客户端的逻辑
+                # 2. 执行发送数据给通道的逻辑
                 try:
                     await self.safe_send_text(event.model_dump_json())
                     self._last_activity = time.monotonic()
@@ -93,17 +68,18 @@ class ClientConnection:
                 await asyncio.sleep(5)  # 错误冷却
 
     async def init(self) -> None:
-        """并行初始化 AI 客户端，防止重复初始化"""
+        """并行初始化 AI 通道，防止重复初始化"""
         if self._is_closed:
-            log.warning(f"[{self.uid}] 已关闭，跳过初始化")
+            log.warning(f"通道[{self.uid}] 已关闭，跳过初始化")
             return
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """安全关闭连接并释放资源（幂等操作）"""
         if self._is_closed:
             return
+
         self._is_closed = True
-        log.info(f"[{self.uid}] 正在关闭连接")
+        log.debug(f"通道[{self.uid}] 正在关闭连接")
 
         # 1. 停止发送循环
         if self._send_task and not self._send_task.done():
@@ -117,16 +93,14 @@ class ClientConnection:
                 self._output_queue.get_nowait()
                 self._output_queue.task_done()
 
-        # 3. 并发释放 AI 客户端
-        async def _release(client, release_func):
-            if client:
-                with suppress(Exception):
-                    await release_func(client)
+        # 3. 释放助手
+        if self.assistant:
+            await self.assistant.aclose()
 
         # 4. 关闭 WebSocket
         await self.terminate_connection(self.websocket, WebSocketErrorCode.NORMAL_CLOSE)
 
-        log.info(f"[{self.uid}] 连接已关闭")
+        log.debug(f"通道[{self.uid}] 连接已关闭")
 
     # -------------------------------------------------------------------------
     # 安全发送封装
@@ -139,7 +113,7 @@ class ClientConnection:
 
     async def _safe_send(self, data: Union[str, bytes], binary: bool) -> None:
         if self._is_closed:
-            raise RuntimeError(f"[{self.uid}] 连接已关闭，无法发送")
+            raise RuntimeError(f"通道[{self.uid}] 连接已关闭，无法发送")
 
         try:
             if binary:

@@ -298,7 +298,17 @@ class LLM:
         return messages
 
     async def aclose(self) -> None:
-        ...
+        """
+        关闭 LLM 客户端，释放底层 HTTP 连接资源
+        """
+        client = self.async_client
+        self.async_client = None
+
+        if client is not None:
+            try:
+                await client.close()
+            except Exception as e:
+                log.error(f"关闭 AsyncOpenAI client 失败: {e}")
 
     async def __aenter__(self):
         return self

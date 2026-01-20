@@ -76,21 +76,14 @@ class MQTTBroker:
 
         self._client_lock = asyncio.Lock()
         self._callback_lock = Lock()
-
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._connection_task: Optional[asyncio.Task] = None
 
-    @property
-    def loop(self):
-        """事件循环的延迟初始化。"""
-        if self._loop is None:
-            try:
-                self._loop = asyncio.get_event_loop()
-            except RuntimeError:
-                self._loop = asyncio.new_event_loop()
-        return self._loop
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def connect(self) -> bool:
+        """连接 MQTT Broker。"""
+        self._loop = asyncio.get_running_loop()
+
         async with self._client_lock:
             if self.connected:
                 log.debug("已连接到 MQTT Broker")
@@ -114,7 +107,7 @@ class MQTTBroker:
             self._stop_event.clear()
             self._connection_event.clear()
             self._disconnect_event.clear()
-            self._connection_task = self.loop.create_task(
+            self._connection_task = self._loop.create_task(
                 self._connection_loop(),
                 name="mqtt_connection_loop"
             )
@@ -140,20 +133,20 @@ class MQTTBroker:
             if rc == mqtt.CONNACK_ACCEPTED:
                 self.connected = True
                 self.reconnect_attempts = 0
-                asyncio.run_coroutine_threadsafe(self._set_event(self._connection_event), self.loop)
+                asyncio.run_coroutine_threadsafe(self._set_event(self._connection_event), self._loop)
                 log.info(f"成功连接到 MQTT Broker {self.config.host}:{self.config.port}")
             else:
                 log.error(f"连接失败，错误码 {rc}: {mqtt.connack_string(rc)}")
                 self.connected = False
-                asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self.loop)
+                asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self._loop)
 
     def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int, *args) -> None:
         """客户端断开连接时的回调。"""
         with self._callback_lock:
             self.connected = False
-            asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self.loop)
+            asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self._loop)
             # 触发断开事件，通知连接循环醒来
-            asyncio.run_coroutine_threadsafe(self._set_event(self._disconnect_event), self.loop)
+            asyncio.run_coroutine_threadsafe(self._set_event(self._disconnect_event), self._loop)
             if rc != mqtt.MQTT_ERR_SUCCESS:
                 log.warning(f"意外断开连接，错误码: {rc}")
 
@@ -185,14 +178,16 @@ class MQTTBroker:
                 if self._topic_matches(sub_topic, topic):
                     callbacks_to_run.extend(qos_callback.values())
 
-        for callback in callbacks_to_run:
+        def _invoke(_callback):
             try:
-                if asyncio.iscoroutinefunction(callback):
-                    asyncio.run_coroutine_threadsafe(callback(message_ctx), self.loop)
-                else:
-                    self.loop.call_soon_threadsafe(callback, message_ctx)
-            except Exception as e:
-                log.error(f"调度回调出错 (主题: {topic}): {e}")
+                coro = _callback(message_ctx)
+                if asyncio.iscoroutine(coro):
+                    asyncio.create_task(coro)
+            except Exception as ex:
+                log.error(f"识别结果回调: {ex}")
+
+        for callback in callbacks_to_run:
+            self._loop.call_soon_threadsafe(_invoke, callback)
 
     @staticmethod
     async def _set_event(event: asyncio.Event) -> None:
@@ -235,8 +230,8 @@ class MQTTBroker:
                 self._disconnect_event.clear()
                 await asyncio.wait(
                     [
-                        self.loop.create_task(self._disconnect_event.wait()),
-                        self.loop.create_task(self._stop_event.wait())
+                        self._loop.create_task(self._disconnect_event.wait()),
+                        self._loop.create_task(self._stop_event.wait())
                     ],
                     return_when=asyncio.FIRST_COMPLETED
                 )

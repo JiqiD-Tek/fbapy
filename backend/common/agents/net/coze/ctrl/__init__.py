@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from typing import Literal, Any, Optional, Dict
 
 from backend.common.log import log
-from backend.common.wscore.coze.models import WebsocketsEvent, WebsocketsEventType, Message, CozeModel
+from backend.common.agents.net.coze.models import WebsocketsEvent, WebsocketsEventType, Message, CozeModel
 
 
 class CommandType(str, Enum):

@@ -9,17 +9,18 @@ import wave
 from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
+from backend.common.exception import errors
 
 from backend.core.conf import settings
-from backend.common.exception import errors
 from backend.common.ali_oss import oss_client
 
-from backend.common.wscore.gateway import connection_gateway
-from backend.common.wscore.coze.models import (
+from backend.common.agents.providers.coze.tts import CozeTTS as TTS
+from backend.common.agents.net.channel_gateway import channel_gateway
+from backend.common.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent
 )
-from backend.common.wscore.coze.audio.speech import (
+from backend.common.agents.net.coze.audio.speech import (
     load_req_event,
     SpeechUpdateEvent,
     InputTextBufferCompleteEvent,
@@ -45,16 +46,15 @@ class SpeechService(CozeService):
             else:
                 raw_data.extend(data)
 
-        # client = await open_manager.acquire_tts(uid=uid, encoding=encoding)
-        # client.set_callback(audio_callback)
-        #
-        # await client.query(text, is_final=True)
-        # try:
-        #     await asyncio.wait_for(completion_event.wait(), timeout=30.0)
-        # except asyncio.TimeoutError:
-        #     raise errors.ServerError(msg="TTS转换超时")
-        # finally:
-        #     await open_manager.release_tts(client)  # 释放tts资源
+        tts = TTS()
+        tts.set_callback(audio_callback)
+        await tts.query(text, is_final=True)
+        try:
+            await asyncio.wait_for(completion_event.wait(), timeout=30.0)
+        except asyncio.TimeoutError:
+            raise errors.ServerError(msg="TTS转换超时")
+        finally:
+            await tts.aclose()  # 释放tts资源
 
         if encoding.lower() == "wav":
             audio_data = self._pcm_to_wav(
@@ -77,29 +77,29 @@ class SpeechService(CozeService):
 
     async def on_speech_update(self, uid: str, event: SpeechUpdateEvent):
         """ 配置更新 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
         await self._register_speech_callback(uid)  # 注册tts回调
 
-        tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
-        await conn.put_nowait(SpeechAudioUrlEvent.model_validate(
+        tts_req_id = await channel.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
+        await channel.put_nowait(SpeechAudioUrlEvent.model_validate(
             {"data": SpeechAudioUrlEvent.Data.model_validate(
-                {"content": f"{conn.uid}.{tts_req_id}"})}))  # 音频播放token
+                {"content": f"{channel.uid}.{tts_req_id}"})}))  # 音频播放token
 
     async def on_input_text_buffer_append(self, uid: str, event: InputTextBufferAppendEvent):
         """ 文本内容接受中 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.tts.query(text=event.data.delta, is_final=False)
+        await channel.assistant.tts.query(text=event.data.delta, is_final=False)
 
     async def on_input_text_buffer_complete(self, uid: str, event: InputTextBufferCompleteEvent):
         """ 文本内容接受完成 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.tts.query(text='', is_final=True)
+        await channel.assistant.tts.query(text='', is_final=True)
 
     def to_dict(
             self, origin: Optional[Dict[WebsocketsEventType, Callable]] = None
@@ -119,21 +119,21 @@ class SpeechService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（TTS）"""
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
         async def on_audio(delta: bytes | None) -> None:
-            await conn.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
+            await channel.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
 
             if delta == b"":
-                await conn.put_nowait(SpeechAudioCompletedEvent.model_validate({}))  # 音频完成
+                await channel.put_nowait(SpeechAudioCompletedEvent.model_validate({}))  # 音频完成
                 return
 
-            await conn.put_nowait(
+            await channel.put_nowait(
                 SpeechAudioUpdateEvent.model_validate(
                     {"data": SpeechAudioUpdateEvent.Data.model_validate({"delta": delta})}))  # 音频更新
 
-        conn.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
+        channel.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
 
     def _pcm_to_wav(self, pcm_data: bytes, sample_rate=16000, sample_width=2, channels=1) -> bytes:
         """ PCM转WAV """

@@ -14,8 +14,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
 
-from backend.common.wscore.gateway import connection_gateway
-from backend.common.wscore.coze.models import WebsocketsEventType, WebsocketsEvent
+from backend.common.agents.net.channel_gateway import channel_gateway
+from backend.common.agents.net.coze.models import WebsocketsEventType, WebsocketsEvent
 
 
 class CozeService(object):
@@ -26,10 +26,10 @@ class CozeService(object):
     async def receive_loop(self, websocket: WebSocket) -> None:
         """ 接收消息 """
         log.debug(f"Connected to {websocket.client}")
-        conn = await connection_gateway.connect(websocket)
+        conn = await channel_gateway.connect(websocket)
 
         try:
-            async for data in connection_gateway.read_text(conn.uid):
+            async for data in channel_gateway.read_text(conn.uid):
                 message = json.loads(data)
                 event_type = message.get("event_type")
                 log.debug(f"receive event, uid={conn.uid}, type={event_type}")
@@ -43,7 +43,7 @@ class CozeService(object):
         except Exception as e:
             log.error(f"连接错误 [UID:{conn.uid} - {e} - {traceback.format_exc()}]", )
         finally:
-            await connection_gateway.safe_disconnect(conn.uid, websocket)
+            await channel_gateway.safe_disconnect(conn.uid, websocket)
 
     def load_event(self, message: dict) -> Optional[WebsocketsEvent]:
         """ 转换成event 对象 """

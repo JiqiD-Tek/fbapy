@@ -9,18 +9,19 @@ from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
 
-from backend.common.wscore.gateway import connection_gateway
-from backend.common.wscore.coze.models import (
+from backend.common.agents.assistant import Assistant
+from backend.common.agents.net.channel_gateway import channel_gateway
+from backend.common.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent,
     Chat,
     Message,
 )
-from backend.common.wscore.coze.audio.transcriptions import (
+from backend.common.agents.net.coze.audio.transcriptions import (
     InputAudioBufferAppendEvent,
     InputAudioBufferCompleteEvent,
 )
-from backend.common.wscore.coze.chat import (
+from backend.common.agents.net.coze.chat import (
     load_req_event,
     ChatUpdateEvent,
     ChatUpdatedEvent,
@@ -48,36 +49,36 @@ class ChatService(CozeService):
 
     async def on_chat_update(self, uid: str, event: ChatUpdateEvent):
         """ 配置更新 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        conn.assistant.chat_config = event.data.chat_config  # 对话变配置
+        channel.assistant = Assistant(uid=uid, chat_config=event.data.chat_config)
 
-        await self._register_speech_callback(uid)  # 注册asr、tts回调
-        await conn.assistant.asr.stream_start()  # 启动asr
+        await self._register_speech_callback(uid)
+        await channel.assistant.stt.start()  # 启动asr
 
-        await conn.put_nowait(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
+        await channel.put_nowait(ChatUpdatedEvent.model_validate({"data": ChatUpdateEvent.Data.model_validate({})}))
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.asr.stream_append(audio_chunk=event.data.delta)
+        await channel.assistant.stt.push(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.asr.stream_finish()
+        await channel.assistant.stt.flush()
 
     async def on_conversation_chat_cancel(self, uid: str, event: ConversationChatCancelEvent):
         """ 对话取消 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await conn.assistant.close()  # 打断
+        await channel.assistant.aclose()  # 打断
 
     async def on_conversation_chat_submit_tool_outputs(self, uid: str, event: ConversationChatSubmitToolOutputsEvent):
         """ 调用工具 """
@@ -108,66 +109,62 @@ class ChatService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（ASR+TTS）"""
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
         async def on_append_text(text: str) -> None:
             """ asr识别回调 """
-            await conn.put_nowait(
+            await channel.put_nowait(
                 ConversationAudioTranscriptUpdateEvent.model_validate(
                     {"data": ConversationAudioTranscriptUpdateEvent.Data.model_validate({"content": text})}))
 
         async def on_finish_text(text: str) -> None:
             """ asr识别完成回调 """
-            await conn.put_nowait(ConversationAudioTranscriptCompletedEvent.model_validate(
+            await channel.put_nowait(ConversationAudioTranscriptCompletedEvent.model_validate(
                 {"data": ConversationAudioTranscriptCompletedEvent.Data.model_validate({"content": text})}))
 
             await self._chatgpt_query(uid, text)  # final_text -> 大模型处理 -> 语音合成
 
         async def on_audio(delta: bytes | None) -> None:
             """ tts合成语音回调 """
-            await conn.assistant.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
+            await channel.assistant.tts.tts_cache.append_audio_delta(delta)  # 保存音频数据，通过http链接流式访问
 
-            if delta == b"":  # 对话完成，大模型输出完成所有分块
-                await conn.put_nowait(ConversationAudioCompletedEvent.model_validate({}))  # 语音完成
-                await conn.put_nowait(ConversationChatCompletedEvent.model_validate(
+            if delta == b'':  # 大模型处理完成
+                await channel.put_nowait(ConversationAudioCompletedEvent.model_validate({}))  # 语音完成
+                await channel.put_nowait(ConversationChatCompletedEvent.model_validate(
                     {"data": Chat.model_validate({"id": "", "conversation_id": ""})}))
                 return
 
-            await conn.put_nowait(
+            await channel.put_nowait(
                 ConversationAudioDeltaEvent.model_validate({"data": Message.build_assistant_audio(delta)}))  # 语音中
 
-        conn.assistant.asr.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(asr)回调
-        conn.assistant.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
+        channel.assistant.stt.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(stt)回调
+        channel.assistant.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
 
     async def _chatgpt_query(self, uid, text) -> None:
         """ 意图识别 """
-        if not (conn := await connection_gateway.get_connection(uid)):
+        if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        tts_req_id = await conn.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
-        await conn.put_nowait(ConversationAudioUrlEvent.model_validate(
+        tts_req_id = await channel.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
+        await channel.put_nowait(ConversationAudioUrlEvent.model_validate(
             {"data": ConversationAudioUrlEvent.Data.model_validate(
-                {"content": f"{conn.uid}.{tts_req_id}"})}))  # token.uuid.tts_req_id
+                {"content": f"{channel.uid}.{tts_req_id}"})}))  # token.uuid.tts_req_id
 
-        async def on_text(resp_text: str) -> None:
+        async def on_token(token_text: str) -> None:
             """ 大模型生成流式内容 """
-            await conn.put_nowait(ConversationMessageDeltaEvent.model_validate(
-                {"data": Message.build_assistant_answer(resp_text)}))  # 流式文本
-
-        async def on_chunk(chunk_text: str, is_final: bool = False) -> None:
-            """ 大模型流式内容分段，按段进行TTS """
-            await conn.assistant.tts.query(text=chunk_text, is_final=is_final)  # 分块文本
+            await channel.put_nowait(ConversationMessageDeltaEvent.model_validate(
+                {"data": Message.build_assistant_answer(token_text)}))  # 流式文本
 
         async def on_finish(final_text: str) -> None:
             """ 大模型完整流式内容 """
-            await conn.put_nowait(ConversationMessageCompletedEvent.model_validate(
+            await channel.put_nowait(ConversationMessageCompletedEvent.model_validate(
                 {"data": Message.build_assistant_answer(final_text)}))  # 完整文本
 
         try:
-            await conn.assistant.query_stream(text=text, on_text=on_text, on_chunk=on_chunk, on_finish=on_finish)
+            await channel.assistant.query_stream(text=text, on_token=on_token, on_finish=on_finish)
         except asyncio.CancelledError:  # 聊天打断
-            await conn.put_nowait(ConversationChatCanceledEvent.model_validate({}))
+            await channel.put_nowait(ConversationChatCanceledEvent.model_validate({}))
 
 
 chat_service = ChatService()
