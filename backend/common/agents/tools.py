@@ -11,6 +11,7 @@ from backend.common.log import log
 from backend.common.agents.api_clients.weather_api import open_weather_map
 
 from backend.common.agents.core.llm.tool_context import function_tool
+from backend.utils.timezone import TimeZone
 
 
 @function_tool()
@@ -40,7 +41,6 @@ async def get_weather(
 
 @function_tool()
 async def set_alarm_at(
-        ctx: RunContext_T,  # noqa
         target_time: str,
         message: str = "Time to wake up!"
 ) -> str:
@@ -60,8 +60,8 @@ async def set_alarm_at(
     """
 
     try:
-        now = ctx.userdata.tz.now()
-        target_dt = ctx.userdata.tz.from_str(target_time)
+        now = TimeZone().now()
+        target_dt = TimeZone().from_str(target_time)
         if (target_dt - now).total_seconds() <= 0:
             return "The alarm time must be in the future."
 
@@ -75,7 +75,6 @@ async def set_alarm_at(
 
 @function_tool()
 async def set_alarm(
-        ctx: RunContext_T,  # noqa
         delay_seconds: int,
         message: str = "Time is up!"
 ) -> str:
@@ -102,9 +101,9 @@ async def set_alarm(
 
         log.info(f"[set_alarm] Alarm set: {delay_seconds} {message}")
 
-        now = ctx.userdata.tz.now()
+        now = TimeZone().now()
         target_dt = now + timedelta(seconds=delay_seconds)
-        return await set_alarm_at(ctx, ctx.userdata.tz.to_str(target_dt), message)
+        return await set_alarm_at( TimeZone().to_str(target_dt), message)
 
     except Exception as e:
         log.error(f"[set_alarm] Exception: {e}", exc_info=True)
