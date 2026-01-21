@@ -26,4 +26,3 @@ class Device(Base):
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='设备名称')
     firmware: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='固件版本')
     hardware: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='硬件版本')
-    user_id: Mapped[int | None] = mapped_column(sa.Integer, default=None, comment='设备所有者ID')

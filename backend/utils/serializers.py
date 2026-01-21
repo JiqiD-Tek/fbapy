@@ -230,7 +230,7 @@ def select_join_serialize(  # noqa: C901
                     for target_class, relation_type in relation_graph.get(cls_name, {}).items():
                         field_name = custom_names.get((cls_name, target_class))
                         rel_key = get_relation_key(target_class, relation_type, field_name)
-                        full_columns.put(rel_key)
+                        full_columns.append(rel_key)
                     full_columns = sorted(set(full_columns))  # 去重并排序
 
                 namedtuple_cache[cls_name] = namedtuple(cls_name.capitalize(), full_columns or columns)  # noqa: PYI024

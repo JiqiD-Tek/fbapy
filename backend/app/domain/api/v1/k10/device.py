@@ -68,21 +68,6 @@ async def get_device_paginated(
     return response_base.success(data=page_data)
 
 
-# =============================
-# 创建设备
-# =============================
-@router.post(
-    "",
-    summary="创建设备",
-    dependencies=[DependsJwtAuth],
-)
-async def create_device(
-        db: CurrentSessionTransaction,
-        obj: CreateDeviceParam,
-) -> ResponseSchemaModel[GetDeviceDetail]:
-    device = await device_service.create(db=db, obj=obj)
-    return response_base.success(data=device)
-
 
 # =============================
 # 更新设备

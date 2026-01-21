@@ -13,8 +13,7 @@ class CRUDDevice(CRUDPlus[Device]):
     async def get(self, db: AsyncSession, pk: int) -> Device | None:
         return await self.select_model(db, pk)
 
-    async def get_select(self, did: str | None, sn: str | None, mac: str | None, model: str | None,
-                         user_id: int | None) -> Select:
+    async def get_select(self, did: str | None, sn: str | None, mac: str | None, model: str | None) -> Select:
         filters = {}
 
         if did is not None:
@@ -25,8 +24,6 @@ class CRUDDevice(CRUDPlus[Device]):
             filters['mac'] = mac
         if model is not None:
             filters['model'] = model
-        if user_id is not None:
-            filters['user_id'] = user_id
 
         return await self.select_order('id', **filters)
 
@@ -39,17 +36,14 @@ class CRUDDevice(CRUDPlus[Device]):
     async def get_by_mac(self, db: AsyncSession, mac: str) -> Device | None:
         return await self.select_model_by_column(db, mac=mac)
 
-    async def get_by_user_id(self, db: AsyncSession, user_id: int) -> Sequence[Device]:
-        return await self.select_models(db, user_id=user_id)
-
     async def get_by_model(self, db: AsyncSession, model: str) -> Sequence[Device]:
         return await self.select_models(db, model=model)
 
     async def get_all(self, db: AsyncSession) -> Sequence[Device]:
         return await self.select_models(db)
 
-    async def create(self, db: AsyncSession, obj: CreateDeviceParam) -> None:
-        await self.create_model(db, obj)
+    async def create(self, db: AsyncSession, obj: CreateDeviceParam) -> Device:
+        return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateDeviceParam) -> int:
         return await self.update_model(db, pk, obj)

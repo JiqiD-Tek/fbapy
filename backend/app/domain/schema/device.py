@@ -24,7 +24,6 @@ class DeviceSchemaBase(SchemaBase):
     name: Optional[str] = Field(None, description='设备名称')
     firmware: Optional[str] = Field(None, description='固件版本')
     hardware: Optional[str] = Field(None, description='硬件版本')
-    user_id: Optional[int] = Field(None, description='设备所有者ID')
 
 
 class CreateDeviceParam(DeviceSchemaBase):

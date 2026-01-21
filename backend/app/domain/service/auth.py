@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
 from backend.app.domain.crud.crud_device import device_dao
+from backend.app.domain.model import Device
 from backend.app.domain.schema.device import CreateDeviceParam
 from backend.app.domain.service.secure import secure_service
 from backend.common.context import ctx
@@ -35,20 +36,20 @@ from backend.app.domain.model.user import User
 class AuthService:
     """认证服务类"""
 
-    async def _register_device(self, db: AsyncSession, user: User, obj: AuthLoginParam):
+    async def _register_device(self, db: AsyncSession, obj: AuthLoginParam) -> Device:
         valid = secure_service.verify(**obj.device.model_dump())
         if not valid:
             raise errors.RequestError(msg=t('error.device.invalid'))
 
-        device = await device_dao.get_by_user_id(db, user.id)
-        if device:
-            return
+        device = await device_dao.get_by_did(db, obj.device.did)
+        if device is None:
+            device_param = CreateDeviceParam(
+                name="", hardware="", firmware="",
+                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did
+            )
+            device = await device_dao.create(db, device_param)
 
-        device_param = CreateDeviceParam(
-            name="", hardware="", firmware="",
-            model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did, user_id=user.id
-        )
-        await device_dao.create(db, device_param)
+        return device
 
     async def _register(self, db: AsyncSession, obj: AuthLoginParam) -> User:
         if obj.phone:
@@ -58,16 +59,14 @@ class AuthService:
         else:
             raise errors.RequestError(msg=t('error.phone.email'))
 
-        if user:
-            await self._register_device(db, user, obj)
-            return user
+        device = await self._register_device(db, obj)  # 设备合法的用户才支持注册
+        if user is None:
+            user_param = CreateUserParam(
+                username=obj.phone or obj.email, phone=obj.phone, email=obj.email,
+                nickname=None, avatar=None, sex=None, birthday=None,
+            )
+            user = await user_dao.create(db, user_param)
 
-        user_param = CreateUserParam(
-            username=obj.phone or obj.email, phone=obj.phone, email=obj.email,
-            nickname=None, avatar=None, sex=None, birthday=None,
-        )
-        user = await user_dao.create(db, user_param)
-        await self._register_device(db, user, obj)
         return user
 
     async def login(

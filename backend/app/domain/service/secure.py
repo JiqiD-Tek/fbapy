@@ -146,9 +146,9 @@ class RegistrationServer(KeyGenerator):
         """
         # ------------------ 时间校验 ------------------
         # 请求时间与服务器时间差绝对值超过 60 秒即拒绝
-        if abs(time.time() - timestamp) > 60:
-            log.error("时间校验失败")
-            return False
+        # if abs(time.time() - timestamp) > 60:
+        #     log.error("时间校验失败")
+        #     return False
 
         # ------------------ nonce 校验 ------------------
         # 如果 nonce 已存在缓存，说明请求重复

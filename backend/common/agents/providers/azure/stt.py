@@ -75,6 +75,9 @@ class AzureSTT(STT):
     def _on_recognized(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """识别结果回调"""
         log.debug(f"识别结果回调: {evt.result.text}")
+        if not self.loop:
+            log.error("loop is None")
+            return
 
         if self._finish_callback:
             def invoke():

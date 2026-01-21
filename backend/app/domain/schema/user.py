@@ -79,6 +79,13 @@ class CreateUserParam(UserSchemaBase):
         super().__init__(**data)
 
 
+class UserDeviceParam(SchemaBase):
+    """用户设备"""
+
+    user_id: int = Field(description='用户 ID')
+    device_id: int = Field(description='设备 ID')
+
+
 class UpdateUserParam(SchemaBase):
     """更新用户参数"""
 

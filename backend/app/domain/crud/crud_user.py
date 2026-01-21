@@ -1,12 +1,15 @@
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy_crud_plus import CRUDPlus
+from sqlalchemy_crud_plus import CRUDPlus, JoinConfig
 
-from backend.app.domain.model import User
-from backend.app.domain.schema.user import CreateUserParam, UpdateUserParam
+from backend.app.domain.model.m2m import user_device
+from backend.utils.serializers import select_join_serialize
 from backend.utils.timezone import timezone
+from backend.app.domain.model import User, Device
+from backend.app.domain.schema.user import CreateUserParam, UpdateUserParam
 
 
 class CRUDUser(CRUDPlus[User]):
@@ -52,6 +55,40 @@ class CRUDUser(CRUDPlus[User]):
     async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
         """ 通过邮箱获取用户 """
         return await self.select_model_by_column(db, email=email)
+
+    async def get_join(
+            self,
+            db: AsyncSession,
+            *,
+            user_id: int | None = None,
+    ) -> Any | None:
+        """
+        获取用户关联信息
+
+        :param db: 数据库会话
+        :param user_id: 用户 ID
+        :return:
+        """
+        filters = {}
+
+        if user_id:
+            filters['id'] = user_id
+
+        result = await self.select_models(
+            db,
+            join_conditions=[
+                JoinConfig(model=user_device, join_on=user_device.c.user_id == self.model.id),
+                JoinConfig(model=Device, join_on=Device.id == user_device.c.device_id, fill_result=True),
+            ],
+            **filters,
+        )
+
+        return select_join_serialize(
+            result,
+            relationships=[
+                'User-m2m-Device',
+            ],
+        )
 
 
 user_dao: CRUDUser = CRUDUser(User)

@@ -42,7 +42,7 @@ def traversal_to_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 if 'children' not in parent_node:
                     parent_node['children'] = []
                 if node not in parent_node['children']:
-                    parent_node['children'].put(node)
+                    parent_node['children'].append(node)
             else:
                 if node not in tree:
                     tree.append(node)

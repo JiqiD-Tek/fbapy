@@ -47,7 +47,6 @@ class DeviceService:
             sn: str | None = None,
             mac: str | None = None,
             model: str | None = None,
-            user_id: int | None = None,
     ) -> dict[str, Any]:
         """ 获取设备列表（支持分页和查询条件） """
         device_select = await device_dao.get_select(
@@ -55,7 +54,6 @@ class DeviceService:
             sn=sn,
             mac=mac,
             model=model,
-            user_id=user_id,
         )
         return await paging_data(db, device_select)
 
