@@ -2,6 +2,7 @@ from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
+from backend.app.domain.service.user_service import user_service
 from backend.app.domain.crud.crud_device import device_dao
 from backend.app.domain.model import Device
 from backend.app.domain.schema.device import CreateDeviceParam
@@ -28,7 +29,7 @@ from backend.app.admin.service.login_log_service import login_log_service
 
 from backend.app.domain.crud.crud_user import user_dao
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
-from backend.app.domain.schema.user import AuthLoginParam, CreateUserParam
+from backend.app.domain.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam
 
 from backend.app.domain.model.user import User
 
@@ -51,7 +52,7 @@ class AuthService:
 
         return device
 
-    async def _register(self, db: AsyncSession, obj: AuthLoginParam) -> User:
+    async def _register_user(self, db: AsyncSession, obj: AuthLoginParam) -> User:
         if obj.phone:
             user = await user_dao.get_by_phone(db, obj.phone)
         elif obj.email:
@@ -59,13 +60,21 @@ class AuthService:
         else:
             raise errors.RequestError(msg=t('error.phone.email'))
 
-        device = await self._register_device(db, obj)  # 设备合法的用户才支持注册
         if user is None:
             user_param = CreateUserParam(
                 username=obj.phone or obj.email, phone=obj.phone, email=obj.email,
                 nickname=None, avatar=None, sex=None, birthday=None,
             )
             user = await user_dao.create(db, user_param)
+
+        return user
+
+    async def _register(self, db: AsyncSession, obj: AuthLoginParam) -> User:
+        # 设备合法的用户才支持注册
+        device = await self._register_device(db, obj)
+        user = await self._register_user(db, obj)
+        # 绑定设备
+        await user_service.bind_device(db=db, obj=UserDeviceParam(user_id=user.id, device_id=device.id))
 
         return user
 
