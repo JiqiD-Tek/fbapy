@@ -25,7 +25,7 @@ from backend.database.redis import redis_client
 
 from backend.app.domain.schema.captcha import GetCaptchaDetail
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
-from backend.app.domain.schema.user import AuthLoginParam, DeviceAuthParam
+from backend.app.domain.schema.user import AuthLoginParam, CozeDeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.domain.service.auth import auth_service
 from backend.plugin.email.utils.send import send_email
 
@@ -113,7 +113,7 @@ async def k10_logout(
 )
 async def mqtt_login(
         request: Request,
-        obj: DeviceAuthParam,
+        obj: CozeDeviceAuthParam,
 ) -> dict:
     credentials = secure_service.derive_credentials(mac=obj.username)
     if obj.password != credentials["did"]:
@@ -132,11 +132,9 @@ async def mqtt_login(
 )
 async def coze_token(
         request: Request,
-        obj: DeviceAuthParam,
+        obj: CozeDeviceAuthParam,
 ) -> ResponseModel:
-    credentials = secure_service.derive_credentials(mac=obj.username)
-    if obj.password != credentials["did"]:
-        raise errors.AuthorizationError(msg='权限不足')
+    ttl = await check(request, obj.username, obj.password)
 
     config = {
         "client_type": "jwt",
@@ -149,7 +147,7 @@ async def coze_token(
 
     from cozepy import load_oauth_app_from_config
     coze_oauth_app = load_oauth_app_from_config(config)
-    oauth_token = coze_oauth_app.get_access_token(ttl=3600)
+    oauth_token = coze_oauth_app.get_access_token(ttl=ttl)
 
     data = {
         "token_type": oauth_token.token_type,
@@ -166,26 +164,28 @@ async def coze_token(
 )
 async def livekit_token(
         request: Request,
-        identity: Annotated[str, Query(description='标识符')],
-        name: Annotated[str, Query(description='名称')],
-        metadata: Annotated[str, Query(description='元数据')],
-        room: Annotated[str, Query(description='房间名')],
-        ttl: Annotated[int, Query(description='有效期')] = 3600,
+        obj: LivekitDeviceAuthParam,
 ) -> ResponseModel:
-    # def _check_user(user_id: str) -> bool:
-    #     return True
-    #
-    # if not _check_user(user_id=request.user.id):
-    #     raise errors.AuthorizationError(msg='权限不足')
+    ttl = await check(request, obj.username, obj.password)
 
     token = api.AccessToken(
         api_key=settings.LIVEKIT_API_KEY,
         api_secret=settings.LIVEKIT_API_SECRET,
     ).with_identity(
-        identity=identity).with_name(
-        name=name).with_metadata(
-        metadata=metadata).with_ttl(
+        identity=obj.password).with_name(
+        name=obj.name).with_metadata(
+        metadata=obj.metadata).with_ttl(
         ttl=datetime.timedelta(seconds=ttl)).with_grants(
-        api.VideoGrants(room=room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
+        api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
     ).to_jwt()
     return response_base.success(data=token)
+
+
+async def check(request, username, password) -> int:
+    """检查设备权限"""
+    credentials = secure_service.derive_credentials(mac=username)
+    if password != credentials["did"]:
+        raise errors.AuthorizationError(msg='权限不足')
+
+    ttl = 600
+    return ttl

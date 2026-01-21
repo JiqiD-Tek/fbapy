@@ -5,6 +5,8 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/20 09:44
 """
+from datetime import timedelta
+
 from backend.common.log import log
 from backend.common.agents.api_clients.weather_api import open_weather_map
 
@@ -34,3 +36,76 @@ async def get_weather(
     except Exception as e:
         log.error(f"[get_weather] Exception for {city}: {e}")
         return f"I'm sorry, an error occurred while retrieving the weather for {city}."
+
+
+@function_tool()
+async def set_alarm_at(
+        ctx: RunContext_T,  # noqa
+        target_time: str,
+        message: str = "Time to wake up!"
+) -> str:
+    """
+    Schedule a reminder or alarm at a specific date and time.
+
+    This function is intended for absolute time alarms, e.g.,
+    "Wake me up tomorrow at 08:00".
+
+    Args:
+        target_time: The target datetime in 'YYYY-MM-DD HH:MM:SS' format (local time).
+        message: The reminder message to announce when the alarm triggers.
+
+    Returns:
+        A confirmation message indicating the alarm has been set,
+        or an error message if the time format is invalid or in the past.
+    """
+
+    try:
+        now = ctx.userdata.tz.now()
+        target_dt = ctx.userdata.tz.from_str(target_time)
+        if (target_dt - now).total_seconds() <= 0:
+            return "The alarm time must be in the future."
+
+        log.info(f"[set_alarm] Alarm set at {target_time}: {message}")
+        return f"Alarm set at {target_time}: {message}"
+
+    except Exception as e:
+        log.error(f"[set_alarm] Exception: {e}", exc_info=True)
+        return f"I'm sorry, an error occurred while setting the alarm."
+
+
+@function_tool()
+async def set_alarm(
+        ctx: RunContext_T,  # noqa
+        delay_seconds: int,
+        message: str = "Time is up!"
+) -> str:
+    """
+    Schedule a reminder or alarm after a relative delay in seconds.
+
+    This function is intended for relative time alarms, e.g.,
+    "Remind me in 10 minutes" or "Set an alarm in 1 hour".
+    Internally, it converts the delay to an absolute datetime
+    and calls `set_alarm_at`.
+
+    Args:
+        delay_seconds: Number of seconds from now until the alarm triggers.
+        message: The reminder message to announce when the alarm fires.
+
+    Returns:
+        A confirmation message indicating the alarm has been set,
+        or an error message if the delay is not positive.
+    """
+
+    try:
+        if delay_seconds <= 0:
+            return "Alarm time must be in the future."
+
+        log.info(f"[set_alarm] Alarm set: {delay_seconds} {message}")
+
+        now = ctx.userdata.tz.now()
+        target_dt = now + timedelta(seconds=delay_seconds)
+        return await set_alarm_at(ctx, ctx.userdata.tz.to_str(target_dt), message)
+
+    except Exception as e:
+        log.error(f"[set_alarm] Exception: {e}", exc_info=True)
+        return f"I'm sorry, an error occurred while setting the alarm."
