@@ -14,18 +14,18 @@ from fastapi import APIRouter, Depends, Request, Response, Query
 from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
-from backend.app.domain.service.secure import secure_service
+from backend.common.security.auth import identity_verifier
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
-from backend.common.security.jwt import DependsJwtAuth
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.jwt import jwt_encode
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 
 from backend.app.domain.schema.captcha import GetCaptchaDetail
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
-from backend.app.domain.schema.user import AuthLoginParam, CozeDeviceAuthParam, LivekitDeviceAuthParam
+from backend.app.domain.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.domain.service.auth import auth_service
 from backend.plugin.email.utils.send import send_email
 
@@ -113,9 +113,9 @@ async def k10_logout(
 )
 async def mqtt_login(
         request: Request,
-        obj: CozeDeviceAuthParam,
+        obj: DeviceAuthParam,
 ) -> dict:
-    credentials = secure_service.derive_credentials(mac=obj.username)
+    credentials = identity_verifier.derive_credentials(mac=obj.username)
     if obj.password != credentials["did"]:
         return {"result": "deny"}
 
@@ -132,9 +132,9 @@ async def mqtt_login(
 )
 async def coze_token(
         request: Request,
-        obj: CozeDeviceAuthParam,
+        obj: DeviceAuthParam,
 ) -> ResponseModel:
-    ttl = await check(request, obj.username, obj.password)
+    ttl = await check(request=request, mac=obj.username, did=obj.password)
 
     config = {
         "client_type": "jwt",
@@ -166,7 +166,7 @@ async def livekit_token(
         request: Request,
         obj: LivekitDeviceAuthParam,
 ) -> ResponseModel:
-    ttl = await check(request, obj.username, obj.password)
+    ttl = await check(request=request, mac=obj.username, did=obj.password)
 
     token = api.AccessToken(
         api_key=settings.LIVEKIT_API_KEY,
@@ -181,11 +181,29 @@ async def livekit_token(
     return response_base.success(data=token)
 
 
-async def check(request, username, password) -> int:
+@router.post(
+    '/fba_token',
+    summary='fba 授权',
+    # dependencies=[DependsJwtAuth],
+)
+async def fba_token(
+        request: Request,
+        obj: DeviceAuthParam,
+) -> ResponseModel:
+    ttl = await check(request=request, mac=obj.username, did=obj.password)
+
+    payload = dict(mac=obj.username, did=obj.password, ttl=ttl)
+    token = jwt_encode(payload=payload)
+    return response_base.success(data=token)
+
+
+async def check(request, mac, did) -> int:
     """检查设备权限"""
-    credentials = secure_service.derive_credentials(mac=username)
-    if password != credentials["did"]:
+    credentials = identity_verifier.derive_credentials(mac=mac)
+    if did != credentials["did"]:
         raise errors.AuthorizationError(msg='权限不足')
+
+    # request.user TODO 获取用户信息付费
 
     ttl = 600
     return ttl

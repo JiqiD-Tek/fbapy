@@ -6,7 +6,7 @@ from backend.app.domain.service.user_service import user_service
 from backend.app.domain.crud.crud_device import device_dao
 from backend.app.domain.model import Device
 from backend.app.domain.schema.device import CreateDeviceParam
-from backend.app.domain.service.secure import secure_service
+from backend.common.security.auth import identity_verifier
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType
 from backend.common.exception import errors
@@ -38,7 +38,7 @@ class AuthService:
     """认证服务类"""
 
     async def _register_device(self, db: AsyncSession, obj: AuthLoginParam) -> Device:
-        valid = secure_service.verify(**obj.device.model_dump())
+        valid = identity_verifier.verify(**obj.device.model_dump())
         if not valid:
             raise errors.RequestError(msg=t('error.device.invalid'))
 

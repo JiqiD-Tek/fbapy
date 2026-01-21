@@ -11,7 +11,7 @@ from fastapi import WebSocket, APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from backend.common.log import log
-from backend.common.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.channel_gateway import channel_gateway
 
 from backend.app.live.service.coze.chat.chat_service import chat_service
 from backend.core.conf import settings

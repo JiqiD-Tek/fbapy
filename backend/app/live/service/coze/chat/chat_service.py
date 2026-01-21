@@ -9,19 +9,19 @@ from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
 
-from backend.common.agents.assistant import Assistant
-from backend.common.agents.net.channel_gateway import channel_gateway
-from backend.common.agents.net.coze.models import (
+from backend.app.live.agents.assistant import Assistant
+from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent,
     Chat,
     Message,
 )
-from backend.common.agents.net.coze.audio.transcriptions import (
+from backend.app.live.agents.net.coze.audio.transcriptions import (
     InputAudioBufferAppendEvent,
     InputAudioBufferCompleteEvent,
 )
-from backend.common.agents.net.coze.chat import (
+from backend.app.live.agents.net.coze.chat import (
     load_req_event,
     ChatUpdateEvent,
     ChatUpdatedEvent,

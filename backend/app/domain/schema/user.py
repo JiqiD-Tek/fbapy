@@ -39,16 +39,14 @@ class AuthLoginParam(AuthSchemaBase):
     captcha: str | None = Field(None, description='验证码')
 
 
-class CozeDeviceAuthParam(SchemaBase):
-    """Coze设备登录参数"""
+class DeviceAuthParam(SchemaBase):
+    """设备登录参数"""
     username: str = Field(description='MAC 地址')
     password: str = Field(description='设备did')
 
 
-class LivekitDeviceAuthParam(SchemaBase):
+class LivekitDeviceAuthParam(DeviceAuthParam):
     """Livekit设备登录参数"""
-    username: str = Field(description='MAC 地址')
-    password: str = Field(description='设备did')
     # 业务数据
     metadata: str = Field(description='元数据')
     room: str = Field(description='房间名')

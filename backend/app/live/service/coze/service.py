@@ -14,8 +14,8 @@ from fastapi import WebSocket, WebSocketDisconnect
 
 from backend.common.log import log
 
-from backend.common.agents.net.channel_gateway import channel_gateway
-from backend.common.agents.net.coze.models import WebsocketsEventType, WebsocketsEvent
+from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.coze.models import WebsocketsEventType, WebsocketsEvent
 
 
 class CozeService(object):

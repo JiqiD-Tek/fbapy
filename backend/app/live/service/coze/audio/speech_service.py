@@ -14,13 +14,13 @@ from backend.common.exception import errors
 from backend.core.conf import settings
 from backend.common.ali_oss import oss_client
 
-from backend.common.agents.providers.coze.tts import CozeTTS as TTS
-from backend.common.agents.net.channel_gateway import channel_gateway
-from backend.common.agents.net.coze.models import (
+from backend.app.live.agents.providers.coze.tts import CozeTTS as TTS
+from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent
 )
-from backend.common.agents.net.coze.audio.speech import (
+from backend.app.live.agents.net.coze.audio.speech import (
     load_req_event,
     SpeechUpdateEvent,
     InputTextBufferCompleteEvent,
