@@ -25,7 +25,7 @@ from backend.app.live.agents.core.utils.misc import shortuuid, is_given
 from backend.app.live.agents.core.utils._types import NOT_GIVEN, NotGivenOr
 
 if TYPE_CHECKING:
-    from backend.app.live.agents.core.llm import LLM, FunctionTool, ProviderTool, RawFunctionTool
+    from backend.app.live.agents.core.llm import LLM, FunctionTool, ProviderTool, RawFunctionTool, _provider_format
 
 ChatRole: TypeAlias = Literal["developer", "system", "user", "assistant"]
 
@@ -514,6 +514,28 @@ class ChatContext:
                     return False
 
         return True
+
+    def to_provider_format(
+            self,
+            format: Literal["openai"] | str,
+            *,
+            inject_dummy_user_message: bool = True,
+            **kwargs: Any,
+    ) -> tuple[list[dict], Any]:
+        """Convert the chat context to a provider-specific format.
+
+        If ``inject_dummy_user_message`` is ``True``, a dummy user message will be added
+        to the beginning or end of the chat context depending on the provider.
+
+        This is necessary because some providers expect a user message to be present for
+        generating a response.
+        """
+        kwargs["inject_dummy_user_message"] = inject_dummy_user_message
+
+        if format == "openai":
+            return _provider_format.openai.to_chat_ctx(self, **kwargs)
+        else:
+            raise ValueError(f"Unsupported provider format: {format}")
 
 
 class _ReadOnlyChatContext(ChatContext):

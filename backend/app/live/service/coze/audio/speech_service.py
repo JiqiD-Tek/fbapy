@@ -92,14 +92,14 @@ class SpeechService(CozeService):
         if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await channel.assistant.tts.query(text=event.data.delta, is_final=False)
+        await channel.assistant.tts.chat(text=event.data.delta, is_final=False)
 
     async def on_input_text_buffer_complete(self, uid: str, event: InputTextBufferCompleteEvent):
         """ 文本内容接受完成 """
         if not (channel := await channel_gateway.get_channel(uid)):
             return
 
-        await channel.assistant.tts.query(text='', is_final=True)
+        await channel.assistant.tts.chat(text='', is_final=True)
 
     def to_dict(
             self, origin: Optional[Dict[WebsocketsEventType, Callable]] = None

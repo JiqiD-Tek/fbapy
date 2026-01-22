@@ -19,15 +19,13 @@ class CozeLLM(LLM):
     LITE_MODEL_NAME: str = "doubao-1.5-lite-32k-250115"
     THINK_MODEL_NAME: str = "doubao-1.5-pro-32k-250115"
 
-    def __init__(self, model_name: str = "doubao-1.5-pro-32k-250115", tools=None):
-        super().__init__(
-            api_key=settings.DOUBAO_API_KEY.get_secret_value(),
-            base_url=settings.DOUBAO_BASE_URL,
-            model_name=model_name,
-            tools=tools,
-        )
+    def __init__(self, model: str = "doubao-1.5-pro-32k-250115"):
+        super().__init__(model=model)
 
-        self.async_client: Optional[AsyncOpenAI] = AsyncOpenAI(
+        self.api_key = settings.DOUBAO_API_KEY.get_secret_value()
+        self.base_url = settings.DOUBAO_BASE_URL
+
+        self._client: Optional[AsyncOpenAI] = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
             http_client=httpx.AsyncClient(

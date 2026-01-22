@@ -211,5 +211,6 @@ def main(mac):
 
 if __name__ == "__main__":
     MAC = "C4:1C:9C:09:C9:81"
+    MAC = "3E:96:10:BA:61:2F"
     log.debug(f"MAC: {MAC}")
     main(mac=MAC)

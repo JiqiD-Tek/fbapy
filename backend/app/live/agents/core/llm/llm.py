@@ -7,18 +7,20 @@
 import asyncio
 
 from dataclasses import dataclass
-from typing import Optional, AsyncGenerator, List, Dict, Any, Literal
+from typing import Any, Literal, AsyncIterator, cast
 from types import TracebackType
 from collections.abc import Sequence
 from pydantic import BaseModel, Field
 from typing_extensions import TypeAlias
 
 from openai import NOT_GIVEN
-from openai.types.chat import ChatCompletionToolParam
+from openai.types.chat import ChatCompletionToolParam, ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
 from backend.common.log import log
 
+from backend.app.live.agents.core.llm.chat_context import ChatContext
+from backend.app.live.agents.core.utils import aio
 from backend.app.live.agents.core.llm import utils
 from backend.app.live.agents.core.llm.tool_context import (
     ProviderTool,
@@ -31,7 +33,7 @@ from backend.app.live.agents.core.llm.tool_context import (
 
 
 @dataclass
-class LLMConfig:
+class ChatCompletionOptions:
     """大模型生成参数配置，影响意图识别和输出。
 
     属性:
@@ -46,19 +48,6 @@ class LLMConfig:
     top_p: float = 0.7
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.5
-
-    def __post_init__(self) -> None:
-        """验证配置参数。"""
-        if self.max_tokens <= 0:
-            raise ValueError("max_tokens必须为正整数")
-        if not 0.0 <= self.temperature <= 1.0:
-            raise ValueError("temperature必须在[0.0, 1.0]范围内")
-        if not 0.0 <= self.top_p <= 1.0:
-            raise ValueError("top_p必须在[0.0, 1.0]范围内")
-        if not -2.0 <= self.frequency_penalty <= 2.0:
-            raise ValueError("frequency_penalty必须在[-2.0, 2.0]范围内")
-        if not -2.0 <= self.presence_penalty <= 2.0:
-            raise ValueError("presence_penalty必须在[-2.0, 2.0]范围内")
 
 
 class CompletionUsage(BaseModel):
@@ -103,60 +92,75 @@ class ChatChunk(BaseModel):
 
 
 class LLM:
-    """智能对话引擎
+    def __init__(self, model: str):
+        self.model = model
+        self._client = None
 
-    特性：
-    - 动态提示词管理
-    - 自适应HTTP连接池
-    - 全异步IO支持
-    """
-    MODEL_NAMES = []  # 支持的模型名称
-    LITE_MODEL_NAME: str = ''  # 使用最小模型, 做意图识别
-    THINK_MODEL_NAME: str = ''  # 推理模型
+    async def chat(
+            self,
+            chat_ctx: ChatContext,
+            tools: list[FunctionTool | RawFunctionTool | ProviderTool] = None,
+    ):
+        return LLMStream(
+            self,
+            model=self.model,
+            chat_ctx=chat_ctx,
+            tools=tools,
+            strict_tool_schema=True,
+            extra_kwargs=ChatCompletionOptions().__dict__,
+        )
 
-    @property
-    def system_prompt(self) -> str:
-        """默认系统提示词。"""
-        return """
-            You are a helpful assistant. Keep your responses concise and to the point.
-        """
+    async def aclose(self) -> None:
+        client = self._client
+        self._client = None
+
+        if client is not None:
+            try:
+                await client.close()
+            except Exception as e:
+                log.error(f"关闭 AsyncOpenAI client 失败: {e}")
+
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
+        await self.aclose()
+
+
+class LLMStream:
 
     def __init__(
             self,
-            api_key: str = '',
-            base_url: str = '',
-            model_name: str = '',
-            tools: list[FunctionTool | RawFunctionTool | ProviderTool] = None,
-            strict_tool_schema: bool = True,
-    ):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model_name = model_name
+            llm: LLM,
+            model: str,
+            chat_ctx: ChatContext,
+            tools: list[FunctionTool | RawFunctionTool | ProviderTool],
+            strict_tool_schema: bool,
+            extra_kwargs: dict[str, Any],
+            provider_fmt: str = "openai",  # used internally for chat_ctx format
 
+    ):
+        self._llm = llm
+        self._model = model
+        self._chat_ctx = chat_ctx
         self._tools = tools
         self._strict_tool_schema = strict_tool_schema
+        self._extra_kwargs = extra_kwargs
+        self._provider_fmt = provider_fmt
 
-        self.async_client = None
+        self._event_ch = aio.Chan[ChatChunk]()
+        self._task = asyncio.create_task(self._main_task(), name="LLM._main_task")
 
-    async def query(
-            self,
-            user_prompt: str,
-            system_prompt: Optional[str] = None,
-            model_name: Optional[str] = None,
-            conversation_history: Optional[List[Dict[str, str]]] = None,
-            config: Optional[LLMConfig] = None,
-            extra_body: Optional[Dict] = None,
-            **kwargs,
-    ) -> AsyncGenerator[ChatChunk, None]:
-        messages = self._build_messages(user_prompt, system_prompt, conversation_history)
-        model_name = model_name or self.model_name
-        llm_config = config or LLMConfig()
-
+    async def _main_task(self):
         self._tool_call_id: str | None = None
         self._fnc_name: str | None = None
         self._fnc_raw_arguments: str | None = None
         self._tool_extra: dict[str, Any] | None = None
         self._tool_index: int | None = None
+
+        chat_ctx, _ = self._chat_ctx.to_provider_format(format=self._provider_fmt)
 
         fnc_ctx = (
             to_fnc_ctx(self._tools, strict=self._strict_tool_schema)
@@ -165,13 +169,11 @@ class LLM:
         )
 
         try:
-            stream = await self.async_client.chat.completions.create(
-                messages=messages,
-                model=model_name,
+            stream = await self._llm._client.chat.completions.create(
+                messages=cast(list[ChatCompletionMessageParam], chat_ctx),
+                model=self._model,
                 stream=True,
                 tools=fnc_ctx,
-                **llm_config.__dict__,
-                extra_body=extra_body,
             )
 
             thinking = asyncio.Event()
@@ -180,13 +182,27 @@ class LLM:
                     for choice in chunk.choices:
                         chat_chunk = self._parse_choice(chunk.id, choice, thinking)
                         if chat_chunk is not None:
-                            yield chat_chunk
+                            self._event_ch.send_nowait(chat_chunk)
+
+                        if chunk.usage is not None:
+                            tokens_details = chunk.usage.prompt_tokens_details
+                            cached_tokens = tokens_details.cached_tokens if tokens_details else 0
+                            chunk = ChatChunk(
+                                id=chunk.id,
+                                usage=CompletionUsage(
+                                    completion_tokens=chunk.usage.completion_tokens,
+                                    prompt_tokens=chunk.usage.prompt_tokens,
+                                    prompt_cached_tokens=cached_tokens or 0,
+                                    total_tokens=chunk.usage.total_tokens,
+                                ),
+                            )
+                            self._event_ch.send_nowait(chunk)
 
         except asyncio.CancelledError:
-            log.warning("LLM流式调用被终止")
+            log.warning("LLMStream 调用被终止")
             raise
         except Exception as e:
-            log.error(f"LLM流式调用异常 - {e}")
+            log.error(f"LLMStream 调用异常 - {e}")
             raise
 
     def _parse_choice(
@@ -274,48 +290,22 @@ class LLM:
             ),
         )
 
-    def _build_messages(
-            self,
-            user_prompt: str,
-            system_prompt: Optional[str],
-            history: Optional[List[Dict[str, str]]]
-    ) -> List[Dict[str, str]]:
-        """构建消息列表"""
-        messages = [{"role": "system", "content": system_prompt or self.system_prompt}]
+    async def __anext__(self) -> ChatChunk:
+        try:
+            val = await self._event_ch.__anext__()
+        except StopAsyncIteration:
+            if not self._task.cancelled() and (exc := self._task.exception()):
+                raise exc  # noqa: B904
 
-        if history:
-            messages.extend([
-                {"role": role, "content": content}
-                for turn in history
-                for role, content in [("user", turn["user"]), ("assistant", turn["assistant"])]
-            ])
+            raise StopAsyncIteration from None
 
-        messages.append({"role": "user", "content": user_prompt})
-        return messages
+        return val
 
-    async def aclose(self) -> None:
-        """
-        关闭 LLM 客户端，释放底层 HTTP 连接资源
-        """
-        client = self.async_client
-        self.async_client = None
-
-        if client is not None:
-            try:
-                await client.close()
-            except Exception as e:
-                log.error(f"关闭 AsyncOpenAI client 失败: {e}")
+    def __aiter__(self) -> AsyncIterator[ChatChunk]:
+        return self
 
     async def __aenter__(self):
         return self
-
-    async def __aexit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc: BaseException | None,
-            exc_tb: TracebackType | None,
-    ) -> None:
-        await self.aclose()
 
 
 def to_fnc_ctx(

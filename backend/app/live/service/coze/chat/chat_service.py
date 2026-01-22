@@ -162,7 +162,7 @@ class ChatService(CozeService):
                 {"data": Message.build_assistant_answer(final_text)}))  # 完整文本
 
         try:
-            await channel.assistant.query_stream(text=text, on_token=on_token, on_finish=on_finish)
+            await channel.assistant.chat(user_input=text, on_token=on_token, on_finish=on_finish)
         except asyncio.CancelledError:  # 聊天打断
             await channel.put_nowait(ConversationChatCanceledEvent.model_validate({}))
 

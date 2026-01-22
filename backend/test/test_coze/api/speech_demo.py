@@ -30,7 +30,7 @@ async def submit():
     # Submit request
     # task = await client.submit(text="你好，我是波波。")
     # task = await client.submit(text="请问有什么可以帮助的吗？")
-    task = await client.query(text="我是一个智能小助手？", is_final=True)
+    task = await client.chat(text="我是一个智能小助手？", is_final=True)
     # task = await client.submit(text="宝贝儿，欢迎收听凯叔讲故事，也感谢你关注凯叔讲故事的微信公众账号。凯叔从今天开始给你讲西游记的故事。西游记是我们中国的4大名着之一，非常有名的一部神话小说，讲的是谁？讲的就是唐朝有一个叫唐三藏的和尚，他要去西天取经，大家也可以叫他唐僧，唐僧可不是一个人在战斗，他有三个徒弟，孙悟空、猪八戒和沙和尚，唐僧带着三个徒弟师徒四人一起去西天取经，在路上遇到了好多的妖魔鬼怪，他们把这些妖魔鬼怪全都打败了，最终取得真经。", is_final=True)
 
     # When done
@@ -57,7 +57,7 @@ async def query():
     # task = await client.query(text="请问有什么可以帮助的吗？")
     # task = await client.query(text="我是一个智能小助手？", is_final=True)
 
-    task = await client.query(text="我在", is_final=True)
+    task = await client.chat(text="我在", is_final=True)
     # task = await client.query(text="联网成功", is_final=True)
     # task = await client.query(text="进入配网模式", is_final=True)
 
