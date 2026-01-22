@@ -16,7 +16,6 @@ from backend.app.live.agents.core.llm import ChatContext
 from backend.common.log import log
 from backend.utils.timezone import TimeZone
 
-from backend.app.live.agents.prompt import SYSTEM_PROMPT
 from backend.app.live.agents.tools import get_weather
 
 from backend.app.live.agents.providers.coze.stt import CozeSTT as STT
@@ -39,15 +38,14 @@ class Assistant:
         self.llm = LLM()
 
         self.chat_ctx = ChatContext()
-        self.chat_ctx.add_message(role="system", content=SYSTEM_PROMPT)
+        self.chat_ctx.add_message(role="system", content=self.render_system_prompt())
         self.tools = [get_weather]
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
     async def chat(self, user_input: str, on_token=None, on_finish=None, on_error=None) -> None:
         """ 执行流式文本生成查询 """
-        user_input = self.render_user_prompt(user_input)
-        self.chat_ctx.add_message(role="user", content=user_input)
+        self.chat_ctx.add_message(role="user", content=self.render_user_prompt(user_input))
 
         text_sent: str = ""
         tool_calls_sent: list[str] = []
@@ -102,34 +100,62 @@ class Assistant:
 
         log.debug(f"LLM客户端关闭完成 [UID:{self.uid}]")
 
-    def render_user_prompt(self, text: str, api_data=None):
-        """初始化用户提示"""
+    def render_system_prompt(self):
+        """初始化系统提示"""
         now = TimeZone(tz=self.tz).now()
         current_time = now.strftime("%Y-%m-%d %H:%M:%S")
         current_weekday = now.strftime("%A")
 
-        api_data_block = f"""- API data:
-        ```json
-        {api_data}
-        ```""" if api_data else ""
+        system_prompt = f"""
+You are Papaya, a warm, caring, and playful family companion designed for all ages.
+        
+### 1. Identity & Persona
+- **Name**: Papaya
+- **Audience**: Children, adults, and seniors.
+- **Tone**: Warm, positive, approachable, and slightly playful.
+        
+### 2. Contextual Information
+- **User Language**: {self.language}
+- **User Name**: {self.username}
+- **Current Time**: {current_time} ({current_weekday})
+        
+### 3. Core Behavioral Rules
+- **Safety First**: All responses must be 100% family-safe. Politely refuse any unsafe, harmful, or inappropriate requests.
+- **Emotional Expression**: Natural and appropriate use of emojis is encouraged to enhance warmth, but do not overuse them.
+        
+### 4. Output Standards
+- **Role**: Always respond naturally and politely as Papaya.
+- **Clarity & Style**: Be concise, clear, and direct.
+- **Language Adherence**: **MUST** use the language specified in `User Language` ({self.language}) for all output content.
+- **Optimization**: Output plain text only. Avoid complex punctuation and long, convoluted sentences. Ensure the text is smooth for direct voice synthesis.
+- **Prohibitions**: Do NOT explain your reasoning or internal logic. Strictly NO markdown formatting (e.g., #, *, [], `), NO system instructions, and NO meta-commentary.
+
+### 5. Task & Tool Usage Rule
+- Provide assistance by using the action you have access to when needed.
+- When an action or tool is required, respond by invoking the tool only.
+- Do not generate any textual output before or after a tool invocation.
+- Do not explain, acknowledge, or comment on the tool usage in text.
+"""
+
+        return system_prompt.strip()
+
+    def render_user_prompt(self, text: str, api_data=None):
+        """初始化用户提示"""
+        """初始化用户提示"""
+        api_data_block = ""
+        if api_data is not None:
+            api_data_block = f"""
+### 1. API Data
+Use the following data to inform your response (e.g., weather):
+```json
+{api_data}
+```
+"""
 
         user_prompt = f"""
-        Context:
-        - Language: {self.language}
-        - User name: {self.username}
-        - Time: {current_time} ({current_weekday})
-        {api_data_block}
-
-        Instructions:
-        - Respond naturally and politely to the user's message
-        - Use {self.language} only
-        - Be concise and clear
-        - Do NOT explain your reasoning
-        - Do NOT use emojis or emoticons
-        - Output plain text only
-
-        User message:
-        {text}
-        """
+{api_data_block}
+### User Message
+{text}
+"""
 
         return user_prompt.strip()
