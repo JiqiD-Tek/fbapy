@@ -30,7 +30,7 @@ class Assistant:
     def __init__(self, uid: str, chat_config=None):
         """ 初始化大模型服务客户端 """
         self.uid = uid
-        self.username = chat_config.parameters.get("username", "Lover")
+        self.username = chat_config.parameters.get("username", "小小")
         self.language = chat_config.parameters.get("language", "zh-CN")
         self.tz = chat_config.parameters.get("timezone", "Asia/Shanghai")
 
@@ -40,43 +40,38 @@ class Assistant:
 
         self.chat_ctx = ChatContext()
         self.chat_ctx.add_message(role="system", content=SYSTEM_PROMPT)
-
-        self._is_active: asyncio.Event = asyncio.Event()
-        self._is_active.set()
+        self.tools = [get_weather]
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
     async def chat(self, user_input: str, on_token=None, on_finish=None, on_error=None) -> None:
         """ 执行流式文本生成查询 """
-        content = self.render_user_prompt(user_input)
-        self.chat_ctx.add_message(role="user", content=content)
+        user_input = self.render_user_prompt(user_input)
+        self.chat_ctx.add_message(role="user", content=user_input)
 
-        stream = await self.llm.chat(
-            chat_ctx=self.chat_ctx,
-            tools=[get_weather],
-        )
-
-        content = ""
+        text_sent: str = ""
+        tool_calls_sent: list[str] = []
         try:
-            async for chat_chunk in stream:
-                if not self._is_active.is_set():
-                    log.debug("流数据处理器关闭")
-                    raise asyncio.CancelledError
+            async with self.llm.chat(
+                    chat_ctx=self.chat_ctx,
+                    tools=self.tools,
+            ) as stream:
+                async for chunk in stream:
+                    if chunk.delta:  # 内容
+                        if chunk.delta.content:
+                            text_sent += chunk.delta.content
+                            await self._invoke(on_token, chunk.delta.content)
+                            self.tts.push_text(token=chunk.delta.content)
+                        for tool_call in chunk.delta.tool_calls:
+                            tool_calls_sent.append(tool_call.name)
 
-                if chat_chunk.usage:  # 使用统计
-                    log.debug(f"使用统计 [{chat_chunk.usage}]")
-                    continue
+                    if chunk.usage:  # 使用统计
+                        log.debug(f"使用统计 [{chunk}]")
 
-                if chat_chunk.delta.tool_calls:  # 工具调用
-                    continue
-
-                await self._invoke(on_token, chat_chunk.delta.content)
-                content += chat_chunk.delta.content
-                self.tts.push_text(token=chat_chunk.delta.content)
-
-            await self._invoke(on_finish, content)
-            self.chat_ctx.add_message(role="assistant", content=content)
-            self.chat_ctx.truncate(max_items=5)
+                log.debug(f"流处理完成 - {text_sent}")
+                await self._invoke(on_finish, text_sent)
+                self.chat_ctx.add_message(role="assistant", content=text_sent)
+                self.chat_ctx.truncate(max_items=5)
 
         except asyncio.CancelledError:
             log.warning(f"流处理被取消 - {traceback.format_exc()}", exc_info=True)
@@ -87,7 +82,6 @@ class Assistant:
                 await self._invoke(on_error, ex)
             raise
         finally:
-            log.debug("流处理完成")
             self.tts.flush()
 
     @staticmethod
@@ -100,8 +94,6 @@ class Assistant:
 
     async def aclose(self) -> None:
         """安全关闭活跃流"""
-        self._is_active.clear()
-
         await asyncio.gather(
             self.stt.aclose(),
             self.tts.aclose(),

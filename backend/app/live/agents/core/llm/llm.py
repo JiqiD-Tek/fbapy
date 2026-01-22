@@ -96,7 +96,7 @@ class LLM:
         self.model = model
         self._client = None
 
-    async def chat(
+    def chat(
             self,
             chat_ctx: ChatContext,
             tools: list[FunctionTool | RawFunctionTool | ProviderTool] = None,
@@ -152,6 +152,7 @@ class LLMStream:
 
         self._event_ch = aio.Chan[ChatChunk]()
         self._task = asyncio.create_task(self._main_task(), name="LLM._main_task")
+        self._task.add_done_callback(lambda _: self._event_ch.close())
 
     async def _main_task(self):
         self._tool_call_id: str | None = None
@@ -290,6 +291,9 @@ class LLMStream:
             ),
         )
 
+    async def aclose(self) -> None:
+        await aio.cancel_and_wait(self._task)
+
     async def __anext__(self) -> ChatChunk:
         try:
             val = await self._event_ch.__anext__()
@@ -306,6 +310,14 @@ class LLMStream:
 
     async def __aenter__(self):
         return self
+
+    async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            exc_tb: TracebackType | None,
+    ) -> None:
+        await self.aclose()
 
 
 def to_fnc_ctx(

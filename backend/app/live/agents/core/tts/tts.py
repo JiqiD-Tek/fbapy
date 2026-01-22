@@ -7,6 +7,7 @@
 """
 from typing import Union
 
+from backend.app.live.agents.core import tokenize
 from backend.app.live.agents.core.utils import aio
 from backend.app.live.agents.core.tts.tts_cache import TTSCache
 
@@ -20,7 +21,7 @@ class TTS:
 
     def __init__(self, *, language: str = "zh-CN", **kwargs):
         super().__init__(**kwargs)
-        self._tokenizer_stream = backend.app.live.agents.core.tokenize.basic.SentenceTokenizer().stream(language=language)
+        self._tokenizer_stream = tokenize.basic.SentenceTokenizer().stream(language=language)
         self._input_ch = aio.Chan[Union[str, TTS._FlushSentinel]]()
 
         self._audio_callback = None  # 音频回调

@@ -24,8 +24,10 @@ from typing_extensions import TypeAlias, TypedDict
 from backend.app.live.agents.core.utils.misc import shortuuid, is_given
 from backend.app.live.agents.core.utils._types import NOT_GIVEN, NotGivenOr
 
+from backend.app.live.agents.core.llm import _provider_format
+
 if TYPE_CHECKING:
-    from backend.app.live.agents.core.llm import LLM, FunctionTool, ProviderTool, RawFunctionTool, _provider_format
+    from backend.app.live.agents.core.llm import LLM, FunctionTool, ProviderTool, RawFunctionTool
 
 ChatRole: TypeAlias = Literal["developer", "system", "user", "assistant"]
 

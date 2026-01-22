@@ -19,7 +19,7 @@ class CozeLLM(LLM):
     LITE_MODEL_NAME: str = "doubao-1.5-lite-32k-250115"
     THINK_MODEL_NAME: str = "doubao-1.5-pro-32k-250115"
 
-    def __init__(self, model: str = "doubao-1.5-pro-32k-250115"):
+    def __init__(self, model: str = "doubao-1.5-lite-32k-250115"):
         super().__init__(model=model)
 
         self.api_key = settings.DOUBAO_API_KEY.get_secret_value()
