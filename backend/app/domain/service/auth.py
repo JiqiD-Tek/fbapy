@@ -13,6 +13,7 @@ from backend.common.exception import errors
 from backend.common.i18n import t
 from backend.common.log import log
 from backend.common.response.response_code import CustomErrorCode
+from backend.common.security.encryptor import encryptor
 from backend.common.security.jwt import (
     create_access_token,
     create_new_token,
@@ -53,16 +54,20 @@ class AuthService:
         return device
 
     async def _register_user(self, db: AsyncSession, obj: AuthLoginParam) -> User:
-        if obj.phone:
-            user = await user_dao.get_by_phone(db, obj.phone)
-        elif obj.email:
-            user = await user_dao.get_by_email(db, obj.email)
+        # 邮箱、手机号 加密存储
+        phone = encryptor(obj.phone)
+        email = encryptor(obj.email)
+
+        if phone:
+            user = await user_dao.get_by_phone(db, phone)
+        elif email:
+            user = await user_dao.get_by_email(db, email)
         else:
             raise errors.RequestError(msg=t('error.phone.email'))
 
         if user is None:
             user_param = CreateUserParam(
-                username=obj.phone or obj.email, phone=obj.phone, email=obj.email,
+                username=phone or email, phone=phone, email=email,
                 nickname=None, avatar=None, sex=None, birthday=None,
             )
             user = await user_dao.create(db, user_param)

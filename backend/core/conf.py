@@ -276,6 +276,9 @@ class Settings(BaseSettings):
     EMAIL_CAPTCHA_REDIS_PREFIX: str = 'fba:email:captcha'
     EMAIL_CAPTCHA_EXPIRE_SECONDS: int = 60 * 3  # 3 分钟
 
+    # 脱敏密钥
+    ENCRYPT_SECRET_KEY: str = ''  # AES-256
+
     # 三元组
     MASTER_SECRET: str = ''  # 主密钥
     KEY_SALT: str = ''  # 密钥盐

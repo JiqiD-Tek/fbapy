@@ -22,7 +22,7 @@ class User(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     uuid: Mapped[str] = mapped_column(sa.String(64), init=False, default_factory=uuid4_str, unique=True)
-    phone: Mapped[str | None] = mapped_column(sa.String(11), default=None, unique=True, index=True, comment='手机号')
+    phone: Mapped[str | None] = mapped_column(sa.String(256), default=None, unique=True, index=True, comment='手机号')
     email: Mapped[str | None] = mapped_column(sa.String(256), default=None, unique=True, index=True, comment='邮箱')
     username: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='用户名')
     nickname: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='昵称')
