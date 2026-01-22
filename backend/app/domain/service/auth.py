@@ -67,8 +67,8 @@ class AuthService:
 
         if user is None:
             user_param = CreateUserParam(
-                username=phone or email, phone=phone, email=email,
-                nickname=None, avatar=None, sex=None, birthday=None,
+                phone=phone, email=email,
+                username=None, nickname=None, avatar=None, sex=None, birthday=None,
             )
             user = await user_dao.create(db, user_param)
 
