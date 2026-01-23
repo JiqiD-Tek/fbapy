@@ -168,12 +168,12 @@ class LLMStream:
             if self._tools
             else NOT_GIVEN
         )
-
         try:
             stream = await self._llm._client.chat.completions.create(
                 messages=cast(list[ChatCompletionMessageParam], chat_ctx),
                 model=self._model,
                 stream=True,
+                stream_options={"include_usage": True},
                 tools=fnc_ctx,
             )
 

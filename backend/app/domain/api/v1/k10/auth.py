@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request, Response, Query
 from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
+from backend.common.context import ctx
 from backend.common.security.auth import identity_verifier
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
@@ -153,6 +154,8 @@ async def coze_token(
         "token_type": oauth_token.token_type,
         "access_token": oauth_token.access_token,
         "expires_in": oauth_token.expires_in,
+        "ttl": ttl,
+        "city": ctx.city,
     }
     return response_base.success(data=data)
 
@@ -178,7 +181,12 @@ async def livekit_token(
         ttl=datetime.timedelta(seconds=ttl)).with_grants(
         api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
     ).to_jwt()
-    return response_base.success(data=token)
+    data = {
+        "token": token,
+        "ttl": ttl,
+        "city": ctx.city,
+    }
+    return response_base.success(data=data)
 
 
 @router.post(
@@ -194,7 +202,12 @@ async def fba_token(
 
     payload = dict(mac=obj.username, did=obj.password, ttl=ttl)
     token = jwt_encode(payload=payload)
-    return response_base.success(data=token)
+    data = {
+        "token": token,
+        "ttl": ttl,
+        "city": ctx.city,
+    }
+    return response_base.success(data=data)
 
 
 async def check(request, mac, did) -> int:

@@ -92,10 +92,7 @@ class MQTTBroker:
             if self._connection_task and not self._connection_task.done():
                 log.debug("连接任务已在进行中")
                 try:
-                    await asyncio.wait_for(
-                        self._connection_task,
-                        timeout=self.config.connection_timeout
-                    )
+                    await asyncio.wait_for(self._connection_task, timeout=self.config.connection_timeout)
                     return self.connected
                 except asyncio.TimeoutError:
                     log.error(f"连接任务在 {self.config.connection_timeout}s 后超时")
@@ -107,16 +104,10 @@ class MQTTBroker:
             self._stop_event.clear()
             self._connection_event.clear()
             self._disconnect_event.clear()
-            self._connection_task = self._loop.create_task(
-                self._connection_loop(),
-                name="mqtt_connection_loop"
-            )
+            self._connection_task = self._loop.create_task(self._connection_loop(), name="mqtt_connection_loop")
 
             try:
-                await asyncio.wait_for(
-                    self._connection_event.wait(),
-                    timeout=self.config.connection_timeout
-                )
+                await asyncio.wait_for(self._connection_event.wait(), timeout=self.config.connection_timeout)
                 return self.connected
             except asyncio.TimeoutError:
                 log.error(f"连接在 {self.config.connection_timeout}s 后超时")
@@ -204,11 +195,7 @@ class MQTTBroker:
                 client_id = self.config.client_id or f"fbapy_{int(time.time_ns())}"
                 log.info(f"正在尝试连接 MQTT Broker (ID: {client_id})")
 
-                self.client = mqtt.Client(
-                    client_id=client_id,
-                    protocol=self.config.version.value,
-                    userdata=None
-                )
+                self.client = mqtt.Client(client_id=client_id, protocol=self.config.version.value)
                 self.client.on_connect = self._on_connect
                 self.client.on_disconnect = self._on_disconnect
                 self.client.on_message = self._on_message
@@ -385,9 +372,6 @@ class MQTTBroker:
         finally:
             await self.disconnect()
 
-    def is_connected(self) -> bool:
-        return self.connected
-
 
 class MQTTDependency:
     _instance: Optional[MQTTBroker] = None
@@ -436,7 +420,7 @@ async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
             username=username,
             password=password,
             client_id=client_id,
-            connection_timeout=getattr(settings, 'MQTT_CONNECTION_TIMEOUT', 30.0)
+            connection_timeout=30.,
         )
     except AttributeError as e:
         log.error(f"缺少 MQTT 配置项: {str(e)}")
