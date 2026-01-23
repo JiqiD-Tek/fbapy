@@ -175,6 +175,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
                     log.error(f"TTS合成异常: {e}")
 
                 if self._tokenizer_stream._current_segment_id != ev.segment_id:  # noqa
+                    log.debug(f"TTS合成结束: {ev}")
                     await self._audio_callback(b'')  # 发送空数据表示结束
 
         tasks = [

@@ -5,12 +5,16 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/20 09:44
 """
+import asyncio
 from datetime import timedelta
+from langchain_community.tools import DuckDuckGoSearchRun
 
 from backend.common.log import log
 from backend.utils.timezone import TimeZone
 from backend.app.live.agents.api_clients.weather_api import open_weather_map
 from backend.app.live.agents.core.llm.tool_context import function_tool
+
+duck_tool = DuckDuckGoSearchRun()
 
 
 @function_tool()
@@ -36,6 +40,73 @@ async def get_weather(
     except Exception as e:
         log.error(f"[get_weather] Exception for {city}: {e}")
         return f"I'm sorry, an error occurred while retrieving the weather for {city}."
+
+
+@function_tool()
+async def web_search(
+        query: str,
+        num_results: int = 3
+) -> str:
+    """
+    Fetch information from the web. **This tool
+    should only be called when the user explicitly asks to search, look up,
+    or research something.** It should NOT be used for ordinary chat responses.
+
+    Args:
+        query: The search query string explicitly requested by the user.
+        num_results: The number of top results to return (default is 3).
+
+    Returns:
+        A formatted, numbered string of search results.
+        Returns a message if no results are found.
+
+    Usage Note:
+        - Do not call this function during normal chat conversations.
+        - Only call it when the user explicitly requests a search.
+    """
+
+    log.info(f"[web_search] Searching the web for: {query}")
+    try:
+        resp = await asyncio.to_thread(duck_tool.run, query)
+
+        lines = [line.strip() for line in resp.split("\n") if line.strip()]
+        top_results = lines[:num_results]
+
+        if not top_results:
+            return f"No results found for '{query}'."
+
+        formatted_results = "\n".join(f"{i + 1}. {r}" for i, r in enumerate(top_results))
+        log.info(f"[web_search] Top {len(top_results)} results for '{query}':\n{formatted_results}")
+
+        return formatted_results
+
+    except Exception as e:
+        log.error(f"[web_search] Error during search for '{query}': {e}", exc_info=True)
+        return f"I'm sorry, an error occurred while searching for '{query}'."
+
+
+@function_tool()
+async def exit_session(
+) -> str:
+    """
+    Trigger an exit or stop of the assistant session.
+
+    This function is intended to be called when the user wants to
+    end the session or stop the assistant (e.g., "exit", "stop", "bye").
+
+    Returns:
+        A semantic confirmation that the exit was requested.
+        The actual session termination should be handled by the runtime or agent.
+    """
+
+    log.info(f"[exit_session] Exit requested by user")
+
+    try:
+        return "Exit requested."
+
+    except Exception as e:
+        log.error(f"[exit_session] Error during exit: {e}", exc_info=True)
+        return f"I'm sorry, an error occurred while exiting"
 
 
 @function_tool()

@@ -16,7 +16,7 @@ from typing import Callable, Any, List
 from backend.common.log import log
 from backend.utils.timezone import TimeZone
 
-from backend.app.live.agents.tools import get_weather
+from backend.app.live.agents.tools import get_weather, web_search, exit_session
 from backend.app.live.agents.core.llm.utils import prepare_function_arguments
 from backend.app.live.agents.core.llm import ChatContext, ToolContext, FunctionToolCall
 from backend.app.live.agents.providers.coze.stt import CozeSTT as STT
@@ -40,7 +40,7 @@ class Assistant:
         self.chat_ctx = ChatContext()
         self.chat_ctx.add_message(role="system", content=self.render_system_prompt())
 
-        self.tool_ctx = ToolContext(tools=[get_weather])
+        self.tool_ctx = ToolContext(tools=[get_weather, exit_session])
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
@@ -83,16 +83,15 @@ class Assistant:
             if text_sent:
                 self.tts.flush()
             if tool_calls_sent:
-                api_data = await self.run_tool_call(tool_calls_sent)
+                api_data = await self._execute_tools(tool_calls_sent)
                 await self.chat(
                     user_input=user_input, api_data=api_data,
                     on_token=on_token, on_finish=on_finish, on_error=on_error
                 )
 
-    async def run_tool_call(self, fnc_calls: List[FunctionToolCall]):
+    async def _execute_tools(self, fnc_calls: List[FunctionToolCall]):
         """格式化工具调用"""
         for idx, fnc_call in enumerate(fnc_calls, start=1):
-            log.debug(f"{idx}. 执行工具调用 - {fnc_call.name} - {fnc_call.arguments}")
             function_tool = self.tool_ctx.function_tools.get(fnc_call.name)
             json_args = fnc_call.arguments or "{}"
             fnc_args, fnc_kwargs = prepare_function_arguments(
@@ -100,8 +99,11 @@ class Assistant:
                 json_arguments=json_args,
             )
             try:
+                log.debug(f"{idx}. 调用工具 - {function_tool.__name__} - {fnc_args} - {fnc_kwargs}")
                 function_callable = functools.partial(function_tool, *fnc_args, **fnc_kwargs)
-                return await function_callable()
+                api_data = await function_callable()
+                # 优化聊天历史记录 TODO
+                return api_data
             except Exception as ex:
                 log.error(f"工具调用失败 - {fnc_call.name} - {ex} - {traceback.format_exc()}", exc_info=True)
 
@@ -156,10 +158,7 @@ You are Papaya, a warm, caring, and playful family companion designed for all ag
 - **Prohibitions**: Do NOT explain your reasoning or internal logic. Strictly NO markdown formatting (e.g., #, *, [], `), NO system instructions, and NO meta-commentary.
 
 ### 5. Task & Tool Usage Rule
-- Provide assistance by using the action you have access to when needed.
-- When an action or tool is required, respond by invoking the tool only.
-- Do not generate any textual output before or after a tool invocation.
-- Do not explain, acknowledge, or comment on the tool usage in text.
+- Provide assistance by using the tools you have access to when needed. When a tool is required, respond by invoking the tool only. Do not generate any textual output before or after a tool invocation.
 """
 
         return system_prompt.strip()
@@ -198,7 +197,11 @@ def main():
         assistant = Assistant(uid="test", chat_config=chat_config)
         api_data = f"I'm sorry, an error occurred while retrieving the weather for Nanjing."
         api_data = None
-        await assistant.chat("南京今天天气如何？", api_data=api_data, on_token=callback, on_finish=callback)
+        user_input = "西红柿炒鸡蛋怎么做。"
+        user_input = "帮我查一下苹果手机的价格。"
+        # user_input = "请给我讲一个笑话。"
+        # user_input = "南京的天气。"
+        await assistant.chat(user_input, api_data=api_data, on_token=callback, on_finish=callback)
         await asyncio.sleep(30)
         await assistant.aclose()
 
