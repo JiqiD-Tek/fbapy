@@ -11,12 +11,12 @@ import gzip
 
 import asyncio
 import traceback
-from contextlib import suppress
 
 from pydantic import BaseModel
 from typing import Callable, Any
 
 from backend.common.log import log
+from backend.app.live.agents.core.utils import aio
 from backend.app.live.agents.core.tts.tts import TTS
 from backend.app.live.agents.providers.coze.ws import AsyncWebSocketClient
 from backend.core.conf import settings
@@ -152,7 +152,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         self.tts_config = get_tts_config(language=language)
         super().__init__(url=url, token=self.tts_config.app.token, language=language)
 
-        self._run_task = asyncio.create_task(self._run())  # 启动事件循环
+        self._task = asyncio.create_task(self._run())  # 启动事件循环
 
     async def _run(self):
         """ 事件循环 """
@@ -198,11 +198,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         """
         try:
             await super().aclose(reason="TTS 关闭")
-            if self._run_task and not self._run_task.done():
-                self._run_task.cancel()
-                with suppress(asyncio.CancelledError, asyncio.TimeoutError):
-                    await asyncio.wait_for(self._run_task, timeout=3.0)
-
+            await aio.cancel_and_wait(self._task)
             await self.tts_cache.aclose()
         except Exception as e:
             log.error(f"关闭TTS处理器时发生异常: {e}", exc_info=True)

@@ -159,6 +159,7 @@ class ChannelPool:
             # ---------- 注册到连接池 ----------
             channel = Channel(uid, websocket)
             await self.add_channel(channel)
+            log.info(f"✅ 新连接注册成功 [UID:{uid}, IP:{ip}]")
 
             # ---------- 写入 Redis ----------
             channel_key = self._key_channel(uid)
@@ -172,9 +173,6 @@ class ChannelPool:
                 log.exception(f"💥 Redis 注册失败 [UID:{uid}]，已回滚连接池: {redis_ex}")
                 raise
 
-            # ---------- 初始化连接 ----------
-            await channel.init()
-            log.info(f"✅ 新连接注册成功 [UID:{uid}, IP:{ip}]")
             return channel
 
         except CapacityExceededError as cap_ex:

@@ -7,12 +7,12 @@
 """
 
 import asyncio
-from contextlib import suppress
 
 import azure.cognitiveservices.speech as speechsdk
 from azure.cognitiveservices.speech.audio import PushAudioOutputStream, PushAudioOutputStreamCallback
 
 from backend.common.log import log
+from backend.app.live.agents.core.utils import aio
 from backend.app.live.agents.core.tts.tts import TTS
 from backend.core.conf import settings
 
@@ -30,7 +30,7 @@ class AzureTTS(TTS):
         self._synthesizer.synthesis_completed.connect(self._on_synthesis_completed)
         self._synthesizer.synthesis_canceled.connect(self._on_synthesis_canceled)
 
-        self._run_task = asyncio.create_task(self._run())  # 启动事件循环
+        self._task = asyncio.create_task(self._run())  # 启动事件循环
 
     async def _run(self):
         """ 事件循环 """
@@ -83,10 +83,7 @@ class AzureTTS(TTS):
 
     async def close(self):
         """关闭资源"""
-        if self._run_task and not self._run_task.done():
-            self._run_task.cancel()
-            with suppress(asyncio.CancelledError, asyncio.TimeoutError):
-                await asyncio.wait_for(self._run_task, timeout=3.0)
+        await aio.cancel_and_wait(self._task)
 
     async def _cleanup(self):
         """关闭资源"""
