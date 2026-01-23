@@ -48,21 +48,14 @@ async def web_search(
         num_results: int = 3
 ) -> str:
     """
-    Fetch information from the web. **This tool
-    should only be called when the user explicitly asks to search, look up,
-    or research something.** It should NOT be used for ordinary chat responses.
+    Perform a web search using DuckDuckGo and return the top results.
 
     Args:
-        query: The search query string explicitly requested by the user.
-        num_results: The number of top results to return (default is 3).
+        query: The search query string.
+        num_results: Number of top results to return (default 3).
 
     Returns:
-        A formatted, numbered string of search results.
-        Returns a message if no results are found.
-
-    Usage Note:
-        - Do not call this function during normal chat conversations.
-        - Only call it when the user explicitly requests a search.
+        A formatted string of search results, numbered.
     """
 
     log.info(f"[web_search] Searching the web for: {query}")

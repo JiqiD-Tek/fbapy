@@ -21,7 +21,9 @@ from backend.app.live.agents.core.llm.utils import prepare_function_arguments
 from backend.app.live.agents.core.llm import ChatContext, ToolContext, FunctionToolCall
 from backend.app.live.agents.providers.coze.stt import CozeSTT as STT
 from backend.app.live.agents.providers.coze.tts import CozeTTS as TTS
-from backend.app.live.agents.providers.coze.llm import CozeLLM as LLM
+
+# from backend.app.live.agents.providers.azure.llm import AzureLLM as LLM
+from backend.app.live.agents.providers.coze.llm import CozeLLM as LLM  # 对于function_tool支持较弱
 
 
 class Assistant:
@@ -40,7 +42,7 @@ class Assistant:
         self.chat_ctx = ChatContext()
         self.chat_ctx.add_message(role="system", content=self.render_system_prompt())
 
-        self.tool_ctx = ToolContext(tools=[get_weather, exit_session])
+        self.tool_ctx = ToolContext(tools=[get_weather, web_search, exit_session])
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
@@ -199,7 +201,7 @@ def main():
         api_data = None
         user_input = "西红柿炒鸡蛋怎么做。"
         user_input = "帮我查一下苹果手机的价格。"
-        # user_input = "请给我讲一个笑话。"
+        user_input = "请给我讲一个笑话。"
         # user_input = "南京的天气。"
         await assistant.chat(user_input, api_data=api_data, on_token=callback, on_finish=callback)
         await asyncio.sleep(30)
