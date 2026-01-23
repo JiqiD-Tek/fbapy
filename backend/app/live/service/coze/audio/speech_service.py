@@ -15,7 +15,7 @@ from backend.core.conf import settings
 from backend.common.ali_oss import oss_client
 
 from backend.app.live.agents.providers.coze.tts import CozeTTS as TTS
-from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.channel_pool import channel_pool
 from backend.app.live.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent
@@ -77,7 +77,7 @@ class SpeechService(CozeService):
 
     async def on_speech_update(self, uid: str, event: SpeechUpdateEvent):
         """ 配置更新 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await self._register_speech_callback(uid)  # 注册tts回调
@@ -89,14 +89,14 @@ class SpeechService(CozeService):
 
     async def on_input_text_buffer_append(self, uid: str, event: InputTextBufferAppendEvent):
         """ 文本内容接受中 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.tts.chat(text=event.data.delta, is_final=False)
 
     async def on_input_text_buffer_complete(self, uid: str, event: InputTextBufferCompleteEvent):
         """ 文本内容接受完成 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.tts.chat(text='', is_final=True)
@@ -119,7 +119,7 @@ class SpeechService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（TTS）"""
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         async def on_audio(delta: bytes | None) -> None:

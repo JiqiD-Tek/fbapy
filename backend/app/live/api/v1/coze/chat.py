@@ -11,7 +11,7 @@ from fastapi import WebSocket, APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from backend.common.log import log
-from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.channel_pool import channel_pool
 
 from backend.app.live.service.coze.chat.chat_service import chat_service
 from backend.core.conf import settings
@@ -32,7 +32,7 @@ async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.
         raise KeyError(f"Token格式错误，应为uid.request_id")
 
     uid, request_id = token.rsplit('.', maxsplit=1)
-    conn = await channel_gateway.get_channel(uid)
+    conn = await channel_pool.get_channel(uid)
 
     if conn is None or conn.tts is None:
         raise KeyError(f"TTS client not exist")

@@ -10,7 +10,7 @@ from typing import Optional, Dict, Callable
 
 from backend.app.live.service.coze.service import CozeService
 
-from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.channel_pool import channel_pool
 from backend.app.live.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent
@@ -34,7 +34,7 @@ class TranscriptionsService(CozeService):
 
     async def on_transcriptions_update(self, uid: str, event: TranscriptionsUpdateEvent):
         """ 配置更新 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await self._register_speech_callback(uid)  # 注册asr回调
@@ -43,14 +43,14 @@ class TranscriptionsService(CozeService):
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.stt.push(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.stt.flush()
@@ -72,7 +72,7 @@ class TranscriptionsService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（ASR）"""
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         async def on_append_text(text: str):

@@ -10,7 +10,7 @@ from typing import Optional, Dict, Callable
 from backend.app.live.service.coze.service import CozeService
 
 from backend.app.live.agents.assistant import Assistant
-from backend.app.live.agents.net.channel_gateway import channel_gateway
+from backend.app.live.agents.net.channel_pool import channel_pool
 from backend.app.live.agents.net.coze.models import (
     WebsocketsEventType,
     WebsocketsEvent,
@@ -49,7 +49,7 @@ class ChatService(CozeService):
 
     async def on_chat_update(self, uid: str, event: ChatUpdateEvent):
         """ 配置更新 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         channel.assistant = Assistant(uid=uid, chat_config=event.data.chat_config)
@@ -61,21 +61,21 @@ class ChatService(CozeService):
 
     async def on_input_audio_buffer_append(self, uid: str, event: InputAudioBufferAppendEvent):
         """ 音频数据接收中 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.stt.push(audio_chunk=event.data.delta)
 
     async def on_input_audio_buffer_complete(self, uid: str, event: InputAudioBufferCompleteEvent):
         """ 音频数据接收完成 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.stt.flush()
 
     async def on_conversation_chat_cancel(self, uid: str, event: ConversationChatCancelEvent):
         """ 对话取消 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         await channel.assistant.aclose()  # 打断
@@ -109,7 +109,7 @@ class ChatService(CozeService):
 
     async def _register_speech_callback(self, uid: str) -> None:
         """注册语音处理回调（ASR+TTS）"""
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         async def on_append_text(text: str) -> None:
@@ -143,7 +143,7 @@ class ChatService(CozeService):
 
     async def _chatgpt_query(self, uid, text) -> None:
         """ 意图识别 """
-        if not (channel := await channel_gateway.get_channel(uid)):
+        if not (channel := await channel_pool.get_channel(uid)):
             return
 
         tts_req_id = await channel.assistant.tts.tts_cache.create_new_request()  # 初始化语音id
