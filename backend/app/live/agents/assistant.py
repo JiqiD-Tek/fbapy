@@ -8,28 +8,28 @@
 """
 
 import asyncio
+import functools
 import traceback
 
-from typing import Callable, Any
+from typing import Callable, Any, List
 
-from backend.app.live.agents.core.llm import ChatContext
 from backend.common.log import log
 from backend.utils.timezone import TimeZone
 
 from backend.app.live.agents.tools import get_weather
-
+from backend.app.live.agents.core.llm.utils import prepare_function_arguments
+from backend.app.live.agents.core.llm import ChatContext, ToolContext, FunctionToolCall
 from backend.app.live.agents.providers.coze.stt import CozeSTT as STT
 from backend.app.live.agents.providers.coze.tts import CozeTTS as TTS
 from backend.app.live.agents.providers.coze.llm import CozeLLM as LLM
 
 
 class Assistant:
-    """大模型服务的高并发客户端(意图识别、内容生成) """
+    """ AI助手 """
 
     def __init__(self, uid: str, chat_config=None):
-        """ 初始化大模型服务客户端 """
         self.uid = uid
-        self.username = chat_config.parameters.get("username", "小小")
+        self.username = chat_config.parameters.get("username", "yoyo")
         self.language = chat_config.parameters.get("language", "zh-CN")
         self.tz = chat_config.parameters.get("timezone", "Asia/Shanghai")
 
@@ -39,20 +39,22 @@ class Assistant:
 
         self.chat_ctx = ChatContext()
         self.chat_ctx.add_message(role="system", content=self.render_system_prompt())
-        self.tools = [get_weather]
+
+        self.tool_ctx = ToolContext(tools=[get_weather])
 
         log.info(f"Assistant 初始化完成 [UID:{self.uid}]")
 
-    async def chat(self, user_input: str, on_token=None, on_finish=None, on_error=None) -> None:
+    async def chat(self, user_input: str, api_data=None, on_token=None, on_finish=None, on_error=None) -> None:
         """ 执行流式文本生成查询 """
-        self.chat_ctx.add_message(role="user", content=self.render_user_prompt(user_input))
+        self.chat_ctx.add_message(role="user", content=self.render_user_prompt(user_input, api_data=api_data))
+        tools = self.tool_ctx.all_tools if api_data is None else None
 
         text_sent: str = ""
-        tool_calls_sent: list[str] = []
+        tool_calls_sent: list[FunctionToolCall] = []
         try:
             async with self.llm.chat(
                     chat_ctx=self.chat_ctx,
-                    tools=self.tools,
+                    tools=tools,
             ) as stream:
                 async for chunk in stream:
                     if chunk.delta:  # 内容
@@ -61,26 +63,49 @@ class Assistant:
                             await self._invoke(on_token, chunk.delta.content)
                             self.tts.push_text(token=chunk.delta.content)
                         for tool_call in chunk.delta.tool_calls:
-                            tool_calls_sent.append(tool_call.name)
+                            tool_calls_sent.append(tool_call)
 
                     if chunk.usage:  # 使用统计
                         log.debug(f"使用统计 [{chunk}]")
 
-                log.debug(f"流处理完成 - {text_sent}")
-                await self._invoke(on_finish, text_sent)
-                self.chat_ctx.add_message(role="assistant", content=text_sent)
-                self.chat_ctx.truncate(max_items=5)
+                if text_sent:
+                    log.debug(f"流处理完成 - {text_sent}")
+                    await self._invoke(on_finish, text_sent)
+                    self.chat_ctx.add_message(role="assistant", content=text_sent)
+                    self.chat_ctx.truncate(max_items=5)
 
-        except asyncio.CancelledError:
-            log.warning(f"流处理被取消 - {traceback.format_exc()}", exc_info=True)
-            raise
         except Exception as ex:
             log.error(f"流处理错误 - {ex} - {traceback.format_exc()}", exc_info=True)
             if on_error:
                 await self._invoke(on_error, ex)
             raise
         finally:
-            self.tts.flush()
+            if text_sent:
+                self.tts.flush()
+            if tool_calls_sent:
+                api_data = await self.run_tool_call(tool_calls_sent)
+                await self.chat(
+                    user_input=user_input, api_data=api_data,
+                    on_token=on_token, on_finish=on_finish, on_error=on_error
+                )
+
+    async def run_tool_call(self, fnc_calls: List[FunctionToolCall]):
+        """格式化工具调用"""
+        for idx, fnc_call in enumerate(fnc_calls, start=1):
+            log.debug(f"{idx}. 执行工具调用 - {fnc_call.name} - {fnc_call.arguments}")
+            function_tool = self.tool_ctx.function_tools.get(fnc_call.name)
+            json_args = fnc_call.arguments or "{}"
+            fnc_args, fnc_kwargs = prepare_function_arguments(
+                fnc=function_tool,
+                json_arguments=json_args,
+            )
+            try:
+                function_callable = functools.partial(function_tool, *fnc_args, **fnc_kwargs)
+                return await function_callable()
+            except Exception as ex:
+                log.error(f"工具调用失败 - {fnc_call.name} - {ex} - {traceback.format_exc()}", exc_info=True)
+
+        return "None"
 
     @staticmethod
     async def _invoke(callback: Callable, *args: Any) -> None:
@@ -159,3 +184,33 @@ Use the following data to inform your response (e.g., weather):
 """
 
         return user_prompt.strip()
+
+
+def main():
+    class ChatConfig:
+        parameters = {}
+
+    async def callback(text: str):
+        log.debug(f"{text}")
+
+    async def _run():
+        chat_config = ChatConfig()
+        assistant = Assistant(uid="test", chat_config=chat_config)
+        api_data = f"I'm sorry, an error occurred while retrieving the weather for Nanjing."
+        api_data = None
+        await assistant.chat("南京今天天气如何？", api_data=api_data, on_token=callback, on_finish=callback)
+        await asyncio.sleep(30)
+        await assistant.aclose()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    try:
+        loop.run_until_complete(_run())
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
+
+
+if __name__ == "__main__":
+    main()

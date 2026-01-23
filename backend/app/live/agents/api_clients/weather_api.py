@@ -81,7 +81,7 @@ class OpenWeatherMap:
             return data
         except Exception as e:
             log.error(f"Failed to fetch weather for '{city}'. Error: {str(e)}", exc_info=True)
-            return None
+            raise
 
 
 # 创建单例
@@ -98,7 +98,6 @@ async def main():
     rv2 = await open_weather_map.get_weather_info("Shanghai")
     if rv2:
         log.debug("Request for Paris was served from cache.")
-
 
 
 if __name__ == '__main__':

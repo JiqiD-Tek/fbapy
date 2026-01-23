@@ -14,6 +14,7 @@ import traceback
 
 from pydantic import BaseModel
 from typing import Callable, Any
+from websockets import ConnectionClosedError, ConnectionClosedOK
 
 from backend.common.log import log
 from backend.app.live.agents.core.utils import aio
@@ -174,10 +175,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
                     log.error(f"TTS合成异常: {e}")
 
                 if self._tokenizer_stream._current_segment_id != ev.segment_id:  # noqa
-                    try:
-                        await self._audio_callback(b'')  # 发送空数据表示结束
-                    except Exception as e:
-                        log.error(f"音频回调异常: {e}")
+                    await self._audio_callback(b'')  # 发送空数据表示结束
 
         tasks = [
             asyncio.create_task(_input_task()),
@@ -221,6 +219,12 @@ class CozeTTS(AsyncWebSocketClient, TTS):
             except asyncio.TimeoutError:
                 log.warning("TTS响应超时，可能服务端无数据")
                 break
+            except ConnectionClosedOK:
+                log.info("TTS WebSocket 正常关闭（1000），合成完成")
+                break
+            except ConnectionClosedError as e:
+                log.error(f"TTS WebSocket 异常关闭: {e}")
+                raise
             except Exception as e:
                 log.error(f"TTS处理器发生未捕获异常 - {e} - {traceback.format_exc()}")
                 raise
