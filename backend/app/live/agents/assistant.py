@@ -33,7 +33,7 @@ class Assistant:
         self.uid = uid
         self.username = chat_config.parameters.get("username", "yoyo")
         self.language = chat_config.parameters.get("language", "zh-CN")
-        self.location = chat_config.parameters.get("location", None)
+        self.city = chat_config.parameters.get("city", None)
         self.tz = chat_config.parameters.get("timezone", "Asia/Shanghai")
 
         self.stt = STT(language=self.language)
@@ -147,7 +147,7 @@ You are Papaya, a warm, caring, and playful family companion designed for all ag
 ### 2. Contextual Information
 - **User Name**: {self.username}
 - **User Language**: {self.language}
-- **User Location**: {self.location}
+- **User City**: {self.city}
 - **Current Time**: {current_time} ({current_weekday})
         
 ### 3. Core Behavioral Rules

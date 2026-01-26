@@ -11,7 +11,7 @@ from cachetools import TTLCache
 
 from backend.common.log import log
 from backend.common.http_client import HTTPClient
-from backend.app.domain.service.intent import city_mapping
+from backend.app.domain.service.api_clients import city_mapping
 
 
 class AMapClient:

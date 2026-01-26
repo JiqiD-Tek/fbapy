@@ -5,30 +5,77 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/12/09 13:50
 """
-
-from collections.abc import Sequence
 from typing import Any
+from collections.abc import Sequence
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.domain.crud.crud_device import device_dao
+from backend.app.domain.crud.device.crud_device import device_dao
+from backend.app.domain.crud.device.crud_device_usage import device_usage_dao
 from backend.app.domain.model import Device
-from backend.app.domain.schema.device import (
-    CreateDeviceParam,
+from backend.app.domain.schema.device.device import (
     UpdateDeviceParam,
     DeleteDeviceParam,
 )
+from backend.app.domain.schema.device.device_usage import CreateDeviceUsageParam, UsageStatus, UpdateDeviceUsageParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
+from backend.common.security.auth import identity_verifier
+from backend.utils.timezone import timezone
 
 
 class DeviceService:
     """设备服务类"""
+    MAX_ALLOW_QUOTA = 600  # 最大允许时长
+
+    async def allocate_quota(self, db: AsyncSession, mac: str, did: str) -> int:
+        """检查设备权限"""
+        # 1.检测设备使用记录，结束使用记录
+        balance = await self.end_usage(db, mac, did)
+        if balance <= 0:
+            raise errors.AuthorizationError(msg='余额不足')
+
+        # 2.添加设备使用记录
+        quota = min(balance, self.MAX_ALLOW_QUOTA)  # 申请时长
+        param_data = {"did": did, "apply_quota": quota, "start_time": timezone.now()}
+        obj = CreateDeviceUsageParam.model_construct(**param_data)
+        await device_usage_dao.create(db, obj)
+        return quota
+
+    async def end_usage(self, db: AsyncSession, mac: str, did: str) -> int:
+        """ 结束设备使用 """
+        credentials = identity_verifier.derive_credentials(mac=mac)
+        if did != credentials["did"]:
+            raise errors.AuthorizationError(msg='权限不足')
+
+        device = await self.get_by_did(db=db, did=did)
+        models = await device_usage_dao.get_by_did_status(db, did, UsageStatus.ACTIVE)
+        if not models:
+            return device.balance
+
+        total_quota = 0
+        now = timezone.now()
+        for model in models:
+            actual_quota = min(model.apply_quota, (now - model.start_time).seconds)
+            await device_usage_dao.update(db, pk=model.id, obj=UpdateDeviceUsageParam(
+                actual_quota=actual_quota, end_time=now, status=UsageStatus.COMPLETED, remark=""))
+            total_quota += actual_quota
+
+        await device_dao.update_model(db, device.id, {'balance': device.balance - total_quota})
+        return device.balance - total_quota
 
     @staticmethod
     async def get(*, db: AsyncSession, pk: int) -> Device:
         """ 获取设备详情 """
         device = await device_dao.get(db, pk)
+        if not device:
+            raise errors.NotFoundError(msg="设备不存在")
+        return device
+
+    @staticmethod
+    async def get_by_did(*, db: AsyncSession, did: str) -> Device:
+        """ 获取设备详情 """
+        device = await device_dao.get_by_did(db, did)
         if not device:
             raise errors.NotFoundError(msg="设备不存在")
         return device

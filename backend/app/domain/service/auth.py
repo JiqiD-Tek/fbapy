@@ -3,9 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
 from backend.app.domain.service.user_service import user_service
-from backend.app.domain.crud.crud_device import device_dao
+from backend.app.domain.crud.device.crud_device import device_dao
 from backend.app.domain.model import Device
-from backend.app.domain.schema.device import CreateDeviceParam
+from backend.app.domain.schema.device.device import CreateDeviceParam
 from backend.common.security.auth import identity_verifier
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType

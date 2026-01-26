@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Request
 
-from backend.app.domain.schema.device import GetDeviceDetail
+from backend.app.domain.schema.device.device import GetDeviceDetail
 from backend.app.domain.schema.user import (
     GetUserInfoDetail, UserDeviceParam,
 )

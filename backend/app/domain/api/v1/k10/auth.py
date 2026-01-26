@@ -28,6 +28,7 @@ from backend.app.domain.schema.captcha import GetCaptchaDetail
 from backend.app.domain.schema.token import GetLoginToken, GetNewToken
 from backend.app.domain.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.domain.service.auth import auth_service
+from backend.app.domain.service.device import device_service
 from backend.plugin.email.utils.send import send_email
 
 router = APIRouter()
@@ -132,10 +133,10 @@ async def mqtt_login(
     # dependencies=[DependsJwtAuth],
 )
 async def coze_token(
-        request: Request,
+        db: CurrentSessionTransaction,
         obj: DeviceAuthParam,
 ) -> ResponseModel:
-    ttl = await check(request=request, mac=obj.username, did=obj.password)
+    quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     config = {
         "client_type": "jwt",
@@ -148,13 +149,13 @@ async def coze_token(
 
     from cozepy import load_oauth_app_from_config
     coze_oauth_app = load_oauth_app_from_config(config)
-    oauth_token = coze_oauth_app.get_access_token(ttl=ttl)
+    oauth_token = coze_oauth_app.get_access_token(ttl=quota)
 
     data = {
         "token_type": oauth_token.token_type,
         "access_token": oauth_token.access_token,
         "expires_in": oauth_token.expires_in,
-        "ttl": ttl,
+        "ttl": quota,
         "city": ctx.city,
     }
     return response_base.success(data=data)
@@ -166,10 +167,10 @@ async def coze_token(
     # dependencies=[DependsJwtAuth],
 )
 async def livekit_token(
-        request: Request,
+        db: CurrentSessionTransaction,
         obj: LivekitDeviceAuthParam,
 ) -> ResponseModel:
-    ttl = await check(request=request, mac=obj.username, did=obj.password)
+    quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     token = api.AccessToken(
         api_key=settings.LIVEKIT_API_KEY,
@@ -178,7 +179,7 @@ async def livekit_token(
         identity=obj.password).with_name(
         name=obj.name).with_metadata(
         metadata=obj.metadata).with_ttl(
-        ttl=datetime.timedelta(seconds=ttl)).with_grants(
+        ttl=datetime.timedelta(seconds=quota)).with_grants(
         api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
     ).to_jwt()
     data = {
@@ -195,28 +196,30 @@ async def livekit_token(
     # dependencies=[DependsJwtAuth],
 )
 async def fba_token(
-        request: Request,
+        db: CurrentSessionTransaction,
         obj: DeviceAuthParam,
 ) -> ResponseModel:
-    ttl = await check(request=request, mac=obj.username, did=obj.password)
+    quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
-    payload = dict(mac=obj.username, did=obj.password, ttl=ttl)
+    payload = dict(mac=obj.username, did=obj.password, ttl=quota)
     token = jwt_encode(payload=payload)
     data = {
         "token": token,
-        "ttl": ttl,
+        "ttl": quota,
         "city": ctx.city,
     }
     return response_base.success(data=data)
 
 
-async def check(request, mac, did) -> int:
-    """检查设备权限"""
-    credentials = identity_verifier.derive_credentials(mac=mac)
-    if did != credentials["did"]:
-        raise errors.AuthorizationError(msg='权限不足')
+@router.post(
+    '/end_usage',
+    summary='断开会话',
+    # dependencies=[DependsJwtAuth],
+)
+async def end_usage(
+        db: CurrentSessionTransaction,
+        obj: DeviceAuthParam,
+) -> ResponseModel:
+    quota = await device_service.end_usage(db=db, mac=obj.username, did=obj.password)
 
-    # request.user TODO 获取用户信息付费
-
-    ttl = 600
-    return ttl
+    return response_base.success(data=quota)

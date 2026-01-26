@@ -15,7 +15,7 @@ from backend.common.response.response_schema import ResponseSchemaModel, Respons
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
-from backend.app.domain.schema.device import (
+from backend.app.domain.schema.device.device import (
     GetDeviceDetail,
     CreateDeviceParam,
     UpdateDeviceParam,
