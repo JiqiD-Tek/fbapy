@@ -19,17 +19,19 @@ from backend.app.domain.schema.intent import WeatherParam, MusicParam, AlarmPara
 router = APIRouter()
 
 
+# P0
 @router.post('/weather', summary='天气查询')
-async def weather_intent(
+async def weather_function(
         obj: WeatherParam,
 ) -> ResponseSchemaModel[dict]:
     """天气查询"""
     data = await open_weather_map.get_weather_info(obj.city)
+
     return response_base.success(data=data)
 
 
 @router.post('/music', summary='音乐操作')
-async def music_intent(
+async def music_function(
         obj: MusicParam,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[dict]:
@@ -42,24 +44,25 @@ async def music_intent(
     return response_base.success()
 
 
-@router.post('/alarm', summary='闹钟设置')
-async def alarm_intent(
-        obj: AlarmParam,
-        mqtt_client: MQTTBroker = Depends(get_mqtt),
-) -> ResponseSchemaModel[dict]:
-    messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
-    await messaging_service.send_alarm(action=obj.action, target_time=obj.target_time, message=obj.message)
-
-    return response_base.success()
-
-
 @router.post('/control', summary='设备控制')
-async def control_intent(
+async def control_function(
         obj: ControlParam,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[dict]:
     """设备控制"""
     messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
     await messaging_service.send_system_control(target=obj.target, action=obj.action, value=obj.value)
+
+    return response_base.success()
+
+
+# P1
+@router.post('/alarm', summary='闹钟设置')
+async def alarm_function(
+        obj: AlarmParam,
+        mqtt_client: MQTTBroker = Depends(get_mqtt),
+) -> ResponseSchemaModel[dict]:
+    messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
+    await messaging_service.send_alarm(action=obj.action, target_time=obj.target_time, message=obj.message)
 
     return response_base.success()

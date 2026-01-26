@@ -55,8 +55,8 @@ class AuthService:
 
     async def _register_user(self, db: AsyncSession, obj: AuthLoginParam) -> User:
         # 邮箱、手机号 加密存储
-        phone = encryptor(obj.phone)
-        email = encryptor(obj.email)
+        phone = encryptor.encrypt(obj.phone)
+        email = encryptor.encrypt(obj.email)
 
         if phone:
             user = await user_dao.get_by_phone(db, phone)

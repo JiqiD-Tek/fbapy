@@ -5,7 +5,6 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/12 20:25
 """
-import asyncio
 
 import json
 import uuid
@@ -13,7 +12,7 @@ from typing import Dict
 
 from backend.utils.timezone import timezone
 
-from backend.common.mqtt_broker import MQTTBroker, get_mqtt
+from backend.common.mqtt_broker import MQTTBroker
 
 
 class MessagingService:
@@ -81,18 +80,6 @@ class MessagingService:
         msg = self._build_message(payload, msg_type="command", service="player")
         return await self._publish(topic, msg)
 
-    async def send_alarm(self, action: str, target_time: str, message: str) -> str:
-        """ 下发设备闹钟指令 """
-        payload = {
-            "action": action,
-            "target_time": target_time,
-            "message": message,
-        }
-
-        topic = f"K10/{self.did}/down/control"
-        msg = self._build_message(payload, msg_type="command", service="alarm")
-        return await self._publish(topic, msg)
-
     async def send_system_control(self, target: str, action: str, value: str) -> str:
         """ 下发设备控制指令 """
         payload = {
@@ -103,4 +90,16 @@ class MessagingService:
 
         topic = f"K10/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="system")
+        return await self._publish(topic, msg)
+
+    async def send_alarm(self, action: str, target_time: str, message: str) -> str:
+        """ 下发设备闹钟指令 """
+        payload = {
+            "action": action,
+            "target_time": target_time,
+            "message": message,
+        }
+
+        topic = f"K10/{self.did}/down/control"
+        msg = self._build_message(payload, msg_type="command", service="alarm")
         return await self._publish(topic, msg)
