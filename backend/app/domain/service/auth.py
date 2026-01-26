@@ -113,7 +113,7 @@ class AuthService:
                 await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
 
             user = await self._register(db, obj)
-            await user_dao.update_login_time(db, obj.phone, obj.email)
+            await user_dao.update_login_time(db, user.id)
             await db.refresh(user)
             access_token_data = await create_access_token(
                 user.id,
@@ -141,7 +141,7 @@ class AuthService:
             task = BackgroundTask(
                 login_log_service.create,
                 user_uuid=user.uuid if user else uuid4_str(),
-                username=user.username if user else '',
+                username=user.username or '' if user else '',
                 login_time=timezone.now(),
                 status=LoginLogStatusType.fail.value,
                 msg=e.msg,
