@@ -67,8 +67,8 @@ class AuthService:
 
         if user is None:
             user_param = CreateUserParam(
-                phone=phone, email=email,
-                username=None, nickname=None, avatar=None, sex=None, birthday=None,
+                phone=phone, email=email, username='',
+                nickname=None, avatar=None, sex=None, birthday=None,
             )
             user = await user_dao.create(db, user_param)
 
@@ -102,15 +102,15 @@ class AuthService:
         """
         user = None
         try:
-            # if settings.LOGIN_CAPTCHA_ENABLED:
-            #     if not obj.uuid or not obj.captcha:
-            #         raise errors.RequestError(msg=t('error.captcha.invalid'))
-            #     captcha_code = await redis_client.get(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
-            #     if not captcha_code:
-            #         raise errors.RequestError(msg=t('error.captcha.expired'))
-            #     if captcha_code.lower() != obj.captcha.lower():
-            #         raise errors.CustomError(error=CustomErrorCode.CAPTCHA_ERROR)
-            #     await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
+            if settings.LOGIN_CAPTCHA_ENABLED:
+                if not obj.uuid or not obj.captcha:
+                    raise errors.RequestError(msg=t('error.captcha.invalid'))
+                captcha_code = await redis_client.get(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
+                if not captcha_code:
+                    raise errors.RequestError(msg=t('error.captcha.expired'))
+                if captcha_code.lower() != obj.captcha.lower():
+                    raise errors.CustomError(error=CustomErrorCode.CAPTCHA_ERROR)
+                await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
 
             user = await self._register(db, obj)
             await user_dao.update_login_time(db, user.id)
@@ -141,7 +141,7 @@ class AuthService:
             task = BackgroundTask(
                 login_log_service.create,
                 user_uuid=user.uuid if user else uuid4_str(),
-                username=user.username or '' if user else '',
+                username=user.username if user else '',
                 login_time=timezone.now(),
                 status=LoginLogStatusType.fail.value,
                 msg=e.msg,
@@ -154,7 +154,7 @@ class AuthService:
             background_tasks.add_task(
                 login_log_service.create,
                 user_uuid=user.uuid,
-                username=user.username or '',
+                username=user.username,
                 login_time=timezone.now(),
                 status=LoginLogStatusType.success.value,
                 msg=t('success.login.success'),
