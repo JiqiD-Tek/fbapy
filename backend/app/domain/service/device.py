@@ -29,40 +29,74 @@ class DeviceService:
     MAX_ALLOW_QUOTA = 600  # 最大允许时长
 
     async def allocate_quota(self, db: AsyncSession, mac: str, did: str) -> int:
-        """检查设备权限"""
-        # 1.检测设备使用记录，结束使用记录
+        """为设备分配可用配额并创建使用记录"""
+        # 1. 先结算历史使用，拿到最新余额
         balance = await self.end_usage(db, mac, did)
         if balance <= 0:
-            raise errors.AuthorizationError(msg='余额不足')
+            raise errors.AuthorizationError(msg="余额不足")
 
-        # 2.添加设备使用记录
-        quota = min(balance, self.MAX_ALLOW_QUOTA)  # 申请时长
-        param_data = {"did": did, "apply_quota": quota, "start_time": timezone.now()}
-        obj = CreateDeviceUsageParam.model_construct(**param_data)
-        await device_usage_dao.create(db, obj)
-        return quota
+        # 2. 计算本次可申请配额
+        alloc_quota = min(balance, self.MAX_ALLOW_QUOTA)
+        if alloc_quota <= 0:
+            raise errors.AuthorizationError(msg="可分配配额不足")
+
+        # 3. 创建使用记录
+        now = timezone.now()
+        usage = CreateDeviceUsageParam.model_construct(
+            did=did,
+            apply_quota=alloc_quota,
+            start_time=now,
+        )
+
+        await device_usage_dao.create(db, usage)
+
+        return alloc_quota
 
     async def end_usage(self, db: AsyncSession, mac: str, did: str) -> int:
-        """ 结束设备使用 """
+        """结束设备使用并结算配额"""
+        # 1. 权限校验
         credentials = identity_verifier.derive_credentials(mac=mac)
-        if did != credentials["did"]:
-            raise errors.AuthorizationError(msg='权限不足')
+        if did != credentials.get("did"):
+            raise errors.AuthorizationError(msg="权限不足")
 
+        # 2. 获取设备
         device = await self.get_by_did(db=db, did=did)
-        models = await device_usage_dao.get_by_did_status(db, did, UsageStatus.ACTIVE)
-        if not models:
+
+        # 3. 获取所有进行中的使用记录
+        active_usages = await device_usage_dao.get_by_did_status(db, did, UsageStatus.ACTIVE)
+        if not active_usages:
             return device.balance
 
-        total_quota = 0
         now = timezone.now()
-        for model in models:
-            actual_quota = min(model.apply_quota, (now - model.start_time).seconds)
-            await device_usage_dao.update(db, pk=model.id, obj=UpdateDeviceUsageParam(
-                actual_quota=actual_quota, end_time=now, status=UsageStatus.COMPLETED, remark=""))
-            total_quota += actual_quota
+        total_consumed = 0
 
-        await device_dao.update_model(db, device.id, {'balance': device.balance - total_quota})
-        return device.balance - total_quota
+        # 4. 结算每条 usage
+        for usage in active_usages:
+            duration_seconds = int((now - usage.start_time).total_seconds())
+            actual_quota = min(usage.apply_quota, max(duration_seconds, 0))
+
+            await device_usage_dao.update(
+                db,
+                pk=usage.id,
+                obj=UpdateDeviceUsageParam(
+                    actual_quota=actual_quota,
+                    end_time=now,
+                    status=UsageStatus.COMPLETED,
+                    remark="",
+                ),
+            )
+
+            total_consumed += actual_quota
+
+        # 5. 扣减余额（防止扣成负数）
+        new_balance = max(device.balance - total_consumed, 0)
+        await device_dao.update_model(
+            db,
+            device.id,
+            {"balance": new_balance},
+        )
+
+        return new_balance
 
     @staticmethod
     async def get(*, db: AsyncSession, pk: int) -> Device:

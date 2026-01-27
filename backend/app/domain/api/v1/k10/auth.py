@@ -184,7 +184,7 @@ async def livekit_token(
     ).to_jwt()
     data = {
         "token": token,
-        "ttl": ttl,
+        "ttl": quota,
         "city": ctx.city,
     }
     return response_base.success(data=data)
