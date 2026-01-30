@@ -19,7 +19,7 @@ from backend.common.security.auth import identity_verifier
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.jwt import jwt_encode
+from backend.common.security.jwt import jwt_encode, DependsJwtAuth
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
@@ -111,7 +111,7 @@ async def k10_logout(
 @router.post(
     '/mqtt_login',
     summary='mqtt登录',
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def mqtt_login(
         request: Request,
@@ -130,7 +130,7 @@ async def mqtt_login(
 @router.post(
     '/coze_token',
     summary='Coze 授权',
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def coze_token(
         db: CurrentSessionTransaction,
@@ -164,7 +164,7 @@ async def coze_token(
 @router.post(
     '/livekit_token',
     summary='livekit 授权',
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def livekit_token(
         db: CurrentSessionTransaction,
@@ -193,7 +193,7 @@ async def livekit_token(
 @router.post(
     '/fba_token',
     summary='fba 授权',
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def fba_token(
         db: CurrentSessionTransaction,
@@ -214,7 +214,7 @@ async def fba_token(
 @router.post(
     '/end_usage',
     summary='断开会话',
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def end_usage(
         db: CurrentSessionTransaction,

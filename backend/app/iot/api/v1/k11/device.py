@@ -55,7 +55,6 @@ async def get_device_paginated(
         sn: Annotated[str | None, Query(description='设备序列号')] = None,
         mac: Annotated[str | None, Query(description='MAC地址')] = None,
         model: Annotated[str | None, Query(description='设备型号')] = None,
-        user_id: Annotated[int | None, Query(description='用户ID')] = None,
 ) -> ResponseSchemaModel[PageData[GetDeviceDetail]]:
     page_data = await device_service.get_list(
         db=db,
@@ -63,7 +62,6 @@ async def get_device_paginated(
         sn=sn,
         mac=mac,
         model=model,
-        user_id=user_id,
     )
     return response_base.success(data=page_data)
 

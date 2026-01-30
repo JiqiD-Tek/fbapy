@@ -17,10 +17,11 @@ from backend.common.mqtt_broker import MQTTBroker
 
 class MessagingService:
     """
-    K10 设备消息服务类
+    k11 设备消息服务类
     封装设备消息上行/下行逻辑
     业务化方法命名，便于扩展其他功能
     """
+    MODEL = "k11"
 
     def __init__(self, mqtt_client: MQTTBroker, did: str):
         self.client = mqtt_client
@@ -60,7 +61,7 @@ class MessagingService:
         payload = {
             "store_url": store_url,
         }
-        topic = f"K10/{self.did}/down/control"
+        topic = f"{self.MODEL}/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="feedback")
         return await self._publish(topic, msg)
 
@@ -76,7 +77,7 @@ class MessagingService:
             "platform": platform  # 播放平台
         }
 
-        topic = f"K10/{self.did}/down/control"
+        topic = f"{self.MODEL}/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="player")
         return await self._publish(topic, msg)
 
@@ -88,7 +89,7 @@ class MessagingService:
             "value": value,
         }
 
-        topic = f"K10/{self.did}/down/control"
+        topic = f"{self.MODEL}/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="system")
         return await self._publish(topic, msg)
 
@@ -100,6 +101,6 @@ class MessagingService:
             "message": message,
         }
 
-        topic = f"K10/{self.did}/down/control"
+        topic = f"{self.MODEL}/{self.did}/down/control"
         msg = self._build_message(payload, msg_type="command", service="alarm")
         return await self._publish(topic, msg)

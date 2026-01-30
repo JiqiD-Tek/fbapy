@@ -26,7 +26,7 @@ class UserService:
     async def bind_device(*, db: AsyncSession, obj: UserDeviceParam) -> None:
         """ 绑定设备 """
         stmt = select(func.count()).select_from(user_device).where(
-            user_device.c.user_id == obj.user_id, user_device.c.device_id == obj.device_id)
+            user_device.c.user_id == obj.user_id, user_device.c.device_id == obj.device_id)  # noqa
         result = await db.execute(stmt)
         count = result.scalar_one()
         if count > 0:
@@ -39,7 +39,7 @@ class UserService:
     async def unbind_device(*, db: AsyncSession, obj: UserDeviceParam) -> None:
         """ 解绑设备 """
         user_device_stmt = delete(user_device).where(
-            user_device.c.user_id == obj.user_id, user_device.c.device_id == obj.device_id)
+            user_device.c.user_id == obj.user_id, user_device.c.device_id == obj.device_id)  # noqa
         await db.execute(user_device_stmt)
 
 

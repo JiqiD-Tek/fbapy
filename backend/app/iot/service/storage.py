@@ -11,7 +11,7 @@ from backend.utils.timezone import timezone
 
 
 class StorageService:
-    BASE_URL = "https://media.jiqid.com/K10"
+    BASE_URL = "https://media.jiqid.com/k11"
 
     def __init__(self, did: str):
         self.did = did
@@ -71,7 +71,7 @@ class StorageService:
 
 
 if __name__ == "__main__":
-    storage = StorageService("K10-ABC123")
+    storage = StorageService("D98BB367386B5B18A815EC31F74B43A6")
 
     print(storage.image_feedback())
     print(storage.audio_input())

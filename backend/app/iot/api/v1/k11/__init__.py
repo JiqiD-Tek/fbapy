@@ -16,9 +16,9 @@ from backend.app.iot.api.v1.k11.user import router as user_router
 
 router = APIRouter(prefix='/k11')
 
-router.include_router(app_router, prefix='/app')
-router.include_router(auth_router, prefix='/auth')
-router.include_router(feedback_router, prefix='/feedback')
-router.include_router(device_router, prefix='/device')
-router.include_router(function_router, prefix='/function')
-router.include_router(user_router, prefix='/user')
+router.include_router(app_router, prefix='/app', tags=['app管理'])
+router.include_router(auth_router, prefix='/auth', tags=['用户授权'])
+router.include_router(feedback_router, prefix='/feedback', tags=['反馈管理'])
+router.include_router(device_router, prefix='/device', tags=['设备管理'])
+router.include_router(function_router, prefix='/function', tags=['第三方功能'])
+router.include_router(user_router, prefix='/user', tags=['用户管理'])
