@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Fbapy 部署脚本
+# fba_server 部署脚本
 # Author: guhua@jiqid.com
 
 set -e  # 遇到错误立即退出
@@ -72,7 +72,7 @@ parse_args() {
 
 # 主函数
 main() {
-    echo "=== Fbapy 部署脚本 ==="
+    echo "=== fba_server 部署脚本 ==="
 
     # 解析参数
     parse_args "$@"
@@ -98,12 +98,12 @@ main() {
     # 1. 停止现有容器
     log_info "步骤 1: 停止现有容器..."
     cd "$COMPOSE_DIR"
-    if docker-compose ps fbapy 2>/dev/null | grep -q "Up"; then
-        log_info "正在停止 fbapy 容器..."
-        docker-compose stop fbapy
-        docker-compose rm -f fbapy || log_warning "删除 fbapy 容器时出现问题"
+    if docker-compose ps fba_server 2>/dev/null | grep -q "Up"; then
+        log_info "正在停止 fba_server 容器..."
+        docker-compose stop fba_server
+        docker-compose rm -f fba_server || log_warning "删除 fba_server 容器时出现问题"
     else
-        log_info "fbapy 容器未运行，无需停止"
+        log_info "fba_server 容器未运行，无需停止"
     fi
 
     # 2. 构建新镜像
@@ -129,7 +129,7 @@ main() {
     # 4. 启动新容器
     log_info "步骤 4: 启动容器..."
     cd "$COMPOSE_DIR"
-    docker-compose up fbapy -d
+    docker-compose up fba_server -d
 
     # 5. 验证部署
     log_info "步骤 5: 验证部署..."
@@ -137,17 +137,17 @@ main() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        if docker-compose ps fbapy | grep -q "Up"; then
-            log_success "Fbapy 容器启动成功！"
+        if docker-compose ps fba_server | grep -q "Up"; then
+            log_success "fba_server 容器启动成功！"
             break
         fi
 
         if [ $attempt -eq $max_attempts ]; then
-            log_error "Fbapy 容器启动失败，请检查日志"
+            log_error "fba_server 容器启动失败，请检查日志"
             log_info "容器状态:"
-            docker-compose ps fbapy
+            docker-compose ps fba_server
             log_info "最近日志:"
-            docker-compose logs --tail=20 fbapy
+            docker-compose logs --tail=20 fba_server
             exit 1
         fi
 
@@ -158,11 +158,11 @@ main() {
 
     # 显示最终状态
     log_info "最终容器状态:"
-    docker-compose ps fbapy
+    docker-compose ps fba_server
 
     log_success "=== 部署完成 ==="
     log_info "镜像版本: ${IMAGE_NAME}:${IMAGE_VERSION}"
-    log_info "使用 'docker-compose logs -f fbapy' 查看实时日志"
+    log_info "使用 'docker-compose logs -f fba_server' 查看实时日志"
 }
 
 # 脚本入口
