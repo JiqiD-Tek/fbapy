@@ -56,7 +56,7 @@ services:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
     volumes:
-      - f${DATA_ROOT}/rabbitmq:/var/lib/rabbitmq
+      - ${DATA_ROOT}/rabbitmq:/var/lib/rabbitmq
     networks:
       - fba-network
 
@@ -106,23 +106,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"   # 支持容器访问宿主机
-    networks:
-      - fba-network
-
-  fbapy:
-    image: fbapy:latest
-    container_name: fbapy
-    restart: unless-stopped
-    cpus: 1.0
-    mem_limit: 2048m
-    volumes:
-      - .env.server:/fbapy/backend/.env:ro
-      - ${DATA_ROOT}/fbapy/log:/var/log/fba
-      - /etc/localtime:/etc/localtime:ro
-    ports:
-      - "${DOCKER_MAP_FBA_PORT:-8000}:8000"
-    command: >
-      supervisord -n -c /etc/supervisor/supervisord.conf
     networks:
       - fba-network
 
@@ -207,5 +190,35 @@ services:
       - ./grafana/dashboards/fba_server.json:/etc/grafana/dashboards/fba_server.json
       - ./grafana/fba_dashboards.yml:/etc/grafana/provisioning/dashboards/fba_dashboards.yml
       - ./grafana/fba_datasource.yml:/etc/grafana/provisioning/datasources/fba_datasource.yml
+    networks:
+      - fba-network
+
+#  fba_celery_exporter:
+#    image: danihodovic/celery-exporter
+#    restart: always
+#    ports:
+#      - "${DOCKER_MAP_CELERY_EXPORTER_PORT:-9808}:9808"
+#    container_name: fba_celery_exporter
+#    environment:
+#      - CE_BROKER_URL=amqp://guest:guest@fba_rabbitmq:5672//
+#    depends_on:
+#      - fba_rabbitmq
+#    networks:
+#      - fba_network
+
+  fba_server:
+    image: fbapy:latest
+    container_name: fbapy
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 2048m
+    volumes:
+      - .env.server:/fbapy/backend/.env:ro
+      - ${DATA_ROOT}/fbapy/log:/var/log/fba
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "${DOCKER_MAP_FBA_PORT:-8000}:8000"
+    command: >
+      supervisord -n -c /etc/supervisor/supervisord.conf
     networks:
       - fba-network
