@@ -204,7 +204,7 @@ services:
     depends_on:
       - fba_rabbitmq
     networks:
-      - fba_network
+      - fba-network
 
   fba_server:
     image: fbapy:latest
