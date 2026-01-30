@@ -31,12 +31,12 @@ class DeviceService:
     async def allocate_quota(self, db: AsyncSession, mac: str, did: str) -> int:
         """为设备分配可用配额并创建使用记录"""
         # 1. 先结算历史使用，拿到最新余额
-        balance = await self.end_usage(db, mac, did)
-        if balance <= 0:
+        quota = await self.end_usage(db, mac, did)
+        if quota <= 0:
             raise errors.AuthorizationError(msg="余额不足")
 
         # 2. 计算本次可申请配额
-        alloc_quota = min(balance, self.MAX_ALLOW_QUOTA)
+        alloc_quota = min(quota, self.MAX_ALLOW_QUOTA)
         if alloc_quota <= 0:
             raise errors.AuthorizationError(msg="可分配配额不足")
 
@@ -65,7 +65,7 @@ class DeviceService:
         # 3. 获取所有进行中的使用记录
         active_usages = await device_usage_dao.get_by_did_status(db, did, UsageStatus.ACTIVE)
         if not active_usages:
-            return device.balance
+            return device.quota
 
         now = timezone.now()
         total_consumed = 0
@@ -89,14 +89,14 @@ class DeviceService:
             total_consumed += actual_quota
 
         # 5. 扣减余额（防止扣成负数）
-        new_balance = max(device.balance - total_consumed, 0)
+        new_quota = max(device.quota - total_consumed, 0)
         await device_dao.update_model(
             db,
             device.id,
-            {"balance": new_balance},
+            {"quota": new_quota},
         )
 
-        return new_balance
+        return new_quota
 
     @staticmethod
     async def get(*, db: AsyncSession, pk: int) -> Device:

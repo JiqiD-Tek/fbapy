@@ -25,6 +25,8 @@ class DeviceSchemaBase(SchemaBase):
     firmware: Optional[str] = Field(None, description='固件版本')
     hardware: Optional[str] = Field(None, description='硬件版本')
 
+    quota: int = Field(0, description='当前使用时长（秒）')
+
 
 class CreateDeviceParam(DeviceSchemaBase):
     """创建设备参数"""

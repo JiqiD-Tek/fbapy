@@ -50,6 +50,7 @@ async def get_location_online(ip: str) -> dict | None:
 
 
 # 离线 IP 搜索器单例（数据将缓存到内存，缓存大小取决于 IP 数据文件大小）
+# https://github.com/lionsoul2014/ip2region/tree/master/data
 __xdb_searcher = XdbSearcher(contentBuff=XdbSearcher.loadContentFromFile(dbfile=STATIC_DIR / 'ip2region_v4.xdb'))
 
 

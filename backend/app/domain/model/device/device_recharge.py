@@ -30,8 +30,8 @@ class DeviceRecharge(Base):
 
     amount: Mapped[int] = mapped_column(BigInteger, comment='充值额度')
     price: Mapped[int] = mapped_column(BigInteger, comment='单价')
-    balance_before: Mapped[int] = mapped_column(BigInteger, comment='充值前使用时长（秒）')
-    balance_after: Mapped[int] = mapped_column(BigInteger, comment='充值后使用时长（秒）')
+    quota_before: Mapped[int] = mapped_column(BigInteger, comment='充值前使用时长（秒）')
+    quota_after: Mapped[int] = mapped_column(BigInteger, comment='充值后使用时长（秒）')
 
     recharge_type: Mapped[RechargeType] = mapped_column(
         SQLEnum(RechargeType), default=RechargeType.PAYMENT, comment='充值类型'
