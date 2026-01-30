@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.admin.model import User
 from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
-from backend.app.domain.schema.user import GetUserInfoDetail
+from backend.app.iot.schema.user import GetUserInfoDetail
 from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
 from backend.common.exception import errors
 from backend.common.exception.errors import TokenError
@@ -244,24 +244,24 @@ async def get_jwt_user(user_id: int) -> GetUserInfoWithRelationDetail:
     return user
 
 
-async def get_domain_user(user_id: int) -> GetUserInfoDetail:
+async def get_iot_user(user_id: int) -> GetUserInfoDetail:
     """
     获取 JWT 用户
 
     :param user_id:
     :return:
     """
-    cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:domain:{user_id}')
+    cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:iot:{user_id}')
     if not cache_user:
         async with async_db_session() as db:
-            from backend.app.domain.crud.crud_user import user_dao
+            from backend.app.iot.crud.crud_user import user_dao
             current_user = await user_dao.get(db, user_id)
             if not current_user:
                 raise errors.TokenError(msg='Token 无效')
 
             user = GetUserInfoDetail.model_validate(current_user)
             await redis_client.setex(
-                f'{settings.JWT_USER_REDIS_PREFIX}:domain:{user_id}',
+                f'{settings.JWT_USER_REDIS_PREFIX}:iot:{user_id}',
                 settings.TOKEN_EXPIRE_SECONDS,
                 user.model_dump_json(),
             )
@@ -308,8 +308,8 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetU
     extra_info = await redis_client.get(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}:{session_uuid}')
     extra_info = json.loads(extra_info)
 
-    if extra_info.get('domain') is True:
-        user = await get_domain_user(user_id)  # 非管理员
+    if extra_info.get('iot') is True:
+        user = await get_iot_user(user_id)  # 非管理员
     else:
         user = await get_jwt_user(user_id)  # 管理员
 
