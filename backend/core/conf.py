@@ -364,8 +364,8 @@ class Settings(BaseSettings):
         """检查环境变量"""
         if values.get('ENVIRONMENT') == 'prod':
             # FastAPI
-            values['FASTAPI_OPENAPI_URL'] = None
-            values['FASTAPI_STATIC_FILES'] = False
+            # values['FASTAPI_OPENAPI_URL'] = None
+            # values['FASTAPI_STATIC_FILES'] = False
 
             # task
             values['CELERY_BROKER'] = 'rabbitmq'
