@@ -199,8 +199,8 @@ services:
       - "${DOCKER_MAP_GRAFANA_PORT:-3000}:3000"
     container_name: grafana
     depends_on:
-      - loki
-      - prometheus
+      - fba_loki
+      - fba_prometheus
     volumes:
       - ./grafana/fba_grafana.ini:/etc/grafana/grafana.ini
       - ./grafana/dashboards/fba_celery.json:/etc/grafana/dashboards/fba_celery.json
