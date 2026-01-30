@@ -370,6 +370,9 @@ class Settings(BaseSettings):
             # task
             values['CELERY_BROKER'] = 'rabbitmq'
 
+            # Grafana
+            values['GRAFANA_METRICS'] = True
+
         return values
 
 

@@ -14,6 +14,13 @@ from backend.app.admin.service.opera_log_service import opera_log_service
 from backend.common.context import ctx
 from backend.common.enums import StatusType
 from backend.common.log import log
+from backend.common.prometheus.instruments import (
+    PROMETHEUS_EXCEPTION_COUNTER,
+    PROMETHEUS_REQUEST_COST_TIME_HISTOGRAM,
+    PROMETHEUS_REQUEST_COUNTER,
+    PROMETHEUS_REQUEST_IN_PROGRESS_GAUGE,
+    PROMETHEUS_RESPONSE_COUNTER,
+)
 from backend.common._queue import batch_dequeue
 from backend.common.response.response_code import StandardResponseCode
 from backend.core.conf import settings
@@ -42,6 +49,10 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
         else:
             method = request.method
             args = await self.get_request_args(request)
+            PROMETHEUS_REQUEST_IN_PROGRESS_GAUGE.labels(
+                app_name=settings.GRAFANA_APP_NAME, method=method, path=path
+            ).inc()
+            PROMETHEUS_REQUEST_COUNTER.labels(app_name=settings.GRAFANA_APP_NAME, method=method, path=path).inc()
 
             # 执行请求
             code = 200
@@ -62,6 +73,12 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
                         code = exception.get('code')
                         msg = exception.get('msg')
                         log.error(f'请求异常: {msg}')
+                        PROMETHEUS_EXCEPTION_COUNTER.labels(
+                            app_name=settings.GRAFANA_APP_NAME,
+                            method=method,
+                            path=path,
+                            exception_type=type(e).__name__,
+                        ).inc()
                         break
             except Exception as e:
                 elapsed = round((time.perf_counter() - ctx.perf_time) * 1000, 3)
@@ -70,6 +87,20 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
                 status = StatusType.disable
                 error = e
                 log.error(f'请求异常: {e!s}')
+                PROMETHEUS_EXCEPTION_COUNTER.labels(
+                    app_name=settings.GRAFANA_APP_NAME, method=method, path=path, exception_type=type(e).__name__
+                ).inc()
+            else:
+                PROMETHEUS_REQUEST_COST_TIME_HISTOGRAM.labels(
+                    app_name=settings.GRAFANA_APP_NAME, method=method, path=path
+                ).observe(elapsed, exemplar={'TraceID': get_request_trace_id()})
+            finally:
+                PROMETHEUS_RESPONSE_COUNTER.labels(
+                    app_name=settings.GRAFANA_APP_NAME, method=method, path=path, status_code=code
+                ).inc()
+                PROMETHEUS_REQUEST_IN_PROGRESS_GAUGE.labels(
+                    app_name=settings.GRAFANA_APP_NAME, method=method, path=path
+                ).dec()
 
             # 此信息只能在请求后获取
             route = request.scope.get('route')
@@ -85,7 +116,7 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
             log.debug(f'接口摘要：[{summary}]')
             log.debug(f'请求地址：[{ctx.ip}]')
             log.debug(f'请求参数：{args}')
-            log.info(f'{request.client.host: <15} | {request.method: <8} | {code!s: <6} | {path} | {elapsed:.3f}ms')
+            log.info(f'{ctx.ip: <15} | {request.method: <8} | {code!s: <6} | {path} | {elapsed:.3f}ms')
             if request.method != 'OPTIONS':
                 log.debug('<-- 请求结束')
 
@@ -105,10 +136,6 @@ class OperaLogMiddleware(BaseHTTPMiddleware):
                 browser=ctx.browser,
                 device=ctx.device,
                 args=args,
-                # 用户设置
-                x_country=ctx.country,
-                x_language=ctx.language,
-                x_timezone=ctx.timezone,
                 status=status,
                 code=str(code),
                 msg=msg,
