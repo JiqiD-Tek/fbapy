@@ -6,7 +6,7 @@ networks:
 services:
   fba_mysql:
     image: mysql
-    container_name: mysql
+    container_name: fba_mysql
     restart: unless-stopped
     cpus: 1.0
     mem_limit: 2048m
@@ -28,7 +28,7 @@ services:
 
   fba_redis:
     image: redis
-    container_name: redis
+    container_name: fba_redis
     restart: unless-stopped
     cpus: 1.0
     mem_limit: 1024m
@@ -50,7 +50,7 @@ services:
     ports:
       - "${DOCKER_MAP_RABBITMA_UI_PORT:-15672}:15672"
       - "${DOCKER_MAP_RABBITMA_PORT:-5672}:5672"
-    container_name: rabbitmq
+    container_name: fba_rabbitmq
     restart: always
     environment:
       - RABBITMQ_DEFAULT_USER=guest
@@ -62,7 +62,7 @@ services:
 
   fba_emqx:
     image: emqx/emqx-enterprise:5.10.1-rc.2
-    container_name: emqx
+    container_name: fba_emqx
     restart: unless-stopped
     cpus: 2.0
     mem_limit: 4096m
@@ -89,7 +89,7 @@ services:
 
   fba_nginx:
     image: nginx:latest
-    container_name: nginx
+    container_name: fba_nginx
     restart: unless-stopped
     cpus: 1.0
     mem_limit: 1024m
@@ -114,7 +114,7 @@ services:
     restart: always
     ports:
       - "${DOCKER_MAP_LOKI_PORT:-3100}:3100"
-    container_name: loki
+    container_name: fba_loki
     networks:
       - fba-network
     command: -config.file=/etc/loki/local-config.yaml
@@ -180,7 +180,7 @@ services:
     restart: always
     ports:
       - "${DOCKER_MAP_GRAFANA_PORT:-3000}:3000"
-    container_name: grafana
+    container_name: fba_grafana
     depends_on:
       - fba_loki
       - fba_prometheus
@@ -208,7 +208,7 @@ services:
 
   fba_server:
     image: fbapy:latest
-    container_name: fbapy
+    container_name: fba_server
     restart: unless-stopped
     cpus: 1.0
     mem_limit: 2048m
