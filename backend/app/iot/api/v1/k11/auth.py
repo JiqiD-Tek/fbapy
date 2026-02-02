@@ -39,7 +39,7 @@ router = APIRouter()
     summary='获取验证码',
     dependencies=[Depends(RateLimiter(times=5, seconds=10))],
 )
-async def k10_get_captcha(
+async def k11_get_captcha(
         db: CurrentSession,
         background_tasks: BackgroundTasks,
         phone: Annotated[str | None, Query(description='手机号')] = None,
@@ -75,7 +75,7 @@ async def k10_get_captcha(
     summary='用户登录',
     dependencies=[Depends(RateLimiter(times=5, minutes=1))],
 )
-async def k10_login(
+async def k11_login(
         db: CurrentSessionTransaction,
         response: Response,
         obj: AuthLoginParam,
@@ -89,7 +89,7 @@ async def k10_login(
     '/refresh',
     summary='刷新 token'
 )
-async def k10_refresh_token(
+async def k11_refresh_token(
         db: CurrentSession,
         refresh_token: Annotated[str, Query(description='刷新 token')],
 ) -> ResponseSchemaModel[GetNewToken]:
@@ -101,7 +101,7 @@ async def k10_refresh_token(
     '/logout',
     summary='用户登出'
 )
-async def k10_logout(
+async def k11_logout(
         request: Request
 ) -> ResponseModel:
     await auth_service.logout(request=request)

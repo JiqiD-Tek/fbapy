@@ -53,8 +53,8 @@ services:
     container_name: fba_rabbitmq
     restart: always
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - ${DATA_ROOT}/rabbitmq:/var/lib/rabbitmq
     networks:
@@ -207,7 +207,7 @@ services:
       - fba-network
 
   fba_server:
-    image: fbapy:latest
+    image: fba_server:latest
     container_name: fba_server
     restart: unless-stopped
     cpus: 1.0

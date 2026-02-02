@@ -109,7 +109,7 @@ main() {
     # 2. 构建新镜像
     log_info "步骤 2: 构建 Docker 镜像..."
     cd "$PROJECT_DIR"
-    local IMAGE_NAME="fbapy"
+    local IMAGE_NAME="fba_server"
     DOCKER_BUILDKIT=1 docker build -f Dockerfile -t "${IMAGE_NAME}:${IMAGE_VERSION}" .
     log_success "镜像构建完成: ${IMAGE_NAME}:${IMAGE_VERSION}"
 
