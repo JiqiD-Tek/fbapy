@@ -57,7 +57,7 @@ COPY deploy/backend/supervisor/fba_server.conf /etc/supervisor/conf.d/
 
 RUN mkdir -p /var/log/fba
 
-EXPOSE 8000
+EXPOSE 8001
 
 CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf"]
 

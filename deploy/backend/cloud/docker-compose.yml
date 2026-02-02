@@ -216,9 +216,6 @@ services:
       - .env.server:/fbapy/backend/.env:ro
       - ${DATA_ROOT}/fbapy/log:/var/log/fba
       - /etc/localtime:/etc/localtime:ro
-    depends_on:
-      - fba_mysql
-      - fba_redis
     ports:
       - "${DOCKER_MAP_FBA_PORT:-8001}:8001"
     command: >
