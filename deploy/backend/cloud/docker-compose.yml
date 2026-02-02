@@ -220,7 +220,7 @@ services:
       - fba_mysql
       - fba_redis
     ports:
-      - "${DOCKER_MAP_FBA_PORT:-8000}:8000"
+      - "${DOCKER_MAP_FBA_PORT:-8001}:8001"
     command: >
       supervisord -n -c /etc/supervisor/supervisord.conf
     networks:
