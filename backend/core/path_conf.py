@@ -25,10 +25,13 @@ UPLOAD_DIR = STATIC_DIR / 'upload'
 PLUGIN_DIR = BASE_PATH / 'plugin'
 
 # 国际化文件目录
-LOCALE_DIR = BASE_PATH / '_locale' / 'langs'
+LOCALE_DIR = BASE_PATH / 'locale'
 
 # MySQL 脚本目录
 MYSQL_SCRIPT_DIR = BASE_PATH / 'sql' / 'mysql'
 
 # PostgreSQL 脚本目录
 POSTGRESQL_SCRIPT_DIR = BASE_PATH / 'sql' / 'postgresql'
+
+# 热重载锁文件
+RELOAD_LOCK_FILE = BASE_PATH / '.reload.lock'

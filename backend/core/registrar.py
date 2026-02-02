@@ -17,6 +17,8 @@ from starlette_context.middleware import ContextMiddleware
 from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
+from backend.common.cache.pubsub import cache_pubsub_manager
+from backend.common.cache.warmup import cache_warmup
 from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_custom_logfile, setup_logging
 from backend.common.mqtt_broker import init_mqtt, close_mqtt
@@ -67,6 +69,12 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 创建操作日志任务
     create_task(OperaLogMiddleware.consumer())
 
+    # 缓存预热
+    await cache_warmup()
+
+    # 启动缓存 Pub/Sub 监听器
+    cache_pubsub_manager.start_listener()
+
     # 初始化mqtt连接
     await init_mqtt()
 
@@ -74,6 +82,9 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 关闭 mqtt 连接
     await close_mqtt()
+
+    # 停止缓存 Pub/Sub 监听器
+    await cache_pubsub_manager.stop_listener()
 
     # 释放 snowflake 节点
     await snowflake.shutdown()

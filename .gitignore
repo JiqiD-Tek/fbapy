@@ -30,3 +30,6 @@ celerybeat-schedule.*
 *.xlsx
 *.pdf
 *.docx
+.serena/
+.agents/
+

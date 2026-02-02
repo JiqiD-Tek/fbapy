@@ -1,13 +1,14 @@
 import shutil
 
-from functools import lru_cache
+from functools import cache
 from re import Pattern
 from typing import Any, Literal
 
 from pydantic import model_validator, SecretStr
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from backend.core.path_conf import ENV_EXAMPLE_FILE_PATH, ENV_FILE_PATH
+from backend.plugin.settings_source import PluginSettingsSource
 
 
 class Settings(BaseSettings):
@@ -16,9 +17,21 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=ENV_FILE_PATH,
         env_file_encoding='utf-8',
-        extra='ignore',
+        extra='allow',
         case_sensitive=True,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """自定义配置源优先级"""
+        return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
 
     # .env 当前环境
     ENVIRONMENT: Literal['dev', 'prod']
@@ -54,6 +67,17 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_TIMEOUT: int = 5
+
+    # 缓存
+    CACHE_LOCAL_ENABLED: bool = True
+    CACHE_LOCAL_MAXSIZE: int = 100000
+    CACHE_LOCAL_TTL: int = 60 * 60 * 2  # 2 小时
+    CACHE_REDIS_TTL: int = 60 * 60 * 2  # 2 小时
+    CACHE_CONFIG_REDIS_PREFIX: str = 'fba:cache:config'
+    CACHE_DICT_REDIS_PREFIX: str = 'fba:cache:dict'
+    CACHE_PUBSUB_CHANNEL: str = 'fba:cache:invalidate'
+    CACHE_PUBSUB_RECONNECT_DELAY: int = 5  # 重连延迟（秒）
+    CACHE_PUBSUB_MAX_RECONNECT_ATTEMPTS: int = 10  # 最大重连次数
 
     # .env Snowflake
     SNOWFLAKE_DATACENTER_ID: int | None = None
@@ -128,7 +152,7 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ALLOWED_ORIGINS: list[str] = [  # 末尾不带斜杠
-        'http://127.0.0.1:8000',
+        'http://127.0.0.1',
         'http://localhost:5173',
     ]
     CORS_EXPOSE_HEADERS: list[str] = [
@@ -204,6 +228,7 @@ class Settings(BaseSettings):
         'new_password',
         'confirm_password',
     ]
+    OPERA_LOG_QUEUE_MAXSIZE: int = 100000
     OPERA_LOG_QUEUE_BATCH_CONSUME_SIZE: int = 100
     OPERA_LOG_QUEUE_TIMEOUT: int = 60  # 1 分钟
 
@@ -243,7 +268,7 @@ class Settings(BaseSettings):
     ##################################################
     # [ Plugin ] code_generator
     ##################################################
-    CODE_GENERATOR_DOWNLOAD_ZIP_FILENAME: str = 'fba_generator'
+    CODE_GENERATOR_DOWNLOAD_ZIP_FILENAME: str
 
     ##################################################
     # [ Plugin ] oauth2
@@ -254,13 +279,13 @@ class Settings(BaseSettings):
     OAUTH2_GOOGLE_CLIENT_ID: str
     OAUTH2_GOOGLE_CLIENT_SECRET: str
 
-    # 基础配置
-    OAUTH2_STATE_REDIS_PREFIX: str = 'fba:oauth2:state'
-    OAUTH2_STATE_EXPIRE_SECONDS: int = 60 * 3  # 3 分钟
-    OAUTH2_GITHUB_REDIRECT_URI: str = 'http://127.0.0.1:8000/api/v1/oauth2/github/callback'
-    OAUTH2_GOOGLE_REDIRECT_URI: str = 'http://127.0.0.1:8000/api/v1/oauth2/google/callback'
-    OAUTH2_FRONTEND_LOGIN_REDIRECT_URI: str = 'http://localhost:5173/oauth2/callback'
-    OAUTH2_FRONTEND_BINDING_REDIRECT_URI: str = 'http://localhost:5173/profile'
+    # 基础配置（in plugin.toml）
+    OAUTH2_STATE_REDIS_PREFIX: str
+    OAUTH2_STATE_EXPIRE_SECONDS: int
+    OAUTH2_GITHUB_REDIRECT_URI: str
+    OAUTH2_GOOGLE_REDIRECT_URI: str
+    OAUTH2_FRONTEND_LOGIN_REDIRECT_URI: str
+    OAUTH2_FRONTEND_BINDING_REDIRECT_URI: str
 
     ##################################################
     # [ Plugin ] email
@@ -269,12 +294,12 @@ class Settings(BaseSettings):
     EMAIL_USERNAME: str
     EMAIL_PASSWORD: str
 
-    # 基础配置
-    EMAIL_HOST: str = 'smtp.exmail.qq.com'
-    EMAIL_PORT: int = 465
-    EMAIL_SSL: bool = True
-    EMAIL_CAPTCHA_REDIS_PREFIX: str = 'fba:email:captcha'
-    EMAIL_CAPTCHA_EXPIRE_SECONDS: int = 60 * 3  # 3 分钟
+    # 基础配置（in plugin.toml）
+    EMAIL_HOST: str
+    EMAIL_PORT: int
+    EMAIL_SSL: bool
+    EMAIL_CAPTCHA_REDIS_PREFIX: str
+    EMAIL_CAPTCHA_EXPIRE_SECONDS: int
 
     # 脱敏密钥
     ENCRYPT_SECRET_KEY: str = ''  # AES-256
@@ -371,7 +396,7 @@ class Settings(BaseSettings):
         return values
 
 
-@lru_cache
+@cache
 def get_settings() -> Settings:
     """获取全局配置单例"""
     if not ENV_FILE_PATH.exists():

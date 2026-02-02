@@ -19,7 +19,7 @@ from rich.table import Table
 from rich.text import Text
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
-from watchfiles import PythonFilter
+from watchfiles import Change, PythonFilter
 
 from backend import __version__
 from backend.common.enums import DataBaseType, PrimaryKeyType
@@ -27,10 +27,12 @@ from backend.common.exception.errors import BaseExceptionError
 from backend.common.model import MappedBase
 from backend.core.conf import settings
 from backend.core.path_conf import (
+    BASE_PATH,
     ENV_EXAMPLE_FILE_PATH,
     ENV_FILE_PATH,
     MYSQL_SCRIPT_DIR,
     POSTGRESQL_SCRIPT_DIR,
+    RELOAD_LOCK_FILE,
 )
 from backend.database.db import (
     async_db_session,
@@ -53,6 +55,11 @@ class CustomReloadFilter(PythonFilter):
 
     def __init__(self) -> None:
         super().__init__(extra_extensions=['.json', '.yaml', '.yml'])
+
+    def __call__(self, change: Change, path: str) -> bool:
+        if RELOAD_LOCK_FILE.exists():
+            return False
+        return super().__call__(change, path)
 
 
 def setup_env_file() -> bool:
@@ -338,6 +345,9 @@ async def install_plugin(
     db_type: DataBaseType,
     pk_type: PrimaryKeyType,
 ) -> None:
+    if settings.ENVIRONMENT != 'dev':
+        raise cappa.Exit('插件安装仅在开发环境可用', code=1)
+
     if not path and not repo_url:
         raise cappa.Exit('path 或 repo_url 必须指定其中一项', code=1)
     if path and repo_url:
@@ -403,6 +413,9 @@ async def import_table(
     table_schema: str,
     table_name: str,
 ) -> None:
+    if settings.ENVIRONMENT != 'dev':
+        raise cappa.Exit('代码生成仅在开发环境可用', code=1)
+
     from backend.plugin.code_generator.schema.gen import ImportParam
     from backend.plugin.code_generator.service.gen_service import gen_service
 
@@ -416,7 +429,10 @@ async def import_table(
         raise cappa.Exit(e.msg if isinstance(e, BaseExceptionError) else str(e), code=1)
 
 
-async def generate() -> None:
+async def generate(*, preview: bool = False) -> None:
+    if settings.ENVIRONMENT != 'dev':
+        raise cappa.Exit('代码生成仅在开发环境可用', code=1)
+
     from backend.plugin.code_generator.service.business_service import gen_business_service
     from backend.plugin.code_generator.service.gen_service import gen_service
 
@@ -446,13 +462,47 @@ async def generate() -> None:
         console.print(table)
         business = IntPrompt.ask('请从中选择一个业务编号', choices=[str(id_) for id_ in ids])
 
-        async with async_db_session.begin() as db:
-            gen_path = await gen_service.generate(db=db, pk=business)
+        # 预览
+        async with async_db_session() as db:
+            preview_data = await gen_service.preview(db=db, pk=business)
+
+        console.print('\n[bold yellow]将要生成以下文件：[/]')
+        file_table = Table(show_header=True, header_style='bold cyan')
+        file_table.add_column('文件路径', style='white')
+        file_table.add_column('大小', style='green', justify='right')
+
+        for filepath, content in sorted(preview_data.items()):
+            size = len(content)
+            size_str = f'{size} B' if size < 1024 else f'{size / 1024:.1f} KB'
+            file_table.add_row(filepath, size_str)
+
+        console.print(file_table)
+
+        if preview:
+            console.print('\n[bold cyan]预览模式：未执行实际生成操作[/]')
+            return
+
+        # 生成
+        console.print('\n[bold red]警告：代码生成将进行磁盘文件（覆盖）写入，切勿在生产环境中使用！！！[/]')
+        ok = Prompt.ask('\n确认继续生成代码吗？', choices=['y', 'n'], default='n')
+
+        if ok.lower() == 'y':
+            async with async_db_session.begin() as db:
+                gen_path = await gen_service.generate(db=db, pk=business)
+
+            console.print('\n代码已生成完成', style='bold green')
+            console.print(Text('\n详情请查看：'), Text(str(gen_path), style='bold white'))
+
     except Exception as e:
         raise cappa.Exit(e.msg if isinstance(e, BaseExceptionError) else str(e), code=1)
 
-    console.print('\n代码已生成完成', style='bold green')
-    console.print(Text('\n详情请查看：'), Text(str(gen_path), style='bold magenta'))
+
+def run_alembic(*args: str) -> None:
+    """执行 alembic 命令"""
+    try:
+        subprocess.run(['alembic', *args], cwd=BASE_PATH, check=True)
+    except subprocess.CalledProcessError as e:
+        raise cappa.Exit('Alembic 命令执行失败', code=e.returncode)
 
 
 @cappa.command(help='初始化 fba 项目', default_long=True)
@@ -602,6 +652,10 @@ class Import:
 @cappa.command(name='codegen', help='代码生成（体验完整功能，请自行部署 fba vben 前端工程）', default_long=True)
 @dataclass
 class CodeGenerator:
+    preview: Annotated[
+        bool,
+        cappa.Arg(short='-p', default=False, help='仅预览将要生成的文件，不执行实际生成操作'),
+    ]
     subcmd: cappa.Subcommands[Import | None] = None
 
     def __post_init__(self) -> None:
@@ -611,7 +665,112 @@ class CodeGenerator:
             raise cappa.Exit('代码生成插件不存在，请先安装此插件')
 
     async def __call__(self) -> None:
-        await generate()
+        await generate(preview=self.preview)
+
+
+@cappa.command(help='生成数据库迁移文件', default_long=True)
+@dataclass
+class Revision:
+    autogenerate: Annotated[
+        bool,
+        cappa.Arg(default=True, help='自动检测模型变更并生成迁移脚本'),
+    ]
+    message: Annotated[
+        str,
+        cappa.Arg(short='-m', default='', help='迁移文件的描述信息'),
+    ]
+
+    def __call__(self) -> None:
+        args = ['revision']
+        if self.autogenerate:
+            args.append('--autogenerate')
+        if self.message:
+            args.extend(['-m', self.message])
+        run_alembic(*args)
+        console.print('迁移文件生成成功', style='bold green')
+
+
+@cappa.command(help='升级数据库到指定版本', default_long=True)
+@dataclass
+class Upgrade:
+    revision: Annotated[
+        str,
+        cappa.Arg(default='head', help='目标版本，默认为最新版本'),
+    ]
+
+    def __call__(self) -> None:
+        run_alembic('upgrade', self.revision)
+        console.print(f'数据库已升级到: {self.revision}', style='bold green')
+
+
+@cappa.command(help='降级数据库到指定版本', default_long=True)
+@dataclass
+class Downgrade:
+    revision: Annotated[
+        str,
+        cappa.Arg(default='-1', help='目标版本，默认回退一个版本'),
+    ]
+
+    def __call__(self) -> None:
+        run_alembic('downgrade', self.revision)
+        console.print(f'数据库已降级到: {self.revision}', style='bold green')
+
+
+@cappa.command(help='显示数据库当前迁移版本')
+@dataclass
+class Current:
+    verbose: Annotated[
+        bool,
+        cappa.Arg(short='-v', default=False, help='显示详细信息'),
+    ]
+
+    def __call__(self) -> None:
+        args = ['current']
+        if self.verbose:
+            args.append('-v')
+        run_alembic(*args)
+
+
+@cappa.command(help='显示迁移历史记录', default_long=True)
+@dataclass
+class History:
+    verbose: Annotated[
+        bool,
+        cappa.Arg(short='-v', default=False, help='显示详细信息'),
+    ]
+    range: Annotated[
+        str,
+        cappa.Arg(short='-r', default='', help='显示指定范围的历史，例如 -r base:head'),
+    ]
+
+    def __call__(self) -> None:
+        args = ['history']
+        if self.verbose:
+            args.append('-v')
+        if self.range:
+            args.extend(['-r', self.range])
+        run_alembic(*args)
+
+
+@cappa.command(help='显示所有头版本')
+@dataclass
+class Heads:
+    verbose: Annotated[
+        bool,
+        cappa.Arg(short='-v', default=False, help='显示详细信息'),
+    ]
+
+    def __call__(self) -> None:
+        args = ['heads']
+        if self.verbose:
+            args.append('-v')
+        run_alembic(*args)
+
+
+@cappa.command(help='数据库迁移管理')
+@dataclass
+class Alembic:
+    subcmd: cappa.Subcommands[Revision | Upgrade | Downgrade | Current | History | Heads]
 
 
 @cappa.command(help='一个高效的 fba 命令行界面', default_long=True)
@@ -621,7 +780,7 @@ class FbaCli:
         str,
         cappa.Arg(value_name='PATH', default='', show_default=False, help='在事务中执行 SQL 脚本'),
     ]
-    subcmd: cappa.Subcommands[Init | Run | Celery | Add | CodeGenerator | None] = None
+    subcmd: cappa.Subcommands[Init | Run | Add | Alembic | Celery | CodeGenerator | None] = None
 
     async def __call__(self) -> None:
         if self.sql:
