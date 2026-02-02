@@ -34,11 +34,7 @@ services:
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_REDIS_PORT:-6379}:6379"
-    command: >
-      redis-server
-      --requirepass ${REDIS_PASSWORD}
-      --appendonly yes
-      --bind 0.0.0.0
+    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
     volumes:
       - ${DATA_ROOT}/redis/data:/data
     networks:
