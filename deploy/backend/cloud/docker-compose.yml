@@ -34,7 +34,11 @@ services:
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_REDIS_PORT:-6379}:6379"
-    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --appendonly yes
+      --bind 0.0.0.0
     volumes:
       - ${DATA_ROOT}/redis/data:/data
     networks:
@@ -209,8 +213,8 @@ services:
     cpus: 1.0
     mem_limit: 2048m
     volumes:
-      - .env.server:/fbapy/backend/.env:ro
-      - ${DATA_ROOT}/fbapy/log:/var/log/fba
+      - .env.server:/fba/backend/.env:ro
+      - ${DATA_ROOT}/fba/log:/var/log/fba
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "${DOCKER_MAP_FBA_PORT:-8001}:8001"
