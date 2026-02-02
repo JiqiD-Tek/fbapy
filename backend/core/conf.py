@@ -316,11 +316,6 @@ class Settings(BaseSettings):
         "$share/group/K10/+/up/ack",
     ]
 
-    # QQ音乐
-    QQ_MUSIC_URL: str = "https://test.szhkeji.com/rpc_proxy/music_open_api"
-    QQ_MUSIC_APPID: str = ""
-    QQ_MUSIC_APPKEY: str = ""
-
     # 大模型
     SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[stt, tts]类型  azure  coze
     SPEECH_ENCODING: Literal["wav", "mp3"] = "wav"  # 语音编码格式

@@ -128,7 +128,7 @@ services:
     depends_on:
       - fba_loki
     volumes:
-      - ./grafana/fba_prometheus.yml:/workspace/fba_prometheus.yml
+      - ../grafana/fba_prometheus.yml:/workspace/fba_prometheus.yml
       - ${DATA_ROOT}/prometheus:/prometheus
     networks:
       - fba-network
@@ -148,7 +148,7 @@ services:
     depends_on:
       - fba_loki
     volumes:
-      - ./grafana/fba_config.alloy:/etc/alloy/fba_config.alloy
+      - ../grafana/fba_config.alloy:/etc/alloy/fba_config.alloy
     networks:
       - fba-network
     command:
@@ -168,7 +168,7 @@ services:
     depends_on:
       - fba_loki
     volumes:
-      - ./grafana/fba_tempo.yml:/etc/tempo/fba_tempo.yml
+      - ../grafana/fba_tempo.yml:/etc/tempo/fba_tempo.yml
     networks:
       - fba-network
     command:
@@ -185,11 +185,11 @@ services:
       - fba_loki
       - fba_prometheus
     volumes:
-      - ./grafana/fba_grafana.ini:/etc/grafana/grafana.ini
-      - ./grafana/dashboards/fba_celery.json:/etc/grafana/dashboards/fba_celery.json
-      - ./grafana/dashboards/fba_server.json:/etc/grafana/dashboards/fba_server.json
-      - ./grafana/fba_dashboards.yml:/etc/grafana/provisioning/dashboards/fba_dashboards.yml
-      - ./grafana/fba_datasource.yml:/etc/grafana/provisioning/datasources/fba_datasource.yml
+      - ../grafana/fba_grafana.ini:/etc/grafana/grafana.ini
+      - ../grafana/dashboards/fba_celery.json:/etc/grafana/dashboards/fba_celery.json
+      - ../grafana/dashboards/fba_server.json:/etc/grafana/dashboards/fba_server.json
+      - ../grafana/fba_dashboards.yml:/etc/grafana/provisioning/dashboards/fba_dashboards.yml
+      - ../grafana/fba_datasource.yml:/etc/grafana/provisioning/datasources/fba_datasource.yml
     networks:
       - fba-network
 
@@ -216,6 +216,9 @@ services:
       - .env.server:/fbapy/backend/.env:ro
       - ${DATA_ROOT}/fbapy/log:/var/log/fba
       - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - fba_mysql
+      - fba_redis
     ports:
       - "${DOCKER_MAP_FBA_PORT:-8000}:8000"
     command: >
