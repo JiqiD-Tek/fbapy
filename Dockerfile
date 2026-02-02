@@ -1,5 +1,5 @@
-# Select the image to build based on SERVER_TYPE, defaulting to fbapy, or docker-compose build args
-ARG SERVER_TYPE=fbapy
+# Select the image to build based on SERVER_TYPE, defaulting to fba_server, or docker-compose build args
+ARG SERVER_TYPE=fba_server
 
 # === Python environment from uv ===
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
@@ -10,9 +10,9 @@ RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debi
     && apt-get install -y --no-install-recommends gcc python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . /fbapy
+COPY . /fba
 
-WORKDIR /fbapy
+WORKDIR /fba
 
 # Configure uv environment
 ENV UV_COMPILE_BYTECODE=1 \
@@ -42,18 +42,18 @@ RUN mkdir -p /usr/local/bin \
 
 ENV PATH="/root/.local/bin/:$PATH"
 
-COPY --from=builder /fbapy /fbapy
+COPY --from=builder /fba /fba
 
 COPY --from=builder /usr/local /usr/local
 
 COPY deploy/backend/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 
-WORKDIR /fbapy/backend
+WORKDIR /fba/backend
 
 # === FastAPI server image ===
-FROM base_server AS fbapy
+FROM base_server AS fba_server
 
-COPY deploy/backend/supervisor/fbapy.conf /etc/supervisor/conf.d/
+COPY deploy/backend/supervisor/fba_server.conf /etc/supervisor/conf.d/
 
 RUN mkdir -p /var/log/fba
 
