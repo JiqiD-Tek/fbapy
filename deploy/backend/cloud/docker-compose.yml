@@ -200,7 +200,7 @@ services:
       - "${DOCKER_MAP_CELERY_EXPORTER_PORT:-9808}:9808"
     container_name: fba_celery_exporter
     environment:
-      - CE_BROKER_URL=amqp://guest:guest@fba_rabbitmq:5672//
+      - CE_BROKER_URL=amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@fba_rabbitmq:5672//
     depends_on:
       - fba_rabbitmq
     networks:
