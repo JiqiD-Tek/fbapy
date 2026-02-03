@@ -7,7 +7,7 @@ services:
   fba_mysql:
     image: mysql
     container_name: fba_mysql
-    restart: unless-stopped
+    restart: always
     cpus: 1.0
     mem_limit: 2048m
     ports:
@@ -29,9 +29,9 @@ services:
   fba_redis:
     image: redis
     container_name: fba_redis
-    restart: unless-stopped
+    restart: always
     cpus: 1.0
-    mem_limit: 1024m
+    mem_limit: 2048m
     ports:
       - "${DOCKER_MAP_REDIS_PORT:-6379}:6379"
     command: >
@@ -52,6 +52,8 @@ services:
       - "${DOCKER_MAP_RABBITMA_PORT:-5672}:5672"
     container_name: fba_rabbitmq
     restart: always
+    cpus: 1.0
+    mem_limit: 2048m
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -63,9 +65,9 @@ services:
   fba_emqx:
     image: emqx/emqx-enterprise:5.10.1-rc.2
     container_name: fba_emqx
-    restart: unless-stopped
-    cpus: 2.0
-    mem_limit: 4096m
+    restart: always
+    cpus: 1.0
+    mem_limit: 2048m
     environment:
       EMQX_NODE_NAME: ${EMQX_NODE_NAME}
       EMQX_LISTENERS__TCP__DEFAULT__BIND: 0.0.0.0:1883
@@ -90,7 +92,7 @@ services:
   fba_nginx:
     image: nginx:latest
     container_name: fba_nginx
-    restart: unless-stopped
+    restart: always
     cpus: 1.0
     mem_limit: 1024m
     ports:
@@ -112,6 +114,8 @@ services:
   fba_loki:
     image: grafana/loki:k289-533b1f0
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_LOKI_PORT:-3100}:3100"
     container_name: fba_loki
@@ -122,6 +126,8 @@ services:
   fba_prometheus:
     image: prom/prometheus:latest
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_PROMETHEUS_PORT:-9090}:9090"
     container_name: fba_prometheus
@@ -140,6 +146,8 @@ services:
   fba_alloy:
     image: grafana/alloy:latest
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_ALLOY_GRPC_PORT:-4317}:4317"
       - "${DOCKER_MAP_ALLOY_HTTP_PORT:-4318}:4318"
@@ -159,6 +167,8 @@ services:
   fba_tempo:
     image: grafana/tempo:latest
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_TEMPO_PORT:-3200}:3200"
     expose:
@@ -178,6 +188,8 @@ services:
   fba_grafana:
     image: grafana/grafana:nightly-ubuntu
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_GRAFANA_PORT:-3000}:3000"
     container_name: fba_grafana
@@ -196,6 +208,8 @@ services:
   fba_celery_exporter:
     image: danihodovic/celery-exporter:latest
     restart: always
+    cpus: 1.0
+    mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_CELERY_EXPORTER_PORT:-9808}:9808"
     container_name: fba_celery_exporter
@@ -209,7 +223,7 @@ services:
   fba_server:
     image: fba_server:latest
     container_name: fba_server
-    restart: unless-stopped
+    restart: always
     cpus: 1.0
     mem_limit: 2048m
     volumes:
