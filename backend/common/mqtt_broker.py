@@ -543,9 +543,8 @@ async def create_mqtt_config(client_id: Optional[str] = None) -> MQTTConfig:
     try:
         client_id = client_id or f"fbapy_{uuid.uuid4().hex}"
 
-        # 假设 settings.MQTT_JWT_SECRET 存在
         # 服务器端认证：使用 JWT 编码密码
-        password = jwt.encode(claims={"model": "K10"}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
+        password = jwt.encode(claims={}, key=settings.MQTT_JWT_SECRET, algorithm="HS256")
 
         return MQTTConfig(
             host=settings.MQTT_HOST,
