@@ -31,7 +31,10 @@ class CustomResponseCode(CustomCodeBase):
 class CustomErrorCode(CustomCodeBase):
     """自定义错误状态码"""
 
-    CAPTCHA_ERROR = (40001, 'error.captcha.error')
+    CAPTCHA_ERROR = (40001, 'error.captcha.error')  # 验证码错误
+    PHONE_EMAIL_NONE = (40002, 'error.phone.email.none')  # 手机邮箱不能同时为空
+    DEVICE_ILLEGAL = (40003, 'error.device.illegal')  # 非法 设备
+    DEVICE_QUOTA_NOT_ENOUGH = (40004, 'error.device.quota.not.enough')  # 配额不足
 
 
 @dataclasses.dataclass

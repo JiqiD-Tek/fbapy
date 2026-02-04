@@ -167,7 +167,7 @@ def register_exception(app: FastAPI) -> None:  # noqa: C901
         ctx.__request_custom_exception__ = content
         content.update(trace_id=get_request_trace_id())
         return MsgSpecJSONResponse(
-            status_code=_get_exception_code(exc.code),
+            status_code=StandardResponseCode.HTTP_200,  # 自定义异常，HTTP状态码：200
             content=content,
             background=exc.background,
         )

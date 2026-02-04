@@ -38,38 +38,39 @@ from backend.app.iot.model.user import User
 class AuthService:
     """认证服务类"""
 
-    async def _register_device(self, db: AsyncSession, obj: AuthLoginParam) -> Device:
+    @classmethod
+    async def _register_device(cls, db: AsyncSession, obj: AuthLoginParam) -> Device:
         valid = identity_verifier.verify(**obj.device.model_dump())
         if not valid:
-            raise errors.RequestError(msg=t('error.device.invalid'))
+            raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
 
         device = await device_dao.get_by_did(db, obj.device.did)
         if device is None:
-            device_param = CreateDeviceParam(
-                name="", hardware="", firmware="",
-                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did
+            device_param = CreateDeviceParam.model_construct(
+                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did, quota=36000
             )
             device = await device_dao.create(db, device_param)
 
         return device
 
-    async def _register_user(self, db: AsyncSession, obj: AuthLoginParam) -> User:
+    @classmethod
+    async def _register_user(cls, db: AsyncSession, obj: AuthLoginParam) -> User:
         # 邮箱、手机号 加密存储
-        phone = encryptor.encrypt(obj.phone)
-        email = encryptor.encrypt(obj.email)
+        # phone = encryptor.encrypt(obj.phone)
+        # email = encryptor.encrypt(obj.email)
+
+        phone = obj.phone
+        email = obj.email
 
         if phone:
             user = await user_dao.get_by_phone(db, phone)
         elif email:
             user = await user_dao.get_by_email(db, email)
         else:
-            raise errors.RequestError(msg=t('error.phone.email'))
+            raise errors.CustomError(error=CustomErrorCode.PHONE_EMAIL_NONE)
 
         if user is None:
-            user_param = CreateUserParam(
-                phone=phone, email=email, username='',
-                nickname=None, avatar=None, sex=None, birthday=None,
-            )
+            user_param = CreateUserParam.model_construct(phone=phone, email=email, username='')
             user = await user_dao.create(db, user_param)
 
         return user

@@ -20,6 +20,7 @@ from backend.app.iot.schema.device.device import (
 from backend.app.iot.schema.device.device_usage import CreateDeviceUsageParam, UsageStatus, UpdateDeviceUsageParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
+from backend.common.response.response_code import CustomErrorCode
 from backend.common.security.auth import identity_verifier
 from backend.utils.timezone import timezone
 
@@ -33,12 +34,12 @@ class DeviceService:
         # 1. 先结算历史使用，拿到最新余额
         quota = await self.end_usage(db, mac, did)
         if quota <= 0:
-            raise errors.AuthorizationError(msg="余额不足")
+            raise errors.CustomError(error=CustomErrorCode.DEVICE_QUOTA_NOT_ENOUGH)
 
         # 2. 计算本次可申请配额
         alloc_quota = min(quota, self.MAX_ALLOW_QUOTA)
         if alloc_quota <= 0:
-            raise errors.AuthorizationError(msg="可分配配额不足")
+            raise errors.CustomError(error=CustomErrorCode.DEVICE_QUOTA_NOT_ENOUGH)
 
         # 3. 创建使用记录
         now = timezone.now()
@@ -57,7 +58,7 @@ class DeviceService:
         # 1. 权限校验
         credentials = identity_verifier.derive_credentials(mac=mac)
         if did != credentials.get("did"):
-            raise errors.AuthorizationError(msg="权限不足")
+            raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
 
         # 2. 获取设备
         device = await self.get_by_did(db=db, did=did)

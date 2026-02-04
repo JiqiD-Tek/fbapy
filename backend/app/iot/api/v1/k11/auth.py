@@ -15,6 +15,7 @@ from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
 from backend.common.context import ctx
+from backend.common.response.response_code import CustomErrorCode
 from backend.common.security.auth import identity_verifier
 from backend.common.ali_sms import sms_client
 from backend.common.exception import errors
@@ -53,7 +54,7 @@ async def k11_get_captcha(
         content = {'code': code, 'expired': int(settings.LOGIN_CAPTCHA_EXPIRE_SECONDS / 60)}
         background_tasks.add_task(send_email, db, email, '验证码', content, 'captcha.html')
     else:
-        raise errors.NotFoundError(msg='请提供手机号或邮箱')
+        raise errors.CustomError(error=CustomErrorCode.PHONE_EMAIL_NONE)
     captcha_uuid = str(uuid.uuid4())
 
     await redis_client.set(
