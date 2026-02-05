@@ -26,7 +26,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 
 from backend.app.iot.schema.captcha import GetCaptchaDetail
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken
+from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
@@ -136,7 +136,7 @@ async def mqtt_login(
 async def coze_token(
         db: CurrentSessionTransaction,
         obj: DeviceAuthParam,
-) -> ResponseModel:
+) -> ResponseSchemaModel[CozeToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     config = {
@@ -152,14 +152,14 @@ async def coze_token(
     coze_oauth_app = load_oauth_app_from_config(config)
     oauth_token = coze_oauth_app.get_access_token(ttl=quota)
 
-    data = {
-        "token_type": oauth_token.token_type,
-        "access_token": oauth_token.access_token,
-        "expires_in": oauth_token.expires_in,
-        "ttl": quota,
-        "city": ctx.city,
-    }
-    return response_base.success(data=data)
+    token = CozeToken(
+        token_type=oauth_token.token_type,
+        access_token=oauth_token.access_token,
+        expires_in=oauth_token.expires_in,
+        ttl=quota,
+        city=ctx.city
+    )
+    return response_base.success(data=token)
 
 
 @router.post(
@@ -170,7 +170,7 @@ async def coze_token(
 async def livekit_token(
         db: CurrentSessionTransaction,
         obj: LivekitDeviceAuthParam,
-) -> ResponseModel:
+) -> ResponseSchemaModel[LivekitToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     token = api.AccessToken(
@@ -183,12 +183,13 @@ async def livekit_token(
         ttl=datetime.timedelta(seconds=quota)).with_grants(
         api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
     ).to_jwt()
-    data = {
-        "token": token,
-        "ttl": quota,
-        "city": ctx.city,
-    }
-    return response_base.success(data=data)
+
+    token = LivekitToken(
+        token=token,
+        ttl=quota,
+        city=ctx.city,
+    )
+    return response_base.success(data=token)
 
 
 @router.post(
@@ -199,17 +200,18 @@ async def livekit_token(
 async def fba_token(
         db: CurrentSessionTransaction,
         obj: DeviceAuthParam,
-) -> ResponseModel:
+) -> ResponseSchemaModel[LivekitToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     payload = dict(mac=obj.username, did=obj.password, ttl=quota)
     token = jwt_encode(payload=payload)
-    data = {
-        "token": token,
-        "ttl": quota,
-        "city": ctx.city,
-    }
-    return response_base.success(data=data)
+
+    token = LivekitToken(
+        token=token,
+        ttl=quota,
+        city=ctx.city,
+    )
+    return response_base.success(data=token)
 
 
 @router.post(

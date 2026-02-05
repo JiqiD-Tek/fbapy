@@ -26,3 +26,19 @@ class GetLoginToken(AccessTokenBase):
     """获取登录令牌"""
 
     user: GetUserInfoDetail = Field(description='用户信息')
+
+
+class CozeToken(SchemaBase):
+    """令牌"""
+    token_type: str = Field(description='令牌类型')
+    access_token: str = Field(description='访问令牌')
+    expires_in: int = Field(description='令牌过期时间')
+    ttl: int = Field(description='令牌剩余时间')
+    city: str = Field(description='城市')
+
+
+class LivekitToken(SchemaBase):
+    """令牌"""
+    token: str = Field(description='令牌')
+    ttl: int = Field(description='令牌剩余时间')
+    city: str = Field(description='城市')
