@@ -56,9 +56,10 @@ class MessagingService:
         return message["msg_id"]
 
     # ---------------- 业务方法 ----------------
-    async def send_request_log(self, store_url: str) -> str:
+    async def send_request_log(self, feedback_id: int, store_url: str) -> str:
         """ 下发指令让设备上报日志 """
         payload = {
+            "feedback_id": feedback_id,
             "store_url": store_url,
         }
         topic = f"{self.MODEL}/{self.did}/down/control"

@@ -19,12 +19,13 @@ class FeedbackSchemaBase(SchemaBase):
     user_id: int = Field(description='用户ID')
     did: str = Field(description='设备did')
 
-    name: Optional[str] = Field(None, description='反馈名称')
+    category: Optional[str] = Field(None, description='反馈类型')
+    content: Optional[str] = Field(None, description='反馈内容')
     pic_url: Optional[str] = Field(None, description='反馈图片地址')
     file_url: Optional[str] = Field(None, description='反馈文件地址')
-    content: Optional[str] = Field(None, description='反馈内容')
+    contact: Optional[str] = Field(None, description='联系方式')
     comment: Optional[str] = Field(None, description='处理备注')
-    status: Optional[int] = Field(default=0, description='状态(0初始化 1设备处理失败 2设备处理完成 3后台处理完成)')
+    status: Optional[int] = Field(default=0, description='状态(0：不需要日志上传 1：需要日志上传)')
 
 
 class CreateFeedbackParam(FeedbackSchemaBase):
@@ -34,9 +35,11 @@ class CreateFeedbackParam(FeedbackSchemaBase):
 class UpdateFeedbackParam(SchemaBase):
     """更新反馈参数"""
 
+    category: Optional[str] = Field(None, description='反馈类型')
+    content: Optional[str] = Field(None, description='反馈内容')
     pic_url: Optional[str] = Field(None, description='反馈图片地址')
     file_url: Optional[str] = Field(None, description='反馈文件地址')
-    content: Optional[str] = Field(None, description='反馈内容')
+    contact: Optional[str] = Field(None, description='联系方式')
 
 
 class DeleteFeedbackParam(SchemaBase):

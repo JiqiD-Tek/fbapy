@@ -64,13 +64,14 @@ async def create_feedback(
         obj: CreateFeedbackParam,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
-    if obj.status == 0:
+    if obj.status == 1:  # 需要上传日志
         obj.file_url = StorageService(did=obj.did).image_feedback()
 
     feedback = await feedback_service.create(db=db, obj=obj)
 
-    messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
-    await messaging_service.send_request_log(store_url=obj.file_url)
+    if obj.status == 1:
+        messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
+        await messaging_service.send_request_log(feedback_id=feedback.id, store_url=obj.file_url)
 
     return response_base.success(data=feedback)
 
