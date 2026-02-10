@@ -112,7 +112,7 @@ async def k11_logout(
 @router.post(
     '/mqtt_login',
     summary='mqtt登录',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
 )
 async def mqtt_login(
         request: Request,
@@ -131,7 +131,7 @@ async def mqtt_login(
 @router.get(
     '/current_location',
     summary='获取当前位置信息',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
 )
 async def current_location(
 ) -> ResponseSchemaModel[CurrentLocation]:
@@ -147,7 +147,7 @@ async def current_location(
 @router.post(
     '/coze_token',
     summary='Coze 授权',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
 )
 async def coze_token(
         db: CurrentSessionTransaction,
@@ -180,7 +180,7 @@ async def coze_token(
 @router.post(
     '/livekit_token',
     summary='livekit 授权',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
 )
 async def livekit_token(
         db: CurrentSessionTransaction,

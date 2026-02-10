@@ -49,4 +49,3 @@ class LivekitToken(SchemaBase):
     """令牌"""
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
-    city: str = Field(description='城市')
