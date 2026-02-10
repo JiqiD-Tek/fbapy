@@ -28,6 +28,14 @@ class GetLoginToken(AccessTokenBase):
     user: GetUserInfoDetail = Field(description='用户信息')
 
 
+class CurrentLocation(SchemaBase):
+    """获取登录令牌"""
+    ip: str = Field(description='IP 地址')
+    country: str = Field(description='国家')
+    region: str = Field(description='地区')
+    city: str = Field(description='城市')
+
+
 class CozeToken(SchemaBase):
     """令牌"""
     token_type: str = Field(description='令牌类型')

@@ -26,7 +26,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 
 from backend.app.iot.schema.captcha import GetCaptchaDetail
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken
+from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
@@ -128,6 +128,22 @@ async def mqtt_login(
     }
 
 
+@router.get(
+    '/current_location',
+    summary='获取当前位置信息',
+    dependencies=[DependsJwtAuth],
+)
+async def current_location(
+) -> ResponseSchemaModel[CurrentLocation]:
+    location = CurrentLocation(
+        city=ctx.city,
+        country=ctx.country,
+        region=ctx.region,
+        ip=ctx.ip,
+    )
+    return response_base.success(data=location)
+
+
 @router.post(
     '/coze_token',
     summary='Coze 授权',
@@ -157,7 +173,6 @@ async def coze_token(
         access_token=oauth_token.access_token,
         expires_in=oauth_token.expires_in,
         ttl=quota,
-        city=ctx.city
     )
     return response_base.success(data=token)
 
@@ -187,7 +202,6 @@ async def livekit_token(
     token = LivekitToken(
         token=token,
         ttl=quota,
-        city=ctx.city,
     )
     return response_base.success(data=token)
 
@@ -209,7 +223,6 @@ async def fba_token(
     token = LivekitToken(
         token=token,
         ttl=quota,
-        city=ctx.city,
     )
     return response_base.success(data=token)
 

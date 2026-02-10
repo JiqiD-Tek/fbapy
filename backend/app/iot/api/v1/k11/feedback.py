@@ -6,8 +6,8 @@
 @Date    : 2025/11/25 11:21
 """
 
-from typing import Annotated
-from fastapi import APIRouter, Path, Query, Depends
+from typing import Annotated, Optional
+from fastapi import APIRouter, Path, Query, Depends, Body
 
 from backend.common.mqtt_broker import get_mqtt, MQTTBroker
 from backend.common.pagination import DependsPagination, PageData
@@ -61,17 +61,30 @@ async def get_feedback_paginated(
 )
 async def create_feedback(
         db: CurrentSessionTransaction,
-        obj: CreateFeedbackParam,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
-) -> ResponseSchemaModel[GetFeedbackDetail]:
-    if obj.status == 1:  # 需要上传日志
-        obj.file_url = StorageService(did=obj.did).image_feedback()
+        user_id: int = Body(..., description='用户ID'),
+        did: str = Body(..., description='设备did'),
+        status: int = Body(default=0, description='状态(0：不需要日志上传 1：需要日志上传)'),
+        category: Optional[str] = Body(None, description='反馈类型'),
+        content: Optional[str] = Body(None, description='反馈内容'),
+        pic_url: Optional[str] = Body(None, description='反馈图片地址'),
+        file_url: Optional[str] = Body(None, description='反馈文件地址'),
+        contact: Optional[str] = Body(None, description='联系方式'),
+        comment: Optional[str] = Body(None, description='处理备注'),
 
+) -> ResponseSchemaModel[GetFeedbackDetail]:
+    if status == 1:  # 需要上传日志
+        file_url = StorageService(did=did).image_feedback()
+
+    obj = CreateFeedbackParam(
+        user_id=user_id, did=did, category=category, content=content, pic_url=pic_url,
+        file_url=file_url, contact=contact, comment=comment, status=status,
+    )
     feedback = await feedback_service.create(db=db, obj=obj)
 
-    if obj.status == 1:
-        messaging_service = MessagingService(mqtt_client=mqtt_client, did=obj.did)
-        await messaging_service.send_request_log(feedback_id=feedback.id, store_url=obj.file_url)
+    if status == 1:
+        messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
+        await messaging_service.send_request_log(feedback_id=feedback.id, store_url=file_url)
 
     return response_base.success(data=feedback)
 
