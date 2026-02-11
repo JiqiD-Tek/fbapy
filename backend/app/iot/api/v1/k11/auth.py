@@ -26,7 +26,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 
 from backend.app.iot.schema.captcha import GetCaptchaDetail
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation
+from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation, FbaToken
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
@@ -200,6 +200,7 @@ async def livekit_token(
     ).to_jwt()
 
     token = LivekitToken(
+        url=settings.LIVEKIT_URL,
         token=token,
         ttl=quota,
     )
@@ -214,13 +215,13 @@ async def livekit_token(
 async def fba_token(
         db: CurrentSessionTransaction,
         obj: DeviceAuthParam,
-) -> ResponseSchemaModel[LivekitToken]:
+) -> ResponseSchemaModel[FbaToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     payload = dict(mac=obj.username, did=obj.password, ttl=quota)
     token = jwt_encode(payload=payload)
 
-    token = LivekitToken(
+    token = FbaToken(
         token=token,
         ttl=quota,
     )
