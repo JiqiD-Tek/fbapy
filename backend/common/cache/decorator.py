@@ -3,7 +3,6 @@ import functools
 from collections.abc import Callable, Sequence
 from typing import Any, ParamSpec, TypeVar
 
-from cachebox import make_hash_key
 from msgspec import json
 
 from backend.common.cache.local import local_cache_manager
@@ -18,11 +17,8 @@ from backend.utils.serializers import select_columns_serialize, select_list_seri
 P = ParamSpec('P')
 T = TypeVar('T')
 
-# 哈希缓存键排除参数
-_EXCLUDE_PARAMS = frozenset({'db', 'session', 'self', 'cls', 'request', 'response'})
 
-
-def build_cache_key(
+def _build_cache_key(
     name: str,
     key: str | None,
     key_builder: Callable[..., str] | None,
@@ -30,30 +26,33 @@ def build_cache_key(
     **kwargs: Any,
 ) -> str:
     """构建缓存 Key"""
+    if key:
+        if '.' in key:
+            param, field = key.split('.', 1)
+            value = kwargs.get(param)
+            if value is None:
+                raise errors.ServerError(msg=f'缓存键构建失败，参数 "{param}" 不存在或值为空')
+
+            if isinstance(value, list):
+                raise errors.ServerError(msg='缓存键构建失败：不支持从列表中提取字段，请使用 key_builder 处理列表参数')
+
+            if hasattr(value, field):
+                value = getattr(value, field)
+            elif isinstance(value, dict) and field in value:
+                value = value[field]
+            else:
+                raise errors.ServerError(msg=f'缓存键构建失败，对象中不存在字段 "{field}"')
+        else:
+            value = kwargs.get(key)
+            if value is None:
+                raise errors.ServerError(msg=f'缓存键构建失败，参数 "{key}" 不存在或值为空')
+
+        return f'{name}:{value}'
+
     if key_builder:
         return f'{name}:{key_builder(*args, **kwargs)}'
 
-    if key:
-        value = kwargs.get(key)
-        if value is None:
-            raise errors.ServerError(msg=f'缓存键构建失败，参数 "{key}" 不存在或值为空')
-        return f'{name}:{value}'
-
-    filtered = {k: v for k, v in kwargs.items() if k not in _EXCLUDE_PARAMS and v is not None}
-
-    if filtered:
-        hash_suffix = make_hash_key(*args, **kwargs)
-        return f'{name}:{hash_suffix}'
-
     return name
-
-
-def user_key_builder() -> str:
-    """基于当前用户 ID 生成缓存 Key"""
-    user_id = ctx.user_id
-    if user_id is None:
-        raise errors.ServerError(msg='用户缓存键构建失败')
-    return str(user_id)
 
 
 def _serialize_result(result: Any) -> bytes:
@@ -93,6 +92,14 @@ def _deserialize_result(value: bytes) -> Any:
         return value
 
 
+def user_key_builder() -> str:
+    """基于当前用户 ID 生成缓存 Key"""
+    user_id = ctx.user_id
+    if user_id is None:
+        raise errors.ServerError(msg='用户缓存键构建失败')
+    return str(user_id)
+
+
 def cached(  # noqa: C901
     name: str,
     *,
@@ -113,7 +120,7 @@ def cached(  # noqa: C901
     def decorator(func: Callable[P, T]) -> Callable[P, T]:  # noqa: C901
         @functools.wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            cache_key = build_cache_key(name, key, key_builder, *args, **kwargs)
+            cache_key = _build_cache_key(name, key, key_builder, *args, **kwargs)
 
             # L1: 本地缓存
             if settings.CACHE_LOCAL_ENABLED:
@@ -187,27 +194,27 @@ def cache_invalidate(  # noqa: C901
             invalidate_error = None
 
             try:
-                invalidate_key = build_cache_key(name, key, key_builder, *args, **kwargs)
-
-                # L2 缓存失效
-                if invalidate_key == name:
-                    await redis_client.delete(invalidate_key)
-                else:
-                    await redis_client.delete_prefix(invalidate_key)
+                invalidate_key = _build_cache_key(name, key, key_builder, *args, **kwargs)
 
                 # L1 缓存失效
                 if settings.CACHE_LOCAL_ENABLED:
                     if invalidate_key == name:
-                        local_cache_manager.delete(invalidate_key)
-                    else:
                         local_cache_manager.delete_prefix(invalidate_key)
+                    else:
+                        local_cache_manager.delete(invalidate_key)
 
                 # 广播失效消息（通知其他节点清除本地缓存）
                 if settings.CACHE_LOCAL_ENABLED:
                     if invalidate_key == name:
-                        await cache_pubsub_manager.publish_invalidation(invalidate_key)
-                    else:
                         await cache_pubsub_manager.publish_invalidation(invalidate_key, is_delete_prefix=True)
+                    else:
+                        await cache_pubsub_manager.publish_invalidation(invalidate_key)
+
+                # L2 缓存失效
+                if invalidate_key == name:
+                    await redis_client.delete_prefix(invalidate_key)
+                else:
+                    await redis_client.delete(invalidate_key)
 
             except Exception as e:
                 log.error(f'[Cache] INVALIDATE error: {e}')

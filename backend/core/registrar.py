@@ -17,7 +17,6 @@ from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
 from backend.common.cache.pubsub import cache_pubsub_manager
-from backend.common.cache.warmup import cache_warmup
 from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_custom_logfile, setup_logging
 from backend.common.mqtt_broker import init_mqtt, close_mqtt
@@ -33,7 +32,6 @@ from backend.middleware.opera_log_middleware import OperaLogMiddleware
 from backend.middleware.state_middleware import StateMiddleware
 from backend.plugin.core import build_final_router
 from backend.utils.demo_mode import demo_site
-from backend.utils.limiter import http_limit_callback
 from backend.utils.openapi import ensure_unique_route_names, simplify_operation_ids
 from backend.utils.otel import init_otel
 from backend.utils.serializers import MsgSpecJSONResponse
@@ -60,9 +58,6 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 创建操作日志任务
     create_task(OperaLogMiddleware.consumer())
-
-    # 缓存预热
-    await cache_warmup()
 
     # 启动缓存 Pub/Sub 监听器
     cache_pubsub_manager.start_listener()

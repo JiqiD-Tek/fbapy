@@ -30,4 +30,4 @@ celerybeat-schedule.*
 *.docx
 .serena/
 .agents/
-
+.logs/

@@ -10,10 +10,11 @@ import uuid
 import secrets
 from typing import Annotated
 from livekit import api
-from fastapi import APIRouter, Depends, Request, Response, Query
-from fastapi_limiter.depends import RateLimiter
-from starlette.background import BackgroundTasks
+from pyrate_limiter import Duration, Rate
 
+from fastapi import APIRouter, Depends, Request, Response, Query
+from starlette.background import BackgroundTasks
+from backend.utils.limiter import RateLimiter
 from backend.common.ali_sts import sts_client
 from backend.common.context import ctx
 from backend.common.response.response_code import CustomErrorCode
@@ -40,7 +41,7 @@ router = APIRouter()
 @router.get(
     '/captcha',
     summary='获取验证码',
-    dependencies=[Depends(RateLimiter(times=5, seconds=10))],
+    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_get_captcha(
         db: CurrentSession,
@@ -76,7 +77,7 @@ async def k11_get_captcha(
 @router.post(
     '/login',
     summary='用户登录',
-    dependencies=[Depends(RateLimiter(times=5, minutes=1))],
+    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_login(
         db: CurrentSessionTransaction,

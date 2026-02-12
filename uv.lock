@@ -1492,7 +1492,6 @@ dependencies = [
     { name = "dulwich" },
     { name = "fast-captcha" },
     { name = "fastapi", extra = ["standard-no-fastapi-cloud-cli"] },
-    { name = "fastapi-limiter" },
     { name = "fastapi-pagination" },
     { name = "flower" },
     { name = "gevent" },
@@ -1525,6 +1524,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pymysql" },
+    { name = "pyrate-limiter" },
     { name = "python-jose" },
     { name = "python-socketio" },
     { name = "redis", extra = ["hiredis"] },
@@ -1552,12 +1552,12 @@ server = [
 [package.metadata]
 requires-dist = [
     { name = "aiosmtplib", specifier = ">=5.0.0" },
-    { name = "alembic", specifier = ">=1.18.3" },
+    { name = "alembic", specifier = ">=1.18.4" },
     { name = "alibabacloud-dysmsapi20170525", specifier = ">=4.3.0" },
     { name = "alibabacloud-dysmsapi20180501", specifier = ">=1.0.10" },
     { name = "alibabacloud-oss-v2", specifier = ">=1.2.1" },
     { name = "alibabacloud-sts20150401", specifier = ">=1.2.0" },
-    { name = "asgiref", specifier = ">=3.11.0" },
+    { name = "asgiref", specifier = ">=3.11.1" },
     { name = "asyncmy", specifier = ">=0.2.11" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "authlib", specifier = ">=1.6.6" },
@@ -1574,12 +1574,11 @@ requires-dist = [
     { name = "docstring-parser", specifier = ">=0.17.0" },
     { name = "dulwich", specifier = ">=1.0.0" },
     { name = "fast-captcha", specifier = ">=0.3.2" },
-    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = ">=0.128.0" },
-    { name = "fastapi-limiter", specifier = ">=0.1.6" },
-    { name = "fastapi-pagination", specifier = ">=0.15.9" },
+    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = ">=0.128.7" },
+    { name = "fastapi-pagination", specifier = ">=0.15.10" },
     { name = "flower", specifier = ">=2.0.1" },
     { name = "gevent", specifier = ">=25.9.1" },
-    { name = "granian", specifier = ">=2.7.0" },
+    { name = "granian", specifier = ">=2.7.1" },
     { name = "httpx", extras = ["http2"], specifier = ">=0.28.1" },
     { name = "ip2loc", specifier = ">=1.0.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
@@ -1608,9 +1607,10 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pymysql", specifier = ">=1.1.2" },
+    { name = "pyrate-limiter", specifier = ">=4.0.2" },
     { name = "python-jose", specifier = ">=3.5.0" },
-    { name = "python-socketio", specifier = ">=5.16.0" },
-    { name = "redis", extras = ["hiredis"], specifier = ">=7.1.0" },
+    { name = "python-socketio", specifier = ">=5.16.1" },
+    { name = "redis", extras = ["hiredis"], specifier = ">=7.1.1" },
     { name = "rtoml", specifier = ">=0.13.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.46" },
     { name = "sqlalchemy-crud-plus", specifier = ">=1.13.1" },
@@ -1624,7 +1624,7 @@ dev = [
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
 ]
-lint = [{ name = "prek", specifier = ">=0.3.1" }]
+lint = [{ name = "prek", specifier = ">=0.3.2" }]
 server = [
     { name = "aio-pika", specifier = ">=9.5.8" },
     { name = "wait-for-it", specifier = ">=2.3.0" },
@@ -1648,19 +1648,6 @@ wheels = [
 [package.optional-dependencies]
 standard-no-fastapi-cloud-cli = [
     { name = "uvicorn", extra = ["standard"] },
-]
-
-[[package]]
-name = "fastapi-limiter"
-version = "0.2.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pyrate-limiter" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/b7/32/81f64b69a79345caca0a90d1601ae7c84c39438145793514ee82daac4fc6/fastapi_limiter-0.2.0.tar.gz", hash = "sha256:b042259f6280056b5b2b3f506edd76c8e0648d7a5ce86c3485216a4a0fd0ec14" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/c4/9b/35278a18254f187d55bb450ded6bc9a59c7b3010d164e1796f3dfb7aa73d/fastapi_limiter-0.2.0-py3-none-any.whl", hash = "sha256:e576ebb29cc9614c2f38471c60ed0e849024e9a1b7a2aeb4c2a31a6d708b4aea" },
 ]
 
 [[package]]
