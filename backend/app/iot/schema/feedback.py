@@ -16,7 +16,6 @@ from backend.common.schema import SchemaBase
 class FeedbackSchemaBase(SchemaBase):
     """反馈基础模型"""
 
-    user_id: int = Field(description='用户ID')
     did: str = Field(description='设备did')
 
     category: Optional[str] = Field(None, description='反馈类型')

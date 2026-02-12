@@ -2,7 +2,6 @@ from datetime import datetime
 
 from pydantic import Field
 
-from backend.common.enums import StatusType
 from backend.common.schema import SchemaBase
 
 from backend.app.iot.schema.user import GetUserInfoDetail
@@ -42,7 +41,6 @@ class CozeToken(SchemaBase):
     access_token: str = Field(description='访问令牌')
     expires_in: int = Field(description='令牌过期时间')
     ttl: int = Field(description='令牌剩余时间')
-    city: str = Field(description='城市')
 
 
 class LivekitToken(SchemaBase):
@@ -56,3 +54,12 @@ class FbaToken(SchemaBase):
     """令牌"""
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
+
+
+class StsToken(SchemaBase):
+    """令牌
+    """
+    access_key_id: str = Field(description='key')
+    access_key_secret: str = Field(description='秘钥')
+    security_token: str = Field(description='令牌')
+    expiration: str = Field(description='失效时间')

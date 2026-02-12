@@ -41,14 +41,17 @@ class AliOSSClient:
             bucket: str,
             region: str = "cn-hangzhou"
     ):
+        self.access_key_id = access_key_id
+        self.access_key_secret = access_key_secret
+
         self.bucket = bucket
         self.region = region
 
-        provider = StaticCredentialProvider(access_key_id, access_key_secret)
+        self.provider = StaticCredentialProvider(access_key_id, access_key_secret)
 
         cfg = oss.config.Config(
             region=self.region,
-            credentials_provider=provider,
+            credentials_provider=self.provider,
             connect_timeout=5_000,  # ms
         )
 

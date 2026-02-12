@@ -20,7 +20,6 @@ class Feedback(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     did: Mapped[str] = mapped_column(sa.BigInteger, comment='设备did')
-    user_id: Mapped[int] = mapped_column(sa.BigInteger, comment='用户ID')
 
     category: Mapped[str | None] = mapped_column(sa.String(256), comment='反馈类型')
     content: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='反馈内容')

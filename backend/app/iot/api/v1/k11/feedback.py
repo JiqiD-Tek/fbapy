@@ -45,24 +45,20 @@ async def get_feedback_paginated(
         db: CurrentSession,
         name: Annotated[str | None, Query(description='名称')] = None,
         did: Annotated[str | None, Query(description='设备did')] = None,
-        user_id: Annotated[int | None, Query(description='用户ID')] = None,
         status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetFeedbackDetail]]:
-    page_data = await feedback_service.get_list(db=db, name=name, did=did, user_id=user_id, status=status)
+    page_data = await feedback_service.get_list(db=db, name=name, did=did, status=status)
     return response_base.success(data=page_data)
 
 
 @router.post(
     '',
     summary='创建日志（设备主动上报日志反馈、云端主动拉取设备日志）',
-    dependencies=[
-        DependsJwtAuth,
-    ],
+    # dependencies=[DependsJwtAuth, ],
 )
 async def create_feedback(
         db: CurrentSessionTransaction,
         mqtt_client: MQTTBroker = Depends(get_mqtt),
-        user_id: int = Body(..., description='用户ID'),
         did: str = Body(..., description='设备did'),
         status: int = Body(default=0, description='状态(0：不需要日志上传 1：需要日志上传)'),
         category: Optional[str] = Body(None, description='反馈类型'),
@@ -74,10 +70,10 @@ async def create_feedback(
 
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
     if status == 1:  # 需要上传日志
-        file_url = StorageService(did=did).image_feedback()
+        file_url = StorageService(did=did).log_feedback()
 
     obj = CreateFeedbackParam(
-        user_id=user_id, did=did, category=category, content=content, pic_url=pic_url,
+        did=did, category=category, content=content, pic_url=pic_url,
         file_url=file_url, contact=contact, comment=comment, status=status,
     )
     feedback = await feedback_service.create(db=db, obj=obj)
@@ -92,9 +88,7 @@ async def create_feedback(
 @router.put(
     '/{pk}',
     summary='更新日志',
-    dependencies=[
-        DependsJwtAuth,
-    ],
+    # dependencies=[DependsJwtAuth, ],
 )
 async def update_feedback(
         db: CurrentSessionTransaction,

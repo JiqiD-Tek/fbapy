@@ -20,7 +20,7 @@ dependencies = [
     # When celery version < 6.0.0
     # https://github.com/celery/celery/issues/7874
     "celery-aio-pool>=0.1.0rc8",
-    "cryptography>=46.0.4",
+    "cryptography>=44.0.3",
     "dulwich>=1.0.0",
     "fast-captcha>=0.3.2",
     "fastapi-limiter>=0.1.6",
@@ -63,6 +63,7 @@ dependencies = [
     "alibabacloud-dysmsapi20170525>=4.3.0",
     "alibabacloud-dysmsapi20180501>=1.0.10",
     "alibabacloud-oss-v2>=1.2.1",
+    "alibabacloud-sts20150401>=1.2.0",
     "paho-mqtt>=2.1.0",
     "cachetools>=6.2.2",
     "livekit>=1.0.23",

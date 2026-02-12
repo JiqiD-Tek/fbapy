@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Request, Response, Query
 from fastapi_limiter.depends import RateLimiter
 from starlette.background import BackgroundTasks
 
+from backend.common.ali_sts import sts_client
 from backend.common.context import ctx
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.security.auth import identity_verifier
@@ -26,7 +27,8 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 
 from backend.app.iot.schema.captcha import GetCaptchaDetail
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation, FbaToken
+from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation, FbaToken, \
+    StsToken
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
@@ -126,6 +128,25 @@ async def mqtt_login(
         "result": "allow",
         "is_superuser": False
     }
+
+
+@router.post(
+    '/sts_token',
+    summary='阿里云STS',
+    # dependencies=[DependsJwtAuth],
+)
+async def sts_token(
+        request: Request,
+        obj: DeviceAuthParam,
+) -> ResponseSchemaModel[StsToken]:
+    credentials = identity_verifier.derive_credentials(mac=obj.username)
+
+    data = None
+    if obj.password == credentials["did"]:
+        data = sts_client.assume_role()
+        data = StsToken(**data)
+
+    return response_base.success(data=data)
 
 
 @router.get(
