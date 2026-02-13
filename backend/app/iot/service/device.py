@@ -5,8 +5,9 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/12/09 13:50
 """
-from typing import Any
+
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +16,8 @@ from backend.app.iot.crud.device.crud_device_usage import device_usage_dao
 from backend.app.iot.model import Device
 from backend.app.iot.schema.device.device import (
     UpdateDeviceParam,
-    DeleteDeviceParam,
 )
-from backend.app.iot.schema.device.device_usage import CreateDeviceUsageParam, UsageStatus, UpdateDeviceUsageParam
+from backend.app.iot.schema.device.device_usage import CreateDeviceUsageParam, UpdateDeviceUsageParam, UsageStatus
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.common.response.response_code import CustomErrorCode
@@ -27,6 +27,7 @@ from backend.utils.timezone import timezone
 
 class DeviceService:
     """设备服务类"""
+
     MAX_ALLOW_QUOTA = 600  # 最大允许时长
 
     async def allocate_quota(self, db: AsyncSession, mac: str, did: str) -> int:
@@ -57,7 +58,7 @@ class DeviceService:
         """结束设备使用并结算配额"""
         # 1. 权限校验
         credentials = identity_verifier.derive_credentials(mac=mac)
-        if did != credentials.get("did"):
+        if did != credentials.get('did'):
             raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
 
         # 2. 获取设备
@@ -83,7 +84,7 @@ class DeviceService:
                     actual_quota=actual_quota,
                     end_time=now,
                     status=UsageStatus.COMPLETED,
-                    remark="",
+                    remark='',
                 ),
             )
 
@@ -94,43 +95,43 @@ class DeviceService:
         await device_dao.update_model(
             db,
             device.id,
-            {"quota": new_quota},
+            {'quota': new_quota},
         )
 
         return new_quota
 
     @staticmethod
     async def get(*, db: AsyncSession, pk: int) -> Device:
-        """ 获取设备详情 """
+        """获取设备详情"""
         device = await device_dao.get(db, pk)
         if not device:
-            raise errors.NotFoundError(msg="设备不存在")
+            raise errors.NotFoundError(msg='设备不存在')
         return device
 
     @staticmethod
     async def get_by_did(*, db: AsyncSession, did: str) -> Device:
-        """ 获取设备详情 """
+        """获取设备详情"""
         device = await device_dao.get_by_did(db, did)
         if not device:
-            raise errors.NotFoundError(msg="设备不存在")
+            raise errors.NotFoundError(msg='设备不存在')
         return device
 
     @staticmethod
     async def get_all(*, db: AsyncSession) -> Sequence[Device]:
-        """ 获取所有设备 """
+        """获取所有设备"""
         devices = await device_dao.get_all(db)
         return devices
 
     @staticmethod
     async def get_list(
-            *,
-            db: AsyncSession,
-            did: str | None = None,
-            sn: str | None = None,
-            mac: str | None = None,
-            model: str | None = None,
+        *,
+        db: AsyncSession,
+        did: str | None = None,
+        sn: str | None = None,
+        mac: str | None = None,
+        model: str | None = None,
     ) -> dict[str, Any]:
-        """ 获取设备列表（支持分页和查询条件） """
+        """获取设备列表（支持分页和查询条件）"""
         device_select = await device_dao.get_select(
             did=did,
             sn=sn,
@@ -141,19 +142,19 @@ class DeviceService:
 
     @staticmethod
     async def update(*, db: AsyncSession, pk: int, obj: UpdateDeviceParam) -> int:
-        """ 更新设备 """
+        """更新设备"""
         # 检查是否存在
         device = await device_dao.get(db, pk)
         if not device:
-            raise errors.NotFoundError(msg="设备不存在")
+            raise errors.NotFoundError(msg='设备不存在')
 
         # 更新字段
         count = await device_dao.update(db, pk, obj)
         return count
 
     @staticmethod
-    async def delete(*, db: AsyncSession, obj: DeleteDeviceParam) -> int:
-        """ 批量删除设备 """
+    async def delete(*, db: AsyncSession, pk: int) -> int:
+        """批量删除设备"""
         count = await device_dao.delete(db, obj.pks)
         return count
 

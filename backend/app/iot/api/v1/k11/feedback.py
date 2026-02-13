@@ -6,28 +6,29 @@
 @Date    : 2025/11/25 11:21
 """
 
-from typing import Annotated, Optional
-from fastapi import APIRouter, Path, Query, Depends, Body
+from typing import Annotated
 
-from backend.common.mqtt_broker import get_mqtt, MQTTBroker
+from fastapi import APIRouter, Body, Depends, Path, Query
+
+from backend.app.iot.schema.feedback import (
+    CreateFeedbackParam,
+    GetFeedbackDetail,
+    UpdateFeedbackParam,
+)
+from backend.app.iot.service.feedback import feedback_service
+from backend.app.iot.service.messaging import MessagingService
+from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
-
-from backend.app.iot.service.feedback import feedback_service
-from backend.app.iot.service.messaging import MessagingService
-from backend.app.iot.service.storage import storage_service
-
 from backend.database.db import CurrentSession, CurrentSessionTransaction
-from backend.app.iot.schema.feedback import GetFeedbackDetail, CreateFeedbackParam, UpdateFeedbackParam, \
-    DeleteFeedbackParam
 
 router = APIRouter()
 
 
 @router.get('/{pk}', summary='获取日志详情', dependencies=[DependsJwtAuth])
 async def get_feedback(
-        db: CurrentSession, pk: Annotated[int, Path(description='日志 ID')]
+    db: CurrentSession, pk: Annotated[int, Path(description='日志 ID')]
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
     data = feedback_service.get(db=db, pk=pk)
     return response_base.success(data=data)
@@ -42,10 +43,10 @@ async def get_feedback(
     ],
 )
 async def get_feedback_paginated(
-        db: CurrentSession,
-        name: Annotated[str | None, Query(description='名称')] = None,
-        did: Annotated[str | None, Query(description='设备did')] = None,
-        status: Annotated[int | None, Query(description='状态')] = None,
+    db: CurrentSession,
+    name: Annotated[str | None, Query(description='名称')] = None,
+    did: Annotated[str | None, Query(description='设备did')] = None,
+    status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetFeedbackDetail]]:
     page_data = await feedback_service.get_list(db=db, name=name, did=did, status=status)
     return response_base.success(data=page_data)
@@ -57,21 +58,26 @@ async def get_feedback_paginated(
     # dependencies=[DependsJwtAuth, ],
 )
 async def create_feedback(
-        db: CurrentSessionTransaction,
-        mqtt_client: MQTTBroker = Depends(get_mqtt),
-        did: str = Body(..., description='设备did'),
-        status: int = Body(default=0, description='状态(0：不需要日志上传 1：需要日志上传)'),
-        category: Optional[str] = Body(None, description='反馈类型'),
-        content: Optional[str] = Body(None, description='反馈内容'),
-        pic_url: Optional[str] = Body(None, description='反馈图片地址'),
-        file_url: Optional[str] = Body(None, description='反馈文件地址'),
-        contact: Optional[str] = Body(None, description='联系方式'),
-        comment: Optional[str] = Body(None, description='处理备注'),
-
+    db: CurrentSessionTransaction,
+    mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
+    did: Annotated[str, Body(description='设备did')],
+    status: Annotated[int, Body(description='状态(0：不需要日志上传 1：需要日志上传)')] = 0,
+    category: Annotated[str | None, Body(description='反馈类型')] = None,
+    content: Annotated[str | None, Body(description='反馈内容')] = None,
+    pic_url: Annotated[str | None, Body(description='反馈图片地址')] = None,
+    file_url: Annotated[str | None, Body(description='反馈文件地址')] = None,
+    contact: Annotated[str | None, Body(description='联系方式')] = None,
+    comment: Annotated[str | None, Body(description='处理备注')] = None,
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
     obj = CreateFeedbackParam(
-        did=did, category=category, content=content, pic_url=pic_url,
-        file_url=file_url, contact=contact, comment=comment, status=status,
+        did=did,
+        category=category,
+        content=content,
+        pic_url=pic_url,
+        file_url=file_url,
+        contact=contact,
+        comment=comment,
+        status=status,
     )
     feedback = await feedback_service.create(db=db, obj=obj)
 
@@ -88,9 +94,9 @@ async def create_feedback(
     # dependencies=[DependsJwtAuth, ],
 )
 async def update_feedback(
-        db: CurrentSessionTransaction,
-        pk: Annotated[int, Path(description='反馈 ID')],
-        obj: UpdateFeedbackParam,
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='反馈 ID')],
+    obj: UpdateFeedbackParam,
 ) -> ResponseModel:
     count = await feedback_service.update(db=db, pk=pk, obj=obj)
     if count > 0:
@@ -106,8 +112,10 @@ async def update_feedback(
     ],
 )
 async def delete_feedback(
-        db: CurrentSessionTransaction, obj: DeleteFeedbackParam) -> ResponseModel:
-    count = await feedback_service.delete(db=db, obj=obj)
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='反馈 ID')],
+) -> ResponseModel:
+    count = await feedback_service.delete(db=db, pk=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()

@@ -243,7 +243,7 @@ def build_final_router() -> APIRouter:
         try:
             inject_extend_router(plugin)
         except Exception as e:
-            log.error(f"扩展级插件 {plugin} 路由注入失败：{e!s}")
+            log.error(f'扩展级插件 {plugin} 路由注入失败：{e!s}')
 
     # 主路由，必须在扩展级插件路由注入后，应用级插件路由注入前导入
     from backend.app.router import router as main_router
@@ -252,7 +252,7 @@ def build_final_router() -> APIRouter:
         try:
             inject_app_router(plugin, main_router)
         except Exception as e:
-            log.error(f"应用级插件 {plugin} 路由注入失败：{e!s}")
+            log.error(f'应用级插件 {plugin} 路由注入失败：{e!s}')
 
     return main_router
 

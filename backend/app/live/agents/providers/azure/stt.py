@@ -7,22 +7,23 @@
 """
 
 import asyncio
-from typing import Optional
+
 import azure.cognitiveservices.speech as speechsdk
-from backend.common.log import log
+
 from backend.app.live.agents.core.stt.stt import STT
+from backend.common.log import log
 from backend.core.conf import settings
 
 
 class AzureSTT(STT):
     """语音识别客户端"""
 
-    def __init__(self, language: str = "zh-CN", **kwargs):
+    def __init__(self, language: str = 'zh-CN', **kwargs) -> None:
         super().__init__(language=language, **kwargs)
         self._language = language
 
-        self._stream: Optional[speechsdk.audio.PushAudioInputStream] = None
-        self._recognizer: Optional[speechsdk.SpeechRecognizer] = None
+        self._stream: speechsdk.audio.PushAudioInputStream | None = None
+        self._recognizer: speechsdk.SpeechRecognizer | None = None
 
         self._speaking = False
 
@@ -56,43 +57,45 @@ class AzureSTT(STT):
 
     def _on_recognizing(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """识别中回调"""
-        log.debug(f"识别中回调: {evt.result.text}")
+        log.debug(f'识别中回调: {evt.result.text}')
         if not self.loop:
-            log.error("loop is None")
+            log.error('loop is None')
             return
 
         if self._append_callback:
-            def invoke():
+
+            def invoke() -> None:
                 try:
                     coro = self._append_callback(evt.result.text)
                     if asyncio.iscoroutine(coro):
                         asyncio.create_task(coro)
                 except Exception as e:
-                    log.error(f"识别中回调: {e}")
+                    log.error(f'识别中回调: {e}')
 
             self.loop.call_soon_threadsafe(invoke)
 
     def _on_recognized(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """识别结果回调"""
-        log.debug(f"识别结果回调: {evt.result.text}")
+        log.debug(f'识别结果回调: {evt.result.text}')
         if not self.loop:
-            log.error("loop is None")
+            log.error('loop is None')
             return
 
         if self._finish_callback:
-            def invoke():
+
+            def invoke() -> None:
                 try:
                     coro = self._finish_callback(evt.result.text)
                     if asyncio.iscoroutine(coro):
                         asyncio.create_task(coro)
                 except Exception as e:
-                    log.error(f"识别结果回调: {e}")
+                    log.error(f'识别结果回调: {e}')
 
             self.loop.call_soon_threadsafe(invoke)
 
     def _on_speech_start(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """会话开始回调"""
-        log.debug(f"会话开始回调: {evt.result.text}")
+        log.debug(f'会话开始回调: {evt.result.text}')
         if self._speaking:
             return
 
@@ -100,7 +103,7 @@ class AzureSTT(STT):
 
     def _on_speech_end(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """会话结束回调"""
-        log.debug(f"会话结束回调: {evt.result.text}")
+        log.debug(f'会话结束回调: {evt.result.text}')
         if not self._speaking:
             return
 
@@ -108,17 +111,17 @@ class AzureSTT(STT):
 
     def _on_session_started(self, evt: speechsdk.SpeechRecognitionEventArgs) -> None:
         """会话开始回调"""
-        log.debug(f"会话开始回调: {evt.result.text}")
+        log.debug(f'会话开始回调: {evt.result.text}')
 
     def _on_session_stopped(self, evt) -> None:
         """会话停止回调"""
-        log.debug(f"会话停止回调: {evt.result.text}")
+        log.debug(f'会话停止回调: {evt.result.text}')
 
     def _on_canceled(self, evt) -> None:
         """识别取消回调"""
-        log.warning(f"识别被取消: {evt.reason}")
+        log.warning(f'识别被取消: {evt.reason}')
         if evt.reason == speechsdk.CancellationReason.Error:
-            log.error(f"错误详情: {evt.error_details}")
+            log.error(f'错误详情: {evt.error_details}')
 
     async def push(self, audio_chunk: bytes) -> None:
         """追加音频数据"""
@@ -134,11 +137,11 @@ class AzureSTT(STT):
 
         await asyncio.to_thread(_cleanup)
 
-    async def _cleanup(self):
+    async def _cleanup(self) -> None:
         """清理资源"""
         await self.flush()
 
-    async def aclose(self):
+    async def aclose(self) -> None:
         """清理资源"""
         await self._cleanup()
 
@@ -149,9 +152,7 @@ class AzureSTT(STT):
         await self._cleanup()
 
 
-def _create_speech_recognizer(
-        *, stream: speechsdk.audio.AudioInputStream, language: str
-) -> speechsdk.SpeechRecognizer:
+def _create_speech_recognizer(*, stream: speechsdk.audio.AudioInputStream, language: str) -> speechsdk.SpeechRecognizer:
     speech_config = speechsdk.SpeechConfig(
         subscription=settings.AZURE_SPEECH_KEY.get_secret_value(),
         region=settings.AZURE_SPEECH_REGION,
@@ -165,5 +166,6 @@ def _create_speech_recognizer(
 
     audio_config = speechsdk.audio.AudioConfig(stream=stream)
     return speechsdk.SpeechRecognizer(
-        speech_config=speech_config, audio_config=audio_config,
+        speech_config=speech_config,
+        audio_config=audio_config,
     )

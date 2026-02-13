@@ -5,8 +5,8 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 14:47
 """
+
 from datetime import datetime
-from typing import Optional
 
 from pydantic import ConfigDict, Field
 
@@ -27,8 +27,8 @@ class DeviceAuthSchemaBase(SchemaBase):
 class AuthSchemaBase(SchemaBase):
     """用户认证基础模型"""
 
-    phone: Optional[str] = Field(None, description='手机号')
-    email: Optional[str] = Field(None, description='邮箱')
+    phone: str | None = Field(None, description='手机号')
+    email: str | None = Field(None, description='邮箱')
     device: DeviceAuthSchemaBase = Field(description='设备认证信息')
 
 
@@ -41,12 +41,14 @@ class AuthLoginParam(AuthSchemaBase):
 
 class DeviceAuthParam(SchemaBase):
     """设备登录参数"""
+
     username: str = Field(description='MAC 地址')
     password: str = Field(description='设备did')
 
 
 class LivekitDeviceAuthParam(DeviceAuthParam):
     """Livekit设备登录参数"""
+
     # 业务数据
     metadata: str = Field(description='元数据')
     room: str = Field(description='房间名')
@@ -56,13 +58,13 @@ class LivekitDeviceAuthParam(DeviceAuthParam):
 class UserSchemaBase(SchemaBase):
     """用户基础模型"""
 
-    phone: Optional[str] = Field(None, description='手机号')
-    username: Optional[str] = Field(None, description='用户名')
-    nickname: Optional[str] = Field(None, description='昵称')
-    email: Optional[str] = Field(None, description='邮箱')
-    avatar: Optional[str] = Field(None, description='头像')
-    sex: Optional[int] = Field(None, description='性别(1男 2女)')
-    birthday: Optional[datetime] = Field(None, description='生日')
+    phone: str | None = Field(None, description='手机号')
+    username: str | None = Field(None, description='用户名')
+    nickname: str | None = Field(None, description='昵称')
+    email: str | None = Field(None, description='邮箱')
+    avatar: str | None = Field(None, description='头像')
+    sex: int | None = Field(None, description='性别(1男 2女)')
+    birthday: datetime | None = Field(None, description='生日')
 
 
 class CreateUserParam(UserSchemaBase):
@@ -75,7 +77,7 @@ class CreateUserParam(UserSchemaBase):
 
         # 重写 __init__ 确保所有可选字段都被处理
 
-    def __init__(self, **data):
+    def __init__(self, **data) -> None:
         # 为所有可选字段提供默认值
         optional_fields = ['username', 'nickname', 'email', 'avatar', 'sex', 'birthday']
 
@@ -110,4 +112,4 @@ class GetUserInfoDetail(UserSchemaBase):
 
     id: int = Field(description='用户 ID')
     uuid: str = Field(description='用户UUID')
-    last_login_time: Optional[datetime] = Field(None, description='上次登录时间')
+    last_login_time: datetime | None = Field(None, description='上次登录时间')

@@ -5,22 +5,23 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/20 09:44
 """
+
 import asyncio
+
 from datetime import timedelta
+
 from langchain_community.tools import DuckDuckGoSearchRun
 
-from backend.common.log import log
-from backend.utils.timezone import TimeZone
 from backend.app.live.agents.api_clients.weather_api import open_weather_map
 from backend.app.live.agents.core.llm.tool_context import function_tool
+from backend.common.log import log
+from backend.utils.timezone import TimeZone
 
 duck_tool = DuckDuckGoSearchRun()
 
 
 @function_tool()
-async def get_weather(
-        city: str
-):
+async def get_weather(city: str):
     """
     Retrieve current weather information for a given city.
 
@@ -34,19 +35,16 @@ async def get_weather(
         the request fails.
     """
 
-    log.info(f"[get_weather] Retrieving weather for English city name: {city}")
+    log.info(f'[get_weather] Retrieving weather for English city name: {city}')
     try:
         return await open_weather_map.get_weather_info(city)
     except Exception as e:
-        log.error(f"[get_weather] Exception for {city}: {e}")
+        log.error(f'[get_weather] Exception for {city}: {e}')
         return f"I'm sorry, an error occurred while retrieving the weather for {city}."
 
 
 @function_tool()
-async def web_search(
-        query: str,
-        num_results: int = 3
-) -> str:
+async def web_search(query: str, num_results: int = 3) -> str:
     """
     Perform a web search using DuckDuckGo and return the top results.
 
@@ -58,17 +56,17 @@ async def web_search(
         A formatted string of search results, numbered.
     """
 
-    log.info(f"[web_search] Searching the web for: {query}")
+    log.info(f'[web_search] Searching the web for: {query}')
     try:
         resp = await asyncio.to_thread(duck_tool.run, query)
 
-        lines = [line.strip() for line in resp.split("\n") if line.strip()]
+        lines = [line.strip() for line in resp.split('\n') if line.strip()]
         top_results = lines[:num_results]
 
         if not top_results:
             return f"No results found for '{query}'."
 
-        formatted_results = "\n".join(f"{i + 1}. {r}" for i, r in enumerate(top_results))
+        formatted_results = '\n'.join(f'{i + 1}. {r}' for i, r in enumerate(top_results))
         log.info(f"[web_search] Top {len(top_results)} results for '{query}':\n{formatted_results}")
 
         return formatted_results
@@ -79,8 +77,7 @@ async def web_search(
 
 
 @function_tool()
-async def exit_session(
-) -> str:
+async def exit_session() -> str:
     """
     Trigger an exit or stop of the assistant session.
 
@@ -92,21 +89,18 @@ async def exit_session(
         The actual session termination should be handled by the runtime or agent.
     """
 
-    log.info(f"[exit_session] Exit requested by user")
+    log.info('[exit_session] Exit requested by user')
 
     try:
-        return "Exit requested."
+        return 'Exit requested.'
 
     except Exception as e:
-        log.error(f"[exit_session] Error during exit: {e}", exc_info=True)
-        return f"I'm sorry, an error occurred while exiting"
+        log.error(f'[exit_session] Error during exit: {e}', exc_info=True)
+        return "I'm sorry, an error occurred while exiting"
 
 
 @function_tool()
-async def set_alarm_at(
-        target_time: str,
-        message: str = "Time to wake up!"
-) -> str:
+async def set_alarm_at(target_time: str, message: str = 'Time to wake up!') -> str:
     """
     Schedule a reminder or alarm at a specific date and time.
 
@@ -126,21 +120,18 @@ async def set_alarm_at(
         now = TimeZone().now()
         target_dt = TimeZone().from_str(target_time)
         if (target_dt - now).total_seconds() <= 0:
-            return "The alarm time must be in the future."
+            return 'The alarm time must be in the future.'
 
-        log.info(f"[set_alarm] Alarm set at {target_time}: {message}")
-        return f"Alarm set at {target_time}: {message}"
+        log.info(f'[set_alarm] Alarm set at {target_time}: {message}')
+        return f'Alarm set at {target_time}: {message}'
 
     except Exception as e:
-        log.error(f"[set_alarm] Exception: {e}", exc_info=True)
-        return f"I'm sorry, an error occurred while setting the alarm."
+        log.error(f'[set_alarm] Exception: {e}', exc_info=True)
+        return "I'm sorry, an error occurred while setting the alarm."
 
 
 @function_tool()
-async def set_alarm(
-        delay_seconds: int,
-        message: str = "Time is up!"
-) -> str:
+async def set_alarm(delay_seconds: int, message: str = 'Time is up!') -> str:
     """
     Schedule a reminder or alarm after a relative delay in seconds.
 
@@ -160,14 +151,14 @@ async def set_alarm(
 
     try:
         if delay_seconds <= 0:
-            return "Alarm time must be in the future."
+            return 'Alarm time must be in the future.'
 
-        log.info(f"[set_alarm] Alarm set: {delay_seconds} {message}")
+        log.info(f'[set_alarm] Alarm set: {delay_seconds} {message}')
 
         now = TimeZone().now()
         target_dt = now + timedelta(seconds=delay_seconds)
         return await set_alarm_at(TimeZone().to_str(target_dt), message)
 
     except Exception as e:
-        log.error(f"[set_alarm] Exception: {e}", exc_info=True)
-        return f"I'm sorry, an error occurred while setting the alarm."
+        log.error(f'[set_alarm] Exception: {e}', exc_info=True)
+        return "I'm sorry, an error occurred while setting the alarm."

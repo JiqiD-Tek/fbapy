@@ -5,9 +5,10 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/26 16:30
 """
+
 import enum
+
 from datetime import datetime
-from typing import Optional
 
 from pydantic import ConfigDict, Field
 
@@ -17,6 +18,7 @@ from backend.common.schema import SchemaBase
 # 枚举定义（与模型保持一致）
 class UsageStatus(str, enum.Enum):
     """使用记录状态"""
+
     ACTIVE = 'ACTIVE'  # 使用中
     COMPLETED = 'COMPLETED'  # 正常结束并扣费
     FAILED = 'FAILED'  # 失败（余额不足等）
@@ -29,8 +31,8 @@ class DeviceUsageSchemaBase(SchemaBase):
     did: str = Field(description='设备编码')
 
     # 使用时间信息
-    start_time: Optional[datetime] = Field(None, description='开始使用时间')
-    end_time: Optional[datetime] = Field(None, description='结束使用时间')
+    start_time: datetime | None = Field(None, description='开始使用时间')
+    end_time: datetime | None = Field(None, description='结束使用时间')
     apply_quota: int = Field(0, ge=0, description='申请使用时长（秒）')
     actual_quota: int = Field(0, ge=0, description='实际使用时长（秒）')
 
@@ -38,7 +40,7 @@ class DeviceUsageSchemaBase(SchemaBase):
     status: UsageStatus = Field(UsageStatus.ACTIVE, description='使用状态')
 
     # 业务信息
-    remark: Optional[str] = Field(None, description='备注')
+    remark: str | None = Field(None, description='备注')
 
 
 class CreateDeviceUsageParam(DeviceUsageSchemaBase):
@@ -48,11 +50,11 @@ class CreateDeviceUsageParam(DeviceUsageSchemaBase):
 class UpdateDeviceUsageParam(SchemaBase):
     """更新设备使用记录参数"""
 
-    end_time: Optional[datetime] = Field(None, description='结束使用时间')
-    actual_quota: Optional[int] = Field(None, ge=0, description='计费时长（秒）')
+    end_time: datetime | None = Field(None, description='结束使用时间')
+    actual_quota: int | None = Field(None, ge=0, description='计费时长（秒）')
 
-    status: Optional[UsageStatus] = Field(None, description='使用状态')
-    remark: Optional[str] = Field(None, description='备注')
+    status: UsageStatus | None = Field(None, description='使用状态')
+    remark: str | None = Field(None, description='备注')
 
 
 class DeleteDeviceUsageParam(SchemaBase):
@@ -68,4 +70,4 @@ class GetDeviceUsageDetail(DeviceUsageSchemaBase):
 
     id: int = Field(description='使用记录 ID')
     created_time: datetime = Field(description='创建时间')
-    updated_time: Optional[datetime] = Field(None, description='更新时间')
+    updated_time: datetime | None = Field(None, description='更新时间')

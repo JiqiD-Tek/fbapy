@@ -8,7 +8,6 @@ from backend.app.iot.schema.device.device_recharge import CreateDeviceRechargePa
 
 
 class CRUDDeviceRecharge(CRUDPlus[DeviceRecharge]):
-
     async def get(self, db: AsyncSession, pk: int) -> DeviceRecharge | None:
         return await self.select_model(db, pk)
 

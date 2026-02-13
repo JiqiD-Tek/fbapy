@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+
 from functools import cache
 from typing import Any
 
@@ -9,7 +10,7 @@ from typing import Any
 # This is English only, it is a good default.
 # Users that want different languages or more advanced hyphenation should use the livekit-plugins-*
 class Hyphenator:
-    def __init__(self, patterns: str, exceptions: str = "") -> None:
+    def __init__(self, patterns: str, exceptions: str = '') -> None:
         self.tree: dict[str | None, Any] = {}
         for pattern in patterns.split():
             self._insert_pattern(pattern)
@@ -17,14 +18,14 @@ class Hyphenator:
         self.exceptions = {}
         for ex in exceptions.split():
             # Convert the hyphenated pattern into a point array for use later.
-            points = [0] + [int(h == "-") for h in re.split(r"[a-z]", ex)]
-            self.exceptions[ex.replace("-", "")] = points
+            points = [0] + [int(h == '-') for h in re.split(r'[a-z]', ex)]
+            self.exceptions[ex.replace('-', '')] = points
 
     def _insert_pattern(self, pattern: str) -> None:
         # Convert the a pattern like 'a1bc3d4' into a string of chars 'abcd'
         # and a list of points [ 0, 1, 0, 3, 4 ].
-        chars = re.sub("[0-9]", "", pattern)
-        points = [int(d or 0) for d in re.split("[.a-z]", pattern)]
+        chars = re.sub(r'[0-9]', '', pattern)
+        points = [int(d or 0) for d in re.split(r'[.a-z]', pattern)]
 
         # Insert the pattern into the tree. Each character finds a dict
         # another level down in the tree, and leaf nodes have the list of
@@ -47,7 +48,7 @@ class Hyphenator:
         if word.lower() in self.exceptions:
             points = self.exceptions[word.lower()]
         else:
-            work = "." + word.lower() + "."
+            work = '.' + word.lower() + '.'
             points = [0] * (len(work) + 1)
             for i in range(len(work)):
                 t = self.tree
@@ -64,11 +65,11 @@ class Hyphenator:
             points[1] = points[2] = points[-2] = points[-3] = 0
 
         # Examine the points to build the pieces list.
-        pieces = [""]
+        pieces = ['']
         for c, p in zip(word, points[2:]):
             pieces[-1] += c
             if p % 2:
-                pieces.append("")
+                pieces.append('')
         return pieces
 
 

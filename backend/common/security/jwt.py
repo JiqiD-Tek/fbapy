@@ -1,12 +1,11 @@
 import json
 import uuid
 
-from datetime import timedelta, datetime
+from datetime import timedelta
 from typing import Any
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from fastapi.security import HTTPBearer
-from fastapi.security.http import HTTPAuthorizationCredentials
 from fastapi.security.utils import get_authorization_scheme_param
 from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic_core import from_json
@@ -17,7 +16,6 @@ from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
 from backend.app.iot.schema.user import GetUserInfoDetail
 from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
 from backend.common.exception import errors
-from backend.common.exception.errors import TokenError
 from backend.core.conf import settings
 from backend.database.db import async_db_session
 from backend.database.redis import redis_client
@@ -132,12 +130,12 @@ async def create_refresh_token(session_uuid: str, user_id: int, *, multi_login: 
 
 
 async def create_new_token(
-        refresh_token: str,
-        session_uuid: str,
-        user_id: int,
-        *,
-        multi_login: bool,
-        **kwargs,
+    refresh_token: str,
+    session_uuid: str,
+    user_id: int,
+    *,
+    multi_login: bool,
+    **kwargs,
 ) -> NewToken:
     """
     生成新的 token
@@ -255,6 +253,7 @@ async def get_iot_user(user_id: int) -> GetUserInfoDetail:
     if not cache_user:
         async with async_db_session() as db:
             from backend.app.iot.crud.crud_user import user_dao
+
             current_user = await user_dao.get(db, user_id)
             if not current_user:
                 raise errors.TokenError(msg='Token 无效')

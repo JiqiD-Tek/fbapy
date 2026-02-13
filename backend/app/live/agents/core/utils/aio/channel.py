@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections import deque
-from collections.abc import AsyncIterator
-from typing import Generic, Protocol, TypeVar
 
-T = TypeVar("T")
-T_co = TypeVar("T_co", covariant=True)
-T_contra = TypeVar("T_contra", contravariant=True)
+from collections import deque
+from typing import TYPE_CHECKING, Generic, Protocol, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+T = TypeVar('T')
+T_co = TypeVar('T_co', covariant=True)
+T_contra = TypeVar('T_contra', contravariant=True)
 
 
 # Based on asyncio.Queue, see https://github.com/python/cpython/blob/main/Lib/asyncio/queues.py
@@ -122,8 +125,7 @@ class Chan(Generic[T]):
         if self.empty():
             if self._close_ev.is_set():
                 raise ChanClosed
-            else:
-                raise ChanEmpty
+            raise ChanEmpty
         item = self._queue.popleft()
         #        if self.empty() and self._close_ev.is_set():
         #            self._finished_ev.set()
@@ -162,8 +164,7 @@ class Chan(Generic[T]):
     def full(self) -> bool:
         if self._maxsize <= 0:
             return False
-        else:
-            return self.qsize() >= self._maxsize
+        return self.qsize() >= self._maxsize
 
     def empty(self) -> bool:
         return not self._queue

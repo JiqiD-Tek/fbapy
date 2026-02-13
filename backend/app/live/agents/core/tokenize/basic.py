@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+
 from dataclasses import dataclass
 
 from . import (
@@ -16,10 +17,10 @@ from . import (
 # The basic tokenizer is rule-based and only English is really tested
 
 __all__ = [
-    "SentenceTokenizer",
-    "WordTokenizer",
-    "hyphenate_word",
-    "tokenize_paragraphs",
+    'SentenceTokenizer',
+    'WordTokenizer',
+    'hyphenate_word',
+    'tokenize_paragraphs',
 ]
 
 
@@ -33,12 +34,12 @@ class _TokenizerOptions:
 
 class SentenceTokenizer(tokenizer.SentenceTokenizer):
     def __init__(
-            self,
-            *,
-            language: str = "english",
-            min_sentence_len: int = 20,
-            stream_context_len: int = 10,
-            retain_format: bool = False,
+        self,
+        *,
+        language: str = 'english',
+        min_sentence_len: int = 20,
+        stream_context_len: int = 10,
+        retain_format: bool = False,
     ) -> None:
         self._config = _TokenizerOptions(
             language=language,
@@ -49,7 +50,7 @@ class SentenceTokenizer(tokenizer.SentenceTokenizer):
 
     def tokenize(self, text: str, *, language: str | None = None) -> list[str]:
         split_sentences = {
-            "zh-CN": _basic_sent.split_sentences_zh,
+            'zh-CN': _basic_sent.split_sentences_zh,
         }.get(language, _basic_sent.split_sentences)
 
         return [
@@ -63,7 +64,7 @@ class SentenceTokenizer(tokenizer.SentenceTokenizer):
 
     def stream(self, *, language: str | None = None) -> tokenizer.SentenceStream:
         split_sentences = {
-            "zh-CN": _basic_sent.split_sentences_zh,
+            'zh-CN': _basic_sent.split_sentences_zh,
         }.get(language, _basic_sent.split_sentences)
 
         return token_stream.BufferedSentenceStream(
@@ -79,11 +80,11 @@ class SentenceTokenizer(tokenizer.SentenceTokenizer):
 
 class WordTokenizer(tokenizer.WordTokenizer):
     def __init__(
-            self,
-            *,
-            ignore_punctuation: bool = True,
-            split_character: bool = False,
-            retain_format: bool = False,
+        self,
+        *,
+        ignore_punctuation: bool = True,
+        split_character: bool = False,
+        retain_format: bool = False,
     ) -> None:
         self._ignore_punctuation = ignore_punctuation
         self._split_character = split_character
@@ -118,11 +119,9 @@ def hyphenate_word(word: str) -> list[str]:
 
 
 def split_words(
-        text: str, *, ignore_punctuation: bool = True, split_character: bool = False
+    text: str, *, ignore_punctuation: bool = True, split_character: bool = False
 ) -> list[tuple[str, int, int]]:
-    return _basic_word.split_words(
-        text, ignore_punctuation=ignore_punctuation, split_character=split_character
-    )
+    return _basic_word.split_words(text, ignore_punctuation=ignore_punctuation, split_character=split_character)
 
 
 def tokenize_paragraphs(text: str) -> list[str]:

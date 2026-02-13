@@ -14,7 +14,7 @@ class WaitGroup:
     def add(self, delta: int = 1) -> None:
         new_value = self._counter + delta
         if new_value < 0:
-            raise ValueError("WaitGroup counter cannot go negative.")
+            raise ValueError('WaitGroup counter cannot go negative.')
 
         self._counter = new_value
 

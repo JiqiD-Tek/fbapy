@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from backend.app.live.agents.core import llm
 from loguru import logger
+
+if TYPE_CHECKING:
+    from backend.app.live.agents.core import llm
 
 
 def group_tool_calls(chat_ctx: llm.ChatContext) -> list[_ChatItemGroup]:
@@ -27,19 +30,16 @@ def group_tool_calls(chat_ctx: llm.ChatContext) -> list[_ChatItemGroup]:
     item_groups: dict[str, _ChatItemGroup] = OrderedDict()  # item_id to group of items
     tool_outputs: list[llm.FunctionCallOutput] = []
     for item in chat_ctx.items:
-        if (item.type == "message" and item.role == "assistant") or item.type == "function_call":
+        if (item.type == 'message' and item.role == 'assistant') or item.type == 'function_call':
             # only assistant messages and function calls can be grouped
             # For function calls, use group_id if available (for parallel function calls),
             # otherwise fall back to id-based grouping for backwards compatibility
-            if item.type == "function_call" and item.group_id:
-                group_id = item.group_id
-            else:
-                group_id = item.id.split("/")[0]
+            group_id = item.group_id if item.type == 'function_call' and item.group_id else item.id.split('/')[0]
             if group_id not in item_groups:
                 item_groups[group_id] = _ChatItemGroup().add(item)
             else:
                 item_groups[group_id].add(item)
-        elif item.type == "function_call_output":
+        elif item.type == 'function_call_output':
             tool_outputs.append(item)
         else:
             item_groups[item.id] = _ChatItemGroup().add(item)
@@ -51,8 +51,8 @@ def group_tool_calls(chat_ctx: llm.ChatContext) -> list[_ChatItemGroup]:
     for tool_output in tool_outputs:
         if tool_output.call_id not in call_id_to_group:
             logger.warning(
-                "function output missing the corresponding function call, ignoring",
-                extra={"call_id": tool_output.call_id, "tool_name": tool_output.name},
+                'function output missing the corresponding function call, ignoring',
+                extra={'call_id': tool_output.call_id, 'tool_name': tool_output.name},
             )
             continue
 
@@ -72,12 +72,12 @@ class _ChatItemGroup:
     tool_outputs: list[llm.FunctionCallOutput] = field(default_factory=list)
 
     def add(self, item: llm.ChatItem) -> _ChatItemGroup:
-        if item.type == "message":
-            assert self.message is None, "only one message is allowed in a group"
+        if item.type == 'message':
+            assert self.message is None, 'only one message is allowed in a group'
             self.message = item
-        elif item.type == "function_call":
+        elif item.type == 'function_call':
             self.tool_calls.append(item)
-        elif item.type == "function_call_output":
+        elif item.type == 'function_call_output':
             self.tool_outputs.append(item)
         return self
 
@@ -85,9 +85,7 @@ class _ChatItemGroup:
         if len(self.tool_calls) == len(self.tool_outputs):
             return
 
-        valid_call_ids = {call.call_id for call in self.tool_calls} & {
-            output.call_id for output in self.tool_outputs
-        }
+        valid_call_ids = {call.call_id for call in self.tool_calls} & {output.call_id for output in self.tool_outputs}
 
         valid_tool_calls = []
         valid_tool_outputs = []
@@ -95,8 +93,8 @@ class _ChatItemGroup:
         for tool_call in self.tool_calls:
             if tool_call.call_id not in valid_call_ids:
                 logger.warning(
-                    "function call missing the corresponding function output, ignoring",
-                    extra={"call_id": tool_call.call_id, "tool_name": tool_call.name},
+                    'function call missing the corresponding function output, ignoring',
+                    extra={'call_id': tool_call.call_id, 'tool_name': tool_call.name},
                 )
                 continue
             valid_tool_calls.append(tool_call)
@@ -104,12 +102,11 @@ class _ChatItemGroup:
         for tool_output in self.tool_outputs:
             if tool_output.call_id not in valid_call_ids:
                 logger.warning(
-                    "function output missing the corresponding function call, ignoring",
-                    extra={"call_id": tool_output.call_id, "tool_name": tool_output.name},
+                    'function output missing the corresponding function call, ignoring',
+                    extra={'call_id': tool_output.call_id, 'tool_name': tool_output.name},
                 )
                 continue
             valid_tool_outputs.append(tool_output)
 
         self.tool_calls = valid_tool_calls
         self.tool_outputs = valid_tool_outputs
-

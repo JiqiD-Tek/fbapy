@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Generator
-from typing import Any
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 def _finish_fut(fut: asyncio.Future[Any]) -> None:

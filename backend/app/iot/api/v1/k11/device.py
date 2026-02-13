@@ -7,20 +7,18 @@
 """
 
 from typing import Annotated
-from fastapi import APIRouter, Query, Path
 
-from backend.app.iot.service.device import device_service
-from backend.common.pagination import DependsPagination, PageData
-from backend.common.response.response_schema import ResponseSchemaModel, ResponseModel, response_base
-from backend.common.security.jwt import DependsJwtAuth
-from backend.database.db import CurrentSession, CurrentSessionTransaction
+from fastapi import APIRouter, Path, Query
 
 from backend.app.iot.schema.device.device import (
     GetDeviceDetail,
-    CreateDeviceParam,
     UpdateDeviceParam,
-    DeleteDeviceParam,
 )
+from backend.app.iot.service.device import device_service
+from backend.common.pagination import DependsPagination, PageData
+from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.jwt import DependsJwtAuth
+from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
 
@@ -29,13 +27,12 @@ router = APIRouter()
 # 获取单个设备
 # =============================
 @router.get(
-    "/{pk}",
-    summary="获取设备详情",
+    '/{pk}',
+    summary='获取设备详情',
     dependencies=[DependsJwtAuth],
 )
 async def get_device(
-        db: CurrentSession,
-        pk: Annotated[int, Path(description="设备 ID")]
+    db: CurrentSession, pk: Annotated[int, Path(description='设备 ID')]
 ) -> ResponseSchemaModel[GetDeviceDetail]:
     data = device_service.get(db=db, pk=pk)
     return response_base.success(data=data)
@@ -45,16 +42,16 @@ async def get_device(
 # 分页列表
 # =============================
 @router.get(
-    "",
-    summary="分页获取设备列表",
+    '',
+    summary='分页获取设备列表',
     dependencies=[DependsJwtAuth, DependsPagination],
 )
 async def get_device_paginated(
-        db: CurrentSession,
-        did: Annotated[str | None, Query(description='设备编码')] = None,
-        sn: Annotated[str | None, Query(description='设备序列号')] = None,
-        mac: Annotated[str | None, Query(description='MAC地址')] = None,
-        model: Annotated[str | None, Query(description='设备型号')] = None,
+    db: CurrentSession,
+    did: Annotated[str | None, Query(description='设备编码')] = None,
+    sn: Annotated[str | None, Query(description='设备序列号')] = None,
+    mac: Annotated[str | None, Query(description='MAC地址')] = None,
+    model: Annotated[str | None, Query(description='设备型号')] = None,
 ) -> ResponseSchemaModel[PageData[GetDeviceDetail]]:
     page_data = await device_service.get_list(
         db=db,
@@ -66,19 +63,18 @@ async def get_device_paginated(
     return response_base.success(data=page_data)
 
 
-
 # =============================
 # 更新设备
 # =============================
 @router.put(
-    "/{pk}",
-    summary="更新设备",
+    '/{pk}',
+    summary='更新设备',
     dependencies=[DependsJwtAuth],
 )
 async def update_device(
-        db: CurrentSessionTransaction,
-        pk: Annotated[int, Path(description="设备 ID")],
-        obj: UpdateDeviceParam,
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='设备 ID')],
+    obj: UpdateDeviceParam,
 ) -> ResponseModel:
     count = await device_service.update(db=db, pk=pk, obj=obj)
     if count > 0:
@@ -90,15 +86,14 @@ async def update_device(
 # 删除设备
 # =============================
 @router.delete(
-    "/{pk}",
-    summary="删除设备",
+    '/{pk}',
+    summary='删除设备',
     dependencies=[DependsJwtAuth],
 )
 async def delete_device(
-        db: CurrentSessionTransaction,
-        obj: DeleteDeviceParam,
+    db: CurrentSessionTransaction, pk: Annotated[int, Path(description='设备 ID')]
 ) -> ResponseModel:
-    count = await device_service.delete(db=db, obj=obj)
+    count = await device_service.delete(db=db, pk=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()

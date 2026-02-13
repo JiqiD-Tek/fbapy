@@ -6,9 +6,8 @@
 @Date    : 2026/01/22 17:38
 """
 
-import os
 import base64
-from typing import Optional
+import os
 
 from Crypto.Cipher import AES
 
@@ -17,10 +16,10 @@ from backend.core.conf import settings
 
 class Encryptor:
     """
-        对称加密
+    对称加密
     """
 
-    def __init__(self, key=settings.ENCRYPT_SECRET_KEY):
+    def __init__(self, key=settings.ENCRYPT_SECRET_KEY) -> None:
         self.key = key.encode()  # key 长度必须 16/24/32 字节
         self.iv = self.key[:16]  # 固定16字节IV
 
@@ -42,7 +41,7 @@ class Encryptor:
         pad_len = b[-1]
         return b[:-pad_len].decode()
 
-    def encrypt(self, plaintext: str) -> Optional[str]:
+    def encrypt(self, plaintext: str) -> str | None:
         if not plaintext:
             return None
 
@@ -50,7 +49,7 @@ class Encryptor:
         encrypted = cipher.encrypt(self._pad(plaintext))
         return base64.b64encode(encrypted).decode()
 
-    def decrypt(self, ciphertext: str) -> Optional[str]:
+    def decrypt(self, ciphertext: str) -> str | None:
         if not ciphertext:
             return None
 
@@ -62,13 +61,13 @@ class Encryptor:
 encryptor = Encryptor()
 
 
-def main():
+def main() -> None:
     for val in [
-        "",
-        "15050522761",
-        "15050522761",
-        "guhua@jiqid.com",
-        "guhua@roboland.com.cn",
+        '',
+        '15050522761',
+        '15050522761',
+        'guhua@jiqid.com',
+        'guhua@roboland.com.cn',
     ]:
         ret = encryptor.encrypt(val)
         print(ret)

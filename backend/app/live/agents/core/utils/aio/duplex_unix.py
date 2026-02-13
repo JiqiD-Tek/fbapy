@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import socket
 import struct
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import socket
 
 
 class DuplexClosed(Exception):
     """Exception raised when the duplex connection is closed."""
-
-    pass
 
 
 class _AsyncDuplex:
@@ -33,23 +35,23 @@ class _AsyncDuplex:
     async def recv_bytes(self) -> bytes:
         try:
             len_bytes = await self._reader.readexactly(4)
-            len = struct.unpack("!I", len_bytes)[0]
+            len = struct.unpack('!I', len_bytes)[0]
             return await self._reader.readexactly(len)
         except (
             OSError,
             EOFError,
             asyncio.IncompleteReadError,
         ) as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e
 
     async def send_bytes(self, data: bytes) -> None:
         try:
-            len_bytes = struct.pack("!I", len(data))
+            len_bytes = struct.pack('!I', len(data))
             self._writer.write(len_bytes)
             self._writer.write(data)
             await self._writer.drain()
         except OSError as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e
 
     async def aclose(self) -> None:
         try:
@@ -57,7 +59,7 @@ class _AsyncDuplex:
             await self._writer.wait_closed()
             self._sock.close()
         except OSError as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e
 
 
 def _read_exactly(sock: socket.socket, num_bytes: int) -> bytes:
@@ -65,7 +67,7 @@ def _read_exactly(sock: socket.socket, num_bytes: int) -> bytes:
     while len(data) < num_bytes:
         packet = sock.recv(num_bytes - len(data))
         if not packet:
-            raise EOFError()
+            raise EOFError
         data.extend(packet)
     return bytes(data)
 
@@ -80,29 +82,29 @@ class _Duplex:
 
     def recv_bytes(self) -> bytes:
         if self._sock is None:
-            raise DuplexClosed()
+            raise DuplexClosed
 
         try:
             len_bytes = _read_exactly(self._sock, 4)
-            len = struct.unpack("!I", len_bytes)[0]
+            len = struct.unpack('!I', len_bytes)[0]
             return _read_exactly(self._sock, len)
         except (OSError, EOFError) as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e
 
     def send_bytes(self, data: bytes) -> None:
         if self._sock is None:
-            raise DuplexClosed()
+            raise DuplexClosed
 
         try:
-            len_bytes = struct.pack("!I", len(data))
+            len_bytes = struct.pack('!I', len(data))
             self._sock.sendall(len_bytes)
             self._sock.sendall(data)
         except OSError as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e
 
     def detach(self) -> socket.socket:
         if self._sock is None:
-            raise DuplexClosed()
+            raise DuplexClosed
 
         sock = self._sock
         self._sock = None
@@ -114,4 +116,4 @@ class _Duplex:
                 self._sock.close()
                 self._sock = None
         except OSError as e:
-            raise DuplexClosed() from e
+            raise DuplexClosed from e

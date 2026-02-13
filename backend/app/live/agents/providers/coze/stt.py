@@ -5,22 +5,23 @@
 @Author  ：guhua@jiqid.com
 @Date    ：2025/05/15 16:35
 """
-import uuid
-import gzip
-import json
 
 import asyncio
+import gzip
+import json
 import traceback
+import uuid
 
-from dataclasses import field, dataclass
-from typing import Callable, Any, Deque, Optional
 from collections import deque
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
 from pydantic import BaseModel
 
-from backend.common.log import log
 from backend.app.live.agents.core.stt.stt import STT
 from backend.app.live.agents.providers.coze.ws import AsyncWebSocketClient
-
+from backend.common.log import log
 from backend.core.conf import settings
 
 PROTOCOL_VERSION = 0b0001
@@ -61,6 +62,7 @@ CUSTOM_COMPRESSION = 0b1111
 
 class AppConfig(BaseModel):
     """应用配置"""
+
     appid: str
     cluster: str
     token: str
@@ -68,11 +70,13 @@ class AppConfig(BaseModel):
 
 class UserConfig(BaseModel):
     """用户配置"""
+
     uid: str
 
 
 class RequestConfig(BaseModel):
     """请求配置"""
+
     reqid: str
     nbest: int  # 识别结果候选数目 默认为 1。
     workflow: str  # 自定义工作流
@@ -84,6 +88,7 @@ class RequestConfig(BaseModel):
 
 class AudioConfig(BaseModel):
     """音频配置"""
+
     format: str  # 音频容器格式 raw / wav / mp3 / ogg
     rate: int  # 音频采样率 默认为 16000。
     language: str
@@ -94,6 +99,7 @@ class AudioConfig(BaseModel):
 
 class AsrConfig(BaseModel):
     """语音服务配置"""
+
     app: AppConfig
     user: UserConfig
     request: RequestConfig
@@ -101,23 +107,23 @@ class AsrConfig(BaseModel):
 
 
 def create_asr_config(
-        appid: str,
-        cluster: str,
-        token: str,
-        uid: str = "",
-        reqid: str = "",
-        nbest: int = 1,
-        workflow: str = "audio_in,resample,partition,vad,fe,decode,itn,nlu_punctuate",
-        show_language: bool = False,
-        show_utterances: bool = False,
-        result_type: str = "full",  # single, full
-        audio_format: str = "pcm",  # 默认音频采集使用的pcm
-        rate: int = 16000,
-        language: str = "zh-CN",  # 语言 zh-CN, en-US
-        bits: int = 16,
-        channel: int = 1,
-        codec: str = "raw",
-        sequence: int = 1,
+    appid: str,
+    cluster: str,
+    token: str,
+    uid: str = '',
+    reqid: str = '',
+    nbest: int = 1,
+    workflow: str = 'audio_in,resample,partition,vad,fe,decode,itn,nlu_punctuate',
+    show_language: bool = False,
+    show_utterances: bool = False,
+    result_type: str = 'full',  # single, full
+    audio_format: str = 'pcm',  # 默认音频采集使用的pcm
+    rate: int = 16000,
+    language: str = 'zh-CN',  # 语言 zh-CN, en-US
+    bits: int = 16,
+    channel: int = 1,
+    codec: str = 'raw',
+    sequence: int = 1,
 ) -> AsrConfig:
     """
     创建ASR配置对象的工厂函数
@@ -154,28 +160,22 @@ def create_asr_config(
             show_language=show_language,
             show_utterances=show_utterances,
             result_type=result_type,
-            sequence=sequence
+            sequence=sequence,
         ),
-        audio=AudioConfig(
-            format=audio_format,
-            rate=rate,
-            language=language,
-            bits=bits,
-            channel=channel,
-            codec=codec
-        )
+        audio=AudioConfig(format=audio_format, rate=rate, language=language, bits=bits, channel=channel, codec=codec),
     )
 
 
 @dataclass
 class AudioChunkBuffer:
-    """异步安全的音频分块批处理器 """
+    """异步安全的音频分块批处理器"""
+
     max_size: int = field(default=10)
-    buffer: Deque[bytes] = field(default_factory=deque, init=False)
+    buffer: deque[bytes] = field(default_factory=deque, init=False)
     async_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
-    async def put(self, chunk: bytes) -> Optional[bytes]:
-        """添加音频数据块，达到阈值时返回完整批次 """
+    async def put(self, chunk: bytes) -> bytes | None:
+        """添加音频数据块，达到阈值时返回完整批次"""
         if not chunk:
             return None
 
@@ -188,21 +188,21 @@ class AudioChunkBuffer:
             return None
 
     async def flush(self) -> bytes:
-        """强制取出当前所有数据并清空缓冲区 """
+        """强制取出当前所有数据并清空缓冲区"""
         async with self.async_lock:
             return self._take()
 
     def _take(self) -> bytes:
         """内部方法：拼接并返回当前所有数据块"""
         if not self.buffer:
-            return b""
+            return b''
 
         total_size = sum(len(c) for c in self.buffer)
         result = bytearray(total_size)
         offset = 0
 
         for chunk in self.buffer:
-            result[offset:offset + len(chunk)] = chunk
+            result[offset : offset + len(chunk)] = chunk
             offset += len(chunk)
 
         self.buffer.clear()
@@ -220,12 +220,10 @@ def get_stt_config(language: str):
 
 
 class CozeSTT(AsyncWebSocketClient, STT):
-    """优化的STT识别客户端
-    """
+    """优化的STT识别客户端"""
 
-    def __init__(self, url: str = settings.BYTES_ASR_URL, language: str = "zh-CN"):
-        """初始化ASR客户端
-        """
+    def __init__(self, url: str = settings.BYTES_ASR_URL, language: str = 'zh-CN') -> None:
+        """初始化ASR客户端"""
         self.asr_config = get_stt_config(language=language)
         super().__init__(url=url, token=self.asr_config.app.token)
 
@@ -235,7 +233,7 @@ class CozeSTT(AsyncWebSocketClient, STT):
         self.finish_callback = None
 
     def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
-        """设置回调函数 """
+        """设置回调函数"""
         self.append_callback = append_cb
         self.finish_callback = finish_cb
 
@@ -246,11 +244,11 @@ class CozeSTT(AsyncWebSocketClient, STT):
         request_params = self.asr_config.model_dump()
         payload = json.dumps(request_params).encode()
 
-        await self.aclose(reason="ASR 开始")  # stt 不支持websocket复用链接，所以每次请求都关闭链接
+        await self.aclose(reason='ASR 开始')  # stt 不支持websocket复用链接，所以每次请求都关闭链接
         await self._send_request(header, payload)
 
     async def push(self, audio_chunk: bytes) -> None:
-        """ Append audio chunk to streaming recognition """
+        """Append audio chunk to streaming recognition"""
         audio_chunk = await self.chunk_batcher.put(audio_chunk)
         if audio_chunk is None:
             return
@@ -263,19 +261,15 @@ class CozeSTT(AsyncWebSocketClient, STT):
         """Finalize streaming recognition session"""
         audio_chunk = await self.chunk_batcher.flush()
 
-        header = self._generate_header(
-            message_type=CLIENT_AUDIO_ONLY_REQUEST,
-            message_type_specific_flags=NEG_SEQUENCE
-        )
+        header = self._generate_header(message_type=CLIENT_AUDIO_ONLY_REQUEST, message_type_specific_flags=NEG_SEQUENCE)
         resp = await self._send_request(header, audio_chunk)
         await self._handler_resp(resp, self.finish_callback)
 
-        await self.aclose(reason="ASR 结束")  # stt 不支持websocket复用链接，所以每次请求都关闭链接
+        await self.aclose(reason='ASR 结束')  # stt 不支持websocket复用链接，所以每次请求都关闭链接
 
-    async def aclose(self, code: int = 1000, reason: str = "") -> None:
-        """安全关闭TTS客户端并释放所有资源
-        """
-        await super().aclose(reason="ASR 关闭")
+    async def aclose(self, code: int = 1000, reason: str = '') -> None:
+        """安全关闭TTS客户端并释放所有资源"""
+        await super().aclose(reason='ASR 关闭')
 
     async def _send_request(self, header: bytearray, payload: bytes) -> dict:
         """
@@ -289,48 +283,45 @@ class CozeSTT(AsyncWebSocketClient, STT):
         return self._parse_response(resp)
 
     @staticmethod
-    async def _handler_resp(
-            resp: dict,
-            callback: Optional[Callable[[Optional[str]], Any]]
-    ) -> None:
+    async def _handler_resp(resp: dict, callback: Callable[[str | None], Any] | None) -> None:
         """处理ASR响应并执行回调"""
         try:
             payload = resp.get('payload_msg', {})
             if not payload or 'result' not in payload:
-                log.debug("响应缺少必要字段: payload_msg.result")
+                log.debug('响应缺少必要字段: payload_msg.result')
                 return
 
             # 提取结果文本
             results = payload['result']
             if not results or not isinstance(results, list):
-                log.debug("无效的result字段格式")
+                log.debug('无效的result字段格式')
                 return
 
             text = results[0].get('text') if results else None
             if not text:
-                log.debug("收到空文本结果")
+                log.debug('收到空文本结果')
                 return
 
-            log.debug(f"收到识别结果: {text}")
+            log.debug(f'收到识别结果: {text}')
 
             # 执行回调
             try:
                 await callback(text)
             except Exception as e:
-                log.error(f"回调执行失败: {e} - {traceback.format_exc()}")
+                log.error(f'回调执行失败: {e} - {traceback.format_exc()}')
 
         except Exception as e:
-            log.error(f"响应处理异常: {e}", exc_info=True)
+            log.error(f'响应处理异常: {e}', exc_info=True)
 
     @staticmethod
     def _generate_header(
-            version=PROTOCOL_VERSION,
-            message_type=CLIENT_FULL_REQUEST,
-            message_type_specific_flags=NO_SEQUENCE,
-            serial_method=JSON,
-            compression_type=GZIP,
-            reserved_data=0x00,
-            extension_header=bytes()
+        version=PROTOCOL_VERSION,
+        message_type=CLIENT_FULL_REQUEST,
+        message_type_specific_flags=NO_SEQUENCE,
+        serial_method=JSON,
+        compression_type=GZIP,
+        reserved_data=0x00,
+        extension_header=b'',
     ):
         """
         protocol_version(4 bits), header_size(4 bits),
@@ -358,33 +349,33 @@ class CozeSTT(AsyncWebSocketClient, STT):
         header_extensions 扩展头(大小等于 8 * 4 * (header_size - 1) )
         payload 类似与http 请求体
         """
-        protocol_version = resp[0] >> 4
-        header_size = resp[0] & 0x0f
+        resp[0] >> 4
+        header_size = resp[0] & 0x0F
         message_type = resp[1] >> 4
-        message_type_specific_flags = resp[1] & 0x0f
+        resp[1] & 0x0F
         serialization_method = resp[2] >> 4
-        message_compression = resp[2] & 0x0f
-        reserved = resp[3]
-        header_extensions = resp[4:header_size * 4]
-        payload = resp[header_size * 4:]
+        message_compression = resp[2] & 0x0F
+        resp[3]
+        resp[4 : header_size * 4]
+        payload = resp[header_size * 4 :]
 
         result = {}
         payload_msg = None
         payload_size = 0
 
         if message_type == SERVER_FULL_RESPONSE:
-            payload_size = int.from_bytes(payload[:4], "big", signed=True)
+            payload_size = int.from_bytes(payload[:4], 'big', signed=True)
             payload_msg = payload[4:]
         elif message_type == SERVER_ACK:
-            seq = int.from_bytes(payload[:4], "big", signed=True)
+            seq = int.from_bytes(payload[:4], 'big', signed=True)
             result['seq'] = seq
             if len(payload) >= 8:
-                payload_size = int.from_bytes(payload[4:8], "big", signed=False)
+                payload_size = int.from_bytes(payload[4:8], 'big', signed=False)
                 payload_msg = payload[8:]
         elif message_type == SERVER_ERROR_RESPONSE:
-            code = int.from_bytes(payload[:4], "big", signed=False)
+            code = int.from_bytes(payload[:4], 'big', signed=False)
             result['code'] = code
-            payload_size = int.from_bytes(payload[4:8], "big", signed=False)
+            payload_size = int.from_bytes(payload[4:8], 'big', signed=False)
             payload_msg = payload[8:]
 
         if payload_msg is None:
@@ -394,9 +385,9 @@ class CozeSTT(AsyncWebSocketClient, STT):
             payload_msg = gzip.decompress(payload_msg)
 
         if serialization_method == JSON:
-            payload_msg = json.loads(str(payload_msg, "utf-8"))
+            payload_msg = json.loads(str(payload_msg, 'utf-8'))
         elif serialization_method != NO_SERIALIZATION:
-            payload_msg = str(payload_msg, "utf-8")
+            payload_msg = str(payload_msg, 'utf-8')
 
         result['payload_msg'] = payload_msg
         result['payload_size'] = payload_size

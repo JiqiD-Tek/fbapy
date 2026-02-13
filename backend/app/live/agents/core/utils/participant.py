@@ -17,7 +17,7 @@ async def wait_for_participant(
     If the participant has already joined, the function will return immediately.
     """
     if not room.isconnected():
-        raise RuntimeError("room is not connected")
+        raise RuntimeError('room is not connected')
 
     fut = asyncio.Future[rtc.RemoteParticipant]()
 
@@ -31,11 +31,10 @@ async def wait_for_participant(
         return p.kind == kind
 
     def _on_participant_connected(p: rtc.RemoteParticipant) -> None:
-        if (identity is None or p.identity == identity) and kind_match(p):
-            if not fut.done():
-                fut.set_result(p)
+        if (identity is None or p.identity == identity) and kind_match(p) and not fut.done():
+            fut.set_result(p)
 
-    room.on("participant_connected", _on_participant_connected)
+    room.on('participant_connected', _on_participant_connected)
 
     try:
         for p in room.remote_participants.values():
@@ -45,7 +44,7 @@ async def wait_for_participant(
 
         return await fut
     finally:
-        room.off("participant_connected", _on_participant_connected)
+        room.off('participant_connected', _on_participant_connected)
 
 
 async def wait_for_track_publication(
@@ -59,7 +58,7 @@ async def wait_for_track_publication(
     If the track has already been published, the function will return immediately.
     """
     if not room.isconnected():
-        raise RuntimeError("room is not connected")
+        raise RuntimeError('room is not connected')
 
     fut = asyncio.Future[rtc.RemoteTrackPublication]()
 
@@ -72,9 +71,7 @@ async def wait_for_track_publication(
 
         return k == kind
 
-    def _on_track_published(
-        publication: rtc.RemoteTrackPublication, participant: rtc.RemoteParticipant
-    ) -> None:
+    def _on_track_published(publication: rtc.RemoteTrackPublication, participant: rtc.RemoteParticipant) -> None:
         if fut.done():
             return
 
@@ -82,7 +79,7 @@ async def wait_for_track_publication(
             fut.set_result(publication)
 
     # room.on("track_subscribed", _on_track_subscribed)
-    room.on("track_published", _on_track_published)
+    room.on('track_published', _on_track_published)
 
     try:
         for p in room.remote_participants.values():
@@ -93,4 +90,4 @@ async def wait_for_track_publication(
 
         return await fut
     finally:
-        room.off("track_published", _on_track_published)
+        room.off('track_published', _on_track_published)

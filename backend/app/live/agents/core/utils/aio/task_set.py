@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Coroutine
-from typing import Any, TypeVar
 
-_T = TypeVar("_T")
+from typing import TYPE_CHECKING, Any, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+_T = TypeVar('_T')
 
 
 class TaskSet:
@@ -15,11 +18,9 @@ class TaskSet:
         self._set = set[asyncio.Task[Any]]()
         self._closed = False
 
-    def create_task(
-        self, coro: Coroutine[Any, Any, _T], name: str | None = None
-    ) -> asyncio.Task[_T]:
+    def create_task(self, coro: Coroutine[Any, Any, _T], name: str | None = None) -> asyncio.Task[_T]:
         if self._closed:
-            raise RuntimeError("TaskSet is closed")
+            raise RuntimeError('TaskSet is closed')
 
         task = self._loop.create_task(coro, name=name)
         self._set.add(task)

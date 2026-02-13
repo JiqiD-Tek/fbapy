@@ -14,7 +14,7 @@
 
 from .image import EncodeOptions, ResizeOptions, encode
 
-__all__ = ["EncodeOptions", "ResizeOptions", "encode"]
+__all__ = ['EncodeOptions', 'ResizeOptions', 'encode']
 
 # Cleanup docs of unexported modules
 _module = dir()

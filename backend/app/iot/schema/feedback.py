@@ -5,8 +5,8 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 14:47
 """
+
 from datetime import datetime
-from typing import Optional
 
 from pydantic import ConfigDict, Field
 
@@ -18,13 +18,13 @@ class FeedbackSchemaBase(SchemaBase):
 
     did: str = Field(description='设备did')
 
-    category: Optional[str] = Field(None, description='反馈类型')
-    content: Optional[str] = Field(None, description='反馈内容')
-    pic_url: Optional[str] = Field(None, description='反馈图片地址')
-    file_url: Optional[str] = Field(None, description='反馈文件地址')
-    contact: Optional[str] = Field(None, description='联系方式')
-    comment: Optional[str] = Field(None, description='处理备注')
-    status: Optional[int] = Field(default=0, description='状态(0：不需要日志上传 1：需要日志上传)')
+    category: str | None = Field(None, description='反馈类型')
+    content: str | None = Field(None, description='反馈内容')
+    pic_url: str | None = Field(None, description='反馈图片地址')
+    file_url: str | None = Field(None, description='反馈文件地址')
+    contact: str | None = Field(None, description='联系方式')
+    comment: str | None = Field(None, description='处理备注')
+    status: int | None = Field(default=0, description='状态(0：不需要日志上传 1：需要日志上传)')
 
 
 class CreateFeedbackParam(FeedbackSchemaBase):
@@ -34,11 +34,11 @@ class CreateFeedbackParam(FeedbackSchemaBase):
 class UpdateFeedbackParam(SchemaBase):
     """更新反馈参数"""
 
-    category: Optional[str] = Field(None, description='反馈类型')
-    content: Optional[str] = Field(None, description='反馈内容')
-    pic_url: Optional[str] = Field(None, description='反馈图片地址')
-    file_url: Optional[str] = Field(None, description='反馈文件地址')
-    contact: Optional[str] = Field(None, description='联系方式')
+    category: str | None = Field(None, description='反馈类型')
+    content: str | None = Field(None, description='反馈内容')
+    pic_url: str | None = Field(None, description='反馈图片地址')
+    file_url: str | None = Field(None, description='反馈文件地址')
+    contact: str | None = Field(None, description='联系方式')
 
 
 class DeleteFeedbackParam(SchemaBase):
@@ -54,4 +54,4 @@ class GetFeedbackDetail(FeedbackSchemaBase):
 
     id: int = Field(description='反馈 ID')
     created_time: datetime = Field(description='创建时间')
-    updated_time: Optional[datetime] = Field(None, description='更新时间')
+    updated_time: datetime | None = Field(None, description='更新时间')

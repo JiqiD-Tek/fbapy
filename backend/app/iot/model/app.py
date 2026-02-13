@@ -5,6 +5,7 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 10:41
 """
+
 import sqlalchemy as sa
 
 from sqlalchemy.orm import Mapped, mapped_column

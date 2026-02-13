@@ -7,22 +7,22 @@ from .utils import cancel_and_wait, gracefully_cancel
 from .wait_group import WaitGroup
 
 __all__ = [
-    "ChanClosed",
-    "Chan",
-    "ChanSender",
-    "ChanReceiver",
-    "Interval",
-    "interval",
-    "Sleep",
-    "SleepFinished",
-    "sleep",
-    "TaskSet",
-    "WaitGroup",
-    "debug",
-    "cancel_and_wait",
-    "duplex_unix",
-    "itertools",
-    "gracefully_cancel",
+    'Chan',
+    'ChanClosed',
+    'ChanReceiver',
+    'ChanSender',
+    'Interval',
+    'Sleep',
+    'SleepFinished',
+    'TaskSet',
+    'WaitGroup',
+    'cancel_and_wait',
+    'debug',
+    'duplex_unix',
+    'gracefully_cancel',
+    'interval',
+    'itertools',
+    'sleep',
 ]
 
 # Cleanup docs of unexported modules

@@ -1,9 +1,10 @@
+from collections import UserString
 from dataclasses import dataclass
-from typing import Literal, TypeVar, Union
+from typing import Literal, TypeAlias, TypeVar
 
-from typing_extensions import TypeAlias
+from typing_extensions import Self
 
-_T = TypeVar("_T")
+_T = TypeVar('_T')
 
 
 class FlushSentinel:
@@ -15,10 +16,10 @@ class NotGiven:
         return False
 
     def __repr__(self) -> str:
-        return "NOT_GIVEN"
+        return 'NOT_GIVEN'
 
 
-NotGivenOr: TypeAlias = Union[_T, NotGiven]
+NotGivenOr: TypeAlias = _T | NotGiven
 NOT_GIVEN = NotGiven()
 
 
@@ -41,13 +42,13 @@ class APIConnectOptions:
 
     def __post_init__(self) -> None:
         if self.max_retry < 0:
-            raise ValueError("max_retry must be greater than or equal to 0")
+            raise ValueError('max_retry must be greater than or equal to 0')
 
         if self.retry_interval < 0:
-            raise ValueError("retry_interval must be greater than or equal to 0")
+            raise ValueError('retry_interval must be greater than or equal to 0')
 
         if self.timeout < 0:
-            raise ValueError("timeout must be greater than or equal to 0")
+            raise ValueError('timeout must be greater than or equal to 0')
 
     def _interval_for_retry(self, num_retries: int) -> float:
         """
@@ -63,7 +64,7 @@ class APIConnectOptions:
 DEFAULT_API_CONNECT_OPTIONS = APIConnectOptions()
 
 
-class TimedString(str):
+class TimedString(UserString):
     """A string with optional start and end timestamps for word-level alignment."""
 
     start_time: NotGivenOr[float]
@@ -74,13 +75,13 @@ class TimedString(str):
     # offset relative to the start of the audio input stream or session in seconds, used in STT plugins
 
     def __new__(
-            cls,
-            text: str,
-            start_time: NotGivenOr[float] = NOT_GIVEN,
-            end_time: NotGivenOr[float] = NOT_GIVEN,
-            confidence: NotGivenOr[float] = NOT_GIVEN,
-            start_time_offset: NotGivenOr[float] = NOT_GIVEN,
-    ) -> "TimedString":
+        cls,
+        text: str,
+        start_time: NotGivenOr[float] = NOT_GIVEN,
+        end_time: NotGivenOr[float] = NOT_GIVEN,
+        confidence: NotGivenOr[float] = NOT_GIVEN,
+        start_time_offset: NotGivenOr[float] = NOT_GIVEN,
+    ) -> Self:
         obj = super().__new__(cls, text)
         obj.start_time = start_time
         obj.end_time = end_time

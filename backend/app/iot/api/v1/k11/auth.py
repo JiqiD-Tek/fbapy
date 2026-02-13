@@ -5,37 +5,46 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 11:20
 """
+
 import datetime
-import uuid
 import secrets
+import uuid
+
 from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, Query, Request, Response
 from livekit import api
 from pyrate_limiter import Duration, Rate
-
-from fastapi import APIRouter, Depends, Request, Response, Path, Query
 from starlette.background import BackgroundTasks
 
-from backend.app.iot.service.storage import storage_service
-from backend.utils.limiter import RateLimiter
-from backend.common.ali_sts import sts_client
-from backend.common.context import ctx
-from backend.common.response.response_code import CustomErrorCode
-from backend.common.security.auth import identity_verifier
-from backend.common.ali_sms import sms_client
-from backend.common.exception import errors
-from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.jwt import jwt_encode, DependsJwtAuth
-from backend.core.conf import settings
-from backend.database.db import CurrentSession, CurrentSessionTransaction
-from backend.database.redis import redis_client
-
 from backend.app.iot.schema.captcha import GetCaptchaDetail
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation, FbaToken, \
-    StsToken, OSSToken
+from backend.app.iot.schema.token import (
+    CozeToken,
+    CurrentLocation,
+    FbaToken,
+    GetLoginToken,
+    GetNewToken,
+    LivekitToken,
+    OSSToken,
+    StsToken,
+)
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
+from backend.app.iot.service.storage import storage_service
+from backend.common.ali_sms import sms_client
+from backend.common.ali_sts import sts_client
+from backend.common.context import ctx
+from backend.common.exception import errors
+from backend.common.response.response_code import CustomErrorCode
+from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.auth import identity_verifier
+from backend.common.security.jwt import DependsJwtAuth, jwt_encode
+from backend.core.conf import settings
+from backend.database.db import CurrentSession, CurrentSessionTransaction
+from backend.database.redis import redis_client
 from backend.plugin.email.utils.send import send_email
+from backend.utils.limiter import RateLimiter
 
 router = APIRouter()
 
@@ -46,10 +55,10 @@ router = APIRouter()
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_get_captcha(
-        db: CurrentSession,
-        background_tasks: BackgroundTasks,
-        phone: Annotated[str | None, Query(description='手机号')] = None,
-        email: Annotated[str | None, Query(description='邮箱')] = None,
+    db: CurrentSession,
+    background_tasks: BackgroundTasks,
+    phone: Annotated[str | None, Query(description='手机号')] = None,
+    email: Annotated[str | None, Query(description='邮箱')] = None,
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 
@@ -82,34 +91,26 @@ async def k11_get_captcha(
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_login(
-        db: CurrentSessionTransaction,
-        response: Response,
-        obj: AuthLoginParam,
-        background_tasks: BackgroundTasks,
+    db: CurrentSessionTransaction,
+    response: Response,
+    obj: AuthLoginParam,
+    background_tasks: BackgroundTasks,
 ) -> ResponseSchemaModel[GetLoginToken]:
     data = await auth_service.login(db=db, response=response, obj=obj, background_tasks=background_tasks)
     return response_base.success(data=data)
 
 
-@router.post(
-    '/refresh',
-    summary='刷新 token'
-)
+@router.post('/refresh', summary='刷新 token')
 async def k11_refresh_token(
-        db: CurrentSession,
-        refresh_token: Annotated[str, Query(description='刷新 token')],
+    db: CurrentSession,
+    refresh_token: Annotated[str, Query(description='刷新 token')],
 ) -> ResponseSchemaModel[GetNewToken]:
     data = await auth_service.refresh_token(db=db, refresh_token=refresh_token)
     return response_base.success(data=data)
 
 
-@router.post(
-    '/logout',
-    summary='用户登出'
-)
-async def k11_logout(
-        request: Request
-) -> ResponseModel:
+@router.post('/logout', summary='用户登出')
+async def k11_logout(request: Request) -> ResponseModel:
     await auth_service.logout(request=request)
     return response_base.success()
 
@@ -120,17 +121,14 @@ async def k11_logout(
     # dependencies=[DependsJwtAuth],
 )
 async def mqtt_login(
-        request: Request,
-        obj: DeviceAuthParam,
+    request: Request,
+    obj: DeviceAuthParam,
 ) -> dict:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
-    if obj.password != credentials["did"]:
-        return {"result": "deny"}
+    if obj.password != credentials['did']:
+        return {'result': 'deny'}
 
-    return {
-        "result": "allow",
-        "is_superuser": False
-    }
+    return {'result': 'allow', 'is_superuser': False}
 
 
 @router.post(
@@ -139,13 +137,13 @@ async def mqtt_login(
     # dependencies=[DependsJwtAuth],
 )
 async def sts_token(
-        request: Request,
-        obj: DeviceAuthParam,
+    request: Request,
+    obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[StsToken]:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
 
     data = None
-    if obj.password == credentials["did"]:
+    if obj.password == credentials['did']:
         data = sts_client.assume_role()
         data = StsToken(**data)
 
@@ -158,15 +156,15 @@ async def sts_token(
     # dependencies=[DependsJwtAuth],
 )
 async def oss_token(
-        request: Request,
-        ext: Annotated[str, Path(description="文件类型")],
-        obj: DeviceAuthParam,
+    request: Request,
+    ext: Annotated[str, Path(description='文件类型')],
+    obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[OSSToken]:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
 
     data = None
-    if obj.password == credentials["did"]:
-        object_name = storage_service.create_object_name(did=credentials["did"], ext=ext)
+    if obj.password == credentials['did']:
+        object_name = storage_service.create_object_name(did=credentials['did'], ext=ext)
         url = storage_service.get_object_url(object_name)
         sign_url = storage_service.get_sign_url(object_name)
         data = OSSToken(url=url, sign_url=sign_url)
@@ -179,8 +177,7 @@ async def oss_token(
     summary='获取当前位置信息',
     # dependencies=[DependsJwtAuth],
 )
-async def current_location(
-) -> ResponseSchemaModel[CurrentLocation]:
+async def current_location() -> ResponseSchemaModel[CurrentLocation]:
     location = CurrentLocation(
         city=ctx.city,
         country=ctx.country,
@@ -196,21 +193,22 @@ async def current_location(
     # dependencies=[DependsJwtAuth],
 )
 async def coze_token(
-        db: CurrentSessionTransaction,
-        obj: DeviceAuthParam,
+    db: CurrentSessionTransaction,
+    obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[CozeToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
     config = {
-        "client_type": "jwt",
-        "coze_www_base": "https://www.coze.cn",
-        "coze_api_base": "https://api.coze.cn",
-        "client_id": settings.COZE_CLIENT_ID,
-        "private_key": settings.COZE_PRIVATE_KEY,
-        "public_key_id": settings.COZE_PUBLIC_KEY_ID,
+        'client_type': 'jwt',
+        'coze_www_base': 'https://www.coze.cn',
+        'coze_api_base': 'https://api.coze.cn',
+        'client_id': settings.COZE_CLIENT_ID,
+        'private_key': settings.COZE_PRIVATE_KEY,
+        'public_key_id': settings.COZE_PUBLIC_KEY_ID,
     }
 
     from cozepy import load_oauth_app_from_config
+
     coze_oauth_app = load_oauth_app_from_config(config)
     oauth_token = coze_oauth_app.get_access_token(ttl=quota)
 
@@ -229,21 +227,26 @@ async def coze_token(
     # dependencies=[DependsJwtAuth],
 )
 async def livekit_token(
-        db: CurrentSessionTransaction,
-        obj: LivekitDeviceAuthParam,
+    db: CurrentSessionTransaction,
+    obj: LivekitDeviceAuthParam,
 ) -> ResponseSchemaModel[LivekitToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
-    token = api.AccessToken(
-        api_key=settings.LIVEKIT_API_KEY,
-        api_secret=settings.LIVEKIT_API_SECRET,
-    ).with_identity(
-        identity=obj.password).with_name(
-        name=obj.name).with_metadata(
-        metadata=obj.metadata).with_ttl(
-        ttl=datetime.timedelta(seconds=quota)).with_grants(
-        api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
-    ).to_jwt()
+    token = (
+        api
+        .AccessToken(
+            api_key=settings.LIVEKIT_API_KEY,
+            api_secret=settings.LIVEKIT_API_SECRET,
+        )
+        .with_identity(identity=obj.password)
+        .with_name(name=obj.name)
+        .with_metadata(metadata=obj.metadata)
+        .with_ttl(ttl=datetime.timedelta(seconds=quota))
+        .with_grants(
+            api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
+        )
+        .to_jwt()
+    )
 
     token = LivekitToken(
         url=settings.LIVEKIT_URL,
@@ -259,12 +262,12 @@ async def livekit_token(
     dependencies=[DependsJwtAuth],
 )
 async def fba_token(
-        db: CurrentSessionTransaction,
-        obj: DeviceAuthParam,
+    db: CurrentSessionTransaction,
+    obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[FbaToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
-    payload = dict(mac=obj.username, did=obj.password, ttl=quota)
+    payload = {'mac': obj.username, 'did': obj.password, 'ttl': quota}
     token = jwt_encode(payload=payload)
 
     token = FbaToken(
@@ -280,8 +283,8 @@ async def fba_token(
     dependencies=[DependsJwtAuth],
 )
 async def end_usage(
-        db: CurrentSessionTransaction,
-        obj: DeviceAuthParam,
+    db: CurrentSessionTransaction,
+    obj: DeviceAuthParam,
 ) -> ResponseModel:
     quota = await device_service.end_usage(db=db, mac=obj.username, did=obj.password)
 

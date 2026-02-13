@@ -9,7 +9,6 @@ from backend.app.iot.schema.app import CreateAppParam, UpdateAppParam
 
 
 class CRUDApp(CRUDPlus[App]):
-
     async def get(self, db: AsyncSession, pk: int) -> App | None:
         return await self.select_model(db, pk)
 

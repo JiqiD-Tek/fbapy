@@ -4,7 +4,7 @@ from functools import cache
 from re import Pattern
 from typing import Any, Literal
 
-from pydantic import model_validator, SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from backend.core.path_conf import ENV_EXAMPLE_FILE_PATH, ENV_FILE_PATH
@@ -23,12 +23,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls,
-            settings_cls: type[BaseSettings],
-            init_settings: PydanticBaseSettingsSource,
-            env_settings: PydanticBaseSettingsSource,
-            dotenv_settings: PydanticBaseSettingsSource,
-            file_secret_settings: PydanticBaseSettingsSource,
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级"""
         return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
@@ -197,10 +197,10 @@ class Settings(BaseSettings):
 
     # 日志
     LOG_FORMAT: str = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-        "<lvl>{level: <8}</> | <cyan>{request_id}</> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-        "<level>{message}</level>"
+        '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
+        '<lvl>{level: <8}</> | <cyan>{request_id}</> | '
+        '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - '
+        '<level>{message}</level>'
     )
 
     # 日志（控制台）
@@ -330,53 +330,53 @@ class Settings(BaseSettings):
     COZE_PUBLIC_KEY_ID: str = ''
 
     # MQTT
-    MQTT_HOST: str = "10.240.225.23"
+    MQTT_HOST: str = '10.240.225.23'
     MQTT_PORT: int = 1883
-    MQTT_USERNAME: str = "admin"
-    MQTT_JWT_SECRET: str = ""
-    MQTT_PASSWORD: str = ""
+    MQTT_USERNAME: str = 'admin'
+    MQTT_JWT_SECRET: str = ''
+    MQTT_PASSWORD: str = ''
     MQTT_UP_TOPICS: list[str] = [
-        "$share/group/K10/+/up/status",
-        "$share/group/K10/+/up/property",
-        "$share/group/K10/+/up/ack",
+        '$share/group/K10/+/up/status',
+        '$share/group/K10/+/up/property',
+        '$share/group/K10/+/up/ack',
     ]
 
     # 大模型
-    SPEECH_TYPE: Literal["coze", "azure"] = "coze"  # 语音[stt, tts]类型  azure  coze
-    SPEECH_ENCODING: Literal["wav", "mp3"] = "wav"  # 语音编码格式
+    SPEECH_TYPE: Literal['coze', 'azure'] = 'coze'  # 语音[stt, tts]类型  azure  coze
+    SPEECH_ENCODING: Literal['wav', 'mp3'] = 'wav'  # 语音编码格式
 
     # 微软 语音
-    AZURE_SPEECH_KEY: SecretStr = ""
-    AZURE_SPEECH_REGION: str = ""
+    AZURE_SPEECH_KEY: SecretStr = ''
+    AZURE_SPEECH_REGION: str = ''
 
     # 微软 大模型
-    AZURE_OPENAI_MODEL: str = ""
-    AZURE_OPENAI_ENDPOINT: str = ""
-    AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ""
-    AZURE_OPENAI_API_VERSION: str = ""
+    AZURE_OPENAI_MODEL: str = ''
+    AZURE_OPENAI_ENDPOINT: str = ''
+    AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ''
+    AZURE_OPENAI_API_VERSION: str = ''
 
     # 火山引擎
-    BYTES_ASR_URL: str = ""
-    BYTES_ASR_APPID: str = ""
-    BYTES_ASR_TOKEN: str = ""
-    BYTES_ASR_CLUSTER: str = ""
+    BYTES_ASR_URL: str = ''
+    BYTES_ASR_APPID: str = ''
+    BYTES_ASR_TOKEN: str = ''
+    BYTES_ASR_CLUSTER: str = ''
 
-    BYTES_TTS_URL: str = ""
-    BYTES_TTS_APPID: str = ""
-    BYTES_TTS_TOKEN: str = ""
-    BYTES_TTS_CLUSTER: str = ""
-    BYTES_TTS_VOICE_TYPE: str = ""
+    BYTES_TTS_URL: str = ''
+    BYTES_TTS_APPID: str = ''
+    BYTES_TTS_TOKEN: str = ''
+    BYTES_TTS_CLUSTER: str = ''
+    BYTES_TTS_VOICE_TYPE: str = ''
 
     # 音声复刻
-    BYTES_ICL_CLUSTER: str = ""
-    BYTES_ICL_VOICE_TYPE: str = ""
+    BYTES_ICL_CLUSTER: str = ''
+    BYTES_ICL_VOICE_TYPE: str = ''
 
     # 是否启用复刻声音
     BYTES_ICL_STATUS: bool = False
 
     # 豆包大模型
-    DOUBAO_API_KEY: SecretStr = ""
-    DOUBAO_BASE_URL: str = ""
+    DOUBAO_API_KEY: SecretStr = ''
+    DOUBAO_BASE_URL: str = ''
 
     @model_validator(mode='before')
     @classmethod

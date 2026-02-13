@@ -1,22 +1,25 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from ..utils import aio
+from backend.app.live.agents.core.utils import aio
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 # fmt: off
-PUNCTUATIONS = ['!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>',  # noqa: E501
-                '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~', '±', '—', '‘', '’', '“', '”', '…']  # noqa: E501
+PUNCTUATIONS = ['!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>',
+                '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~', '±', '—', '‘', '’', '“', '”', '…']
 
 # fmt: on
 
 
 @dataclass
 class TokenData:
-    segment_id: str = ""
-    token: str = ""
+    segment_id: str = ''
+    token: str = ''
 
 
 class SentenceTokenizer(ABC):
@@ -57,7 +60,7 @@ class SentenceStream(ABC):
     def _check_not_closed(self) -> None:
         if self._event_ch.closed:
             cls = type(self)
-            raise RuntimeError(f"{cls.__module__}.{cls.__name__} is closed")
+            raise RuntimeError(f'{cls.__module__}.{cls.__name__} is closed')
 
     @property
     def closed(self) -> bool:
@@ -74,7 +77,7 @@ class WordTokenizer(ABC):
         pass
 
     def format_words(self, words: list[str]) -> str:
-        return " ".join(words)
+        return ' '.join(words)
 
 
 class WordStream(ABC):
@@ -105,4 +108,4 @@ class WordStream(ABC):
     def _check_not_closed(self) -> None:
         if self._event_ch.closed:
             cls = type(self)
-            raise RuntimeError(f"{cls.__module__}.{cls.__name__} is closed")
+            raise RuntimeError(f'{cls.__module__}.{cls.__name__} is closed')

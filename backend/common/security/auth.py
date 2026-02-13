@@ -1,10 +1,9 @@
 # -*- coding: UTF-8 -*-
-import time
-import uuid
 import base64
 import hashlib
+import time
+import uuid
 
-from typing import Dict
 from cachetools import TTLCache
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -16,7 +15,7 @@ from backend.core.conf import settings
 class IdentityGenerator:
     """生成 MAC / DID / key 三元组（当前只使用 MAC + DID，key 保留占位）"""
 
-    def __init__(self, master_secret: str, salt: str):
+    def __init__(self, master_secret: str, salt: str) -> None:
         """
         初始化 KeyGenerator
 
@@ -27,7 +26,7 @@ class IdentityGenerator:
         self.master_secret = master_secret.encode()  # 转为 bytes，用于哈希和 HKDF
         self.salt = salt.encode()  # 转为 bytes，用于 HKDF
 
-    def derive_credentials(self, mac: str) -> Dict[str, str]:
+    def derive_credentials(self, mac: str) -> dict[str, str]:
         """
         根据 MAC 地址派生设备三元组 (mac, did, key)
         当前版本 key 保留为空字符串
@@ -45,7 +44,7 @@ class IdentityGenerator:
         mac = normalize_mac(mac)  # 将 MAC 地址标准化为大写
         did = self._derive_credential_did(mac)  # 派生唯一 DID
         key = self._derive_credential_key(mac, did)
-        return {"mac": mac, "did": did, "key": key}
+        return {'mac': mac, 'did': did, 'key': key}
 
     def _derive_credential_did(self, mac: str) -> str:
         """
@@ -83,7 +82,7 @@ class IdentityGenerator:
         Returns:
             str: base64 urlsafe 编码的 32 字节 key
         """
-        info = f"KEY:{mac}:{did}".encode()  # 用作 HKDF info 字段，保证 key 与 mac/did 绑定
+        info = f'KEY:{mac}:{did}'.encode()  # 用作 HKDF info 字段，保证 key 与 mac/did 绑定
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
@@ -91,7 +90,7 @@ class IdentityGenerator:
             info=info,
         )
         key = hkdf.derive(self.master_secret)  # 派生 32 字节 key
-        return base64.urlsafe_b64encode(key).decode("utf-8")  # urlsafe base64 输出
+        return base64.urlsafe_b64encode(key).decode('utf-8')  # urlsafe base64 输出
 
 
 class IdentityVerifier(IdentityGenerator):
@@ -108,7 +107,7 @@ class IdentityVerifier(IdentityGenerator):
     - 使用 TTLCache 防止 nonce 重放
     """
 
-    def __init__(self, master_secret: str, salt: str, max_cache_size=10000, cache_ttl=60):
+    def __init__(self, master_secret: str, salt: str, max_cache_size=10000, cache_ttl=60) -> None:
         """
         初始化 RegistrationServer
 
@@ -145,13 +144,13 @@ class IdentityVerifier(IdentityGenerator):
         # ------------------ 时间校验 ------------------
         # 请求时间与服务器时间差绝对值超过 60 秒即拒绝
         if abs(time.time() - timestamp) > 60:
-            log.error("时间校验失败")
+            log.error('时间校验失败')
             return False
 
         # ------------------ nonce 校验 ------------------
         # 如果 nonce 已存在缓存，说明请求重复
         if nonce in self.nonce_cache:
-            log.error("nonce 重复")
+            log.error('nonce 重复')
             return False
         # 将当前 nonce 加入缓存，过期后自动删除
         self.nonce_cache[nonce] = True
@@ -160,8 +159,8 @@ class IdentityVerifier(IdentityGenerator):
         # 根据 MAC 派生 DID
         credentials = self.derive_credentials(mac)
         # 验证请求提供的 DID 是否匹配派生结果
-        if did != credentials["did"]:
-            log.error("DID 校验失败")
+        if did != credentials['did']:
+            log.error('DID 校验失败')
             return False
 
         # ------------------ 验证通过 ------------------
@@ -174,17 +173,20 @@ class RequestBuilder:
 
     @staticmethod
     def build_registration_request(
-            mac: str, did: str, key: str,  # 三元组 必传
-            sn: str = "K102501A0100123", model: str = "K10",  # 设备信息
-    ) -> Dict[str, str]:
+        mac: str,
+        did: str,
+        key: str,  # 三元组 必传
+        sn: str = 'K102501A0100123',
+        model: str = 'K10',  # 设备信息
+    ) -> dict[str, str]:
         mac = normalize_mac(mac)
         data = {
-            "mac": mac,
-            "did": did,
-            "timestamp": int(time.time()),
-            "nonce": uuid.uuid4().hex,
-            "sn": sn,
-            "model": model,
+            'mac': mac,
+            'did': did,
+            'timestamp': int(time.time()),
+            'nonce': uuid.uuid4().hex,
+            'sn': sn,
+            'model': model,
         }
         return data
 
@@ -198,19 +200,19 @@ identity_verifier = IdentityVerifier(settings.MASTER_SECRET, salt=settings.KEY_S
 
 
 # ------------------ 测试 ------------------
-def main(mac):
+def main(mac) -> None:
     credentials = identity_verifier.derive_credentials(mac)
-    log.debug(f"三元组: {credentials}")
+    log.debug(f'三元组: {credentials}')
 
-    reg_data = RequestBuilder.build_registration_request(credentials["mac"], credentials["did"], credentials["key"])
-    log.debug(f"注册数据: {reg_data}")
+    reg_data = RequestBuilder.build_registration_request(credentials['mac'], credentials['did'], credentials['key'])
+    log.debug(f'注册数据: {reg_data}')
 
     valid = identity_verifier.verify(**reg_data)
-    log.debug(f"验证结果: {valid}")
+    log.debug(f'验证结果: {valid}')
 
 
-if __name__ == "__main__":
-    MAC = "C4:1C:9C:09:C9:81"
-    MAC = "3E:96:10:BA:61:2F"
-    log.debug(f"MAC: {MAC}")
+if __name__ == '__main__':
+    MAC = 'C4:1C:9C:09:C9:81'
+    MAC = '3E:96:10:BA:61:2F'
+    log.debug(f'MAC: {MAC}')
     main(mac=MAC)

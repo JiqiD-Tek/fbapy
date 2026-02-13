@@ -5,10 +5,13 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/26 15:41
 """
+
 import enum
+
 import sqlalchemy as sa
 
-from sqlalchemy import BigInteger, Enum as SQLEnum
+from sqlalchemy import BigInteger
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.common.model import Base, id_key
@@ -16,6 +19,7 @@ from backend.common.model import Base, id_key
 
 class RechargeType(enum.Enum):
     """充值类型"""
+
     PAYMENT = 'PAYMENT'  # 外部支付充值
     MANUAL = 'MANUAL'  # 后台手动充值
     PROMOTION = 'PROMOTION'  # 促销赠送
@@ -23,6 +27,7 @@ class RechargeType(enum.Enum):
 
 class DeviceRecharge(Base):
     """设备充值记录表"""
+
     __tablename__ = 'u_device_recharge'
 
     id: Mapped[id_key] = mapped_column(init=False, primary_key=True)

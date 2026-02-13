@@ -1,7 +1,8 @@
 import asyncio
+
 from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Iterator
-from typing import Any, Generic, Protocol, TypeVar, Union, overload, runtime_checkable
+from typing import Any, Generic, Protocol, TypeVar, overload, runtime_checkable
 
 from typing_extensions import AsyncContextManager
 
@@ -14,7 +15,7 @@ class _ACloseable(Protocol):
         """Asynchronously close this object"""
 
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 async def tee_peer(
@@ -48,13 +49,13 @@ async def tee_peer(
 
 
 class Tee(Generic[T]):
-    __slots__ = ("_iterator", "_buffers", "_children")
+    __slots__ = ('_buffers', '_children', '_iterator')
 
     def __init__(
         self,
         iterator: AsyncIterable[T],
         n: int = 2,
-    ):
+    ) -> None:
         self._iterator = iterator.__aiter__()
         self._buffers: list[deque[T]] = [deque() for _ in range(n)]
 
@@ -78,15 +79,13 @@ class Tee(Generic[T]):
     @overload
     def __getitem__(self, item: slice) -> tuple[AsyncIterator[T], ...]: ...
 
-    def __getitem__(
-        self, item: Union[int, slice]
-    ) -> Union[AsyncIterator[T], tuple[AsyncIterator[T], ...]]:
+    def __getitem__(self, item: int | slice) -> AsyncIterator[T] | tuple[AsyncIterator[T], ...]:
         return self._children[item]
 
     def __iter__(self) -> Iterator[AsyncIterator[T]]:
         yield from self._children
 
-    async def __aenter__(self) -> "Tee[T]":
+    async def __aenter__(self) -> 'Tee[T]':
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

@@ -1,3 +1,3 @@
 from . import openai
 
-__all__ = ["openai"]
+__all__ = ['openai']

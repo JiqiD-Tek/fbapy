@@ -25,8 +25,8 @@ def split_words(
     # Thai: \u0E00-\u0E7F
     char_based_codes = (
         re.compile(
-            r"[\u4e00-\u9fff\u3040-\u30ff\u3400-\u4dbf"  # CJK scripts
-            r"\u0E00-\u0E7F]"  # Thai
+            r'[\u4e00-\u9fff\u3040-\u30ff\u3400-\u4dbf'  # CJK scripts
+            r'\u0E00-\u0E7F]'  # Thai
         )
         if split_character
         else None
@@ -35,9 +35,7 @@ def split_words(
     pos = 0
     word_start = 0
 
-    translation_table = (
-        str.maketrans("", "", "".join(tokenizer.PUNCTUATIONS)) if ignore_punctuation else None
-    )
+    translation_table = str.maketrans('', '', ''.join(tokenizer.PUNCTUATIONS)) if ignore_punctuation else None
 
     def _add_current_word(start: int, end: int) -> None:
         word = text[start:end]

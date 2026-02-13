@@ -15,15 +15,16 @@
 from __future__ import annotations
 
 import inspect
+
 from abc import ABC
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Flag, auto
 from typing import (
     Any,
-    Callable,
     Literal,
     Protocol,
+    TypeGuard,
     TypeVar,
     Union,
     cast,
@@ -31,7 +32,7 @@ from typing import (
     runtime_checkable,
 )
 
-from typing_extensions import NotRequired, Required, TypedDict, TypeGuard
+from typing_extensions import NotRequired, Required, TypedDict
 
 
 # TODO: refactor Tool inheritance, all action (FunctionTool, RawFunctionTool, ProviderTool) should inherit from Tool
@@ -45,11 +46,11 @@ class Function(TypedDict, total=False):
 
 
 class NamedToolChoice(TypedDict, total=False):
-    type: Required[Literal["function"]]
+    type: Required[Literal['function']]
     function: Required[Function]
 
 
-ToolChoice = Union[NamedToolChoice, Literal["auto", "required", "none"]]
+ToolChoice = Union[NamedToolChoice, Literal['auto', 'required', 'none']]
 
 
 class ToolError(Exception):
@@ -131,8 +132,8 @@ class RawFunctionTool(Protocol):
     def __call__(self, *args: Any, **kwargs: Any) -> Any: ...
 
 
-F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
-Raw_F = TypeVar("Raw_F", bound=Callable[..., Awaitable[Any]])
+F = TypeVar('F', bound=Callable[..., Awaitable[Any]])
+Raw_F = TypeVar('Raw_F', bound=Callable[..., Awaitable[Any]])
 
 
 @overload
@@ -180,25 +181,20 @@ def function_tool(
     description: str | None = None,
     raw_schema: RawFunctionDescription | dict[str, Any] | None = None,
     flags: ToolFlag = ToolFlag.NONE,
-) -> (
-    FunctionTool
-    | RawFunctionTool
-    | Callable[[F], FunctionTool]
-    | Callable[[Raw_F], RawFunctionTool]
-):
+) -> FunctionTool | RawFunctionTool | Callable[[F], FunctionTool] | Callable[[Raw_F], RawFunctionTool]:
     def deco_raw(func: Raw_F) -> RawFunctionTool:
         assert raw_schema is not None
 
-        if not raw_schema.get("name"):
-            raise ValueError("raw function name cannot be empty")
+        if not raw_schema.get('name'):
+            raise ValueError('raw function name cannot be empty')
 
-        if "parameters" not in raw_schema:
+        if 'parameters' not in raw_schema:
             # support empty parameters
-            raise ValueError("raw function description must contain a parameters key")
+            raise ValueError('raw function description must contain a parameters key')
 
-        info = _RawFunctionToolInfo(raw_schema={**raw_schema}, name=raw_schema["name"], flags=flags)
-        setattr(func, "__livekit_raw_tool_info", info)
-        return cast(RawFunctionTool, func)
+        info = _RawFunctionToolInfo(raw_schema={**raw_schema}, name=raw_schema['name'], flags=flags)
+        setattr(func, '__livekit_raw_tool_info', info)
+        return cast('RawFunctionTool', func)
 
     def deco_func(func: F) -> FunctionTool:
         from docstring_parser import parse_from_object
@@ -209,29 +205,29 @@ def function_tool(
             description=description or docstring.description,
             flags=flags,
         )
-        setattr(func, "__livekit_tool_info", info)
-        return cast(FunctionTool, func)
+        setattr(func, '__livekit_tool_info', info)
+        return cast('FunctionTool', func)
 
     if f is not None:
-        return deco_raw(cast(Raw_F, f)) if raw_schema is not None else deco_func(cast(F, f))
+        return deco_raw(cast('Raw_F', f)) if raw_schema is not None else deco_func(cast('F', f))
 
     return deco_raw if raw_schema is not None else deco_func
 
 
 def is_function_tool(f: Any) -> TypeGuard[FunctionTool]:
-    return hasattr(f, "__livekit_tool_info")
+    return hasattr(f, '__livekit_tool_info')
 
 
 def get_function_info(f: FunctionTool) -> _FunctionToolInfo:
-    return cast(_FunctionToolInfo, getattr(f, "__livekit_tool_info"))
+    return cast('_FunctionToolInfo', getattr(f, '__livekit_tool_info'))
 
 
 def is_raw_function_tool(f: Any) -> TypeGuard[RawFunctionTool]:
-    return hasattr(f, "__livekit_raw_tool_info")
+    return hasattr(f, '__livekit_raw_tool_info')
 
 
 def get_raw_function_info(f: RawFunctionTool) -> _RawFunctionToolInfo:
-    return cast(_RawFunctionToolInfo, getattr(f, "__livekit_raw_tool_info"))
+    return cast('_RawFunctionToolInfo', getattr(f, '__livekit_raw_tool_info'))
 
 
 def find_function_tools(cls_or_obj: Any) -> list[FunctionTool | RawFunctionTool]:
@@ -283,10 +279,7 @@ class ToolContext:
 
         self_provider_ids = {id(tool) for tool in self._provider_tools}
         other_provider_ids = {id(tool) for tool in other._provider_tools}
-        if self_provider_ids != other_provider_ids:
-            return False
-
-        return True
+        return self_provider_ids == other_provider_ids
 
     def update_tools(self, tools: list[FunctionTool | RawFunctionTool | ProviderTool]) -> None:
         self._tools = tools.copy()
@@ -307,10 +300,10 @@ class ToolContext:
                 continue
             else:
                 # TODO(theomonnom): MCP servers & other action
-                raise ValueError(f"unknown tool type: {type(tool)}")
+                raise ValueError(f'unknown tool type: {type(tool)}')
 
             if info.name in self._tools_map:
-                raise ValueError(f"duplicate function name: {info.name}")
+                raise ValueError(f'duplicate function name: {info.name}')
 
             self._tools_map[info.name] = tool
 

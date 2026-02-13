@@ -5,7 +5,8 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/06/23 16:11
 """
-from typing import Dict, Any, List
+
+from typing import Any
 
 raw_data = [
     {'adcode': '100000', 'citycode': '', 'name': '中国'},
@@ -3251,7 +3252,7 @@ raw_data = [
 ]
 
 
-def build_optimized_mappings(data: List[Dict[str, Any]]) -> Dict[str, Dict[str, Dict[str, Any]]]:
+def build_optimized_mappings(data: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
     """
     构建优化的双映射字典结构
 
@@ -3259,10 +3260,7 @@ def build_optimized_mappings(data: List[Dict[str, Any]]) -> Dict[str, Dict[str, 
     :return: 包含两个映射字典的字典 {'by_code': {...}, 'by_name': {...}}
     """
     # 使用字典推导式一次性构建两个映射
-    return {
-        'by_code': {item['adcode']: item for item in data},
-        'by_name': {item['name']: item for item in data}
-    }
+    return {'by_code': {item['adcode']: item for item in data}, 'by_name': {item['name']: item for item in data}}
 
 
 # 构建映射

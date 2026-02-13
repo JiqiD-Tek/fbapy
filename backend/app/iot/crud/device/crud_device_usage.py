@@ -8,7 +8,6 @@ from backend.app.iot.schema.device.device_usage import CreateDeviceUsageParam, U
 
 
 class CRUDDeviceUsage(CRUDPlus[DeviceUsage]):
-
     async def get(self, db: AsyncSession, pk: int) -> DeviceUsage | None:
         return await self.select_model(db, pk)
 

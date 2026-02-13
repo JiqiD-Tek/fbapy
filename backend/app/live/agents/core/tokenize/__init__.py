@@ -1,4 +1,4 @@
-from . import basic,  utils
+from . import basic, utils
 from .token_stream import BufferedSentenceStream, BufferedWordStream
 from .tokenizer import (
     SentenceStream,
@@ -9,15 +9,15 @@ from .tokenizer import (
 )
 
 __all__ = [
-    "SentenceTokenizer",
-    "SentenceStream",
-    "WordTokenizer",
-    "WordStream",
-    "TokenData",
-    "BufferedSentenceStream",
-    "BufferedWordStream",
-    "basic",
-    "utils",
+    'BufferedSentenceStream',
+    'BufferedWordStream',
+    'SentenceStream',
+    'SentenceTokenizer',
+    'TokenData',
+    'WordStream',
+    'WordTokenizer',
+    'basic',
+    'utils',
 ]
 
 

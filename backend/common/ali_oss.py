@@ -5,31 +5,27 @@ Author: guhua@jiqid.com
 """
 
 import asyncio
-from typing import Optional
-
-import oss2
-from oss2.credentials import StaticCredentialsProvider
 
 import alibabacloud_oss_v2 as oss
 import alibabacloud_oss_v2.aio as oss_aio
+import oss2
+
+from oss2.credentials import StaticCredentialsProvider
 
 from backend.common.log import log
 from backend.core.conf import settings
 
 
 class StaticCredentialProvider(oss.credentials.CredentialsProvider):
-    """ 静态 AK/SK（可以扩展到动态获取） """
+    """静态 AK/SK（可以扩展到动态获取）"""
 
-    def __init__(self, access_key_id: str, access_key_secret: str):
+    def __init__(self, access_key_id: str, access_key_secret: str) -> None:
         super().__init__()
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
 
     def get_credentials(self):
-        return oss.credentials.Credentials(
-            self.access_key_id,
-            self.access_key_secret
-        )
+        return oss.credentials.Credentials(self.access_key_id, self.access_key_secret)
 
 
 class AliOSSClient:
@@ -37,17 +33,13 @@ class AliOSSClient:
     AliOSS 异步 Client 封装
     """
 
-    def __init__(
-            self,
-            access_key_id: str,
-            access_key_secret: str,
-            bucket: str,
-            region: str = "cn-hangzhou"
-    ):
+    CDN_HOST = 'https://media.jiqid.com'
+
+    def __init__(self, access_key_id: str, access_key_secret: str, bucket: str, region: str = 'cn-hangzhou') -> None:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
 
-        self.endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
+        self.endpoint = 'https://oss-cn-hangzhou.aliyuncs.com'
         self.bucket = bucket
         self.region = region
 
@@ -59,10 +51,10 @@ class AliOSSClient:
             connect_timeout=5_000,  # ms
         )
 
-        self.client: Optional[oss_aio.AsyncClient] = oss_aio.AsyncClient(cfg)
+        self.client: oss_aio.AsyncClient | None = oss_aio.AsyncClient(cfg)
 
-    async def close(self):
-        """ 关闭客户端 """
+    async def close(self) -> None:
+        """关闭客户端"""
         if self.client:
             await self.client.close()
 
@@ -71,27 +63,22 @@ class AliOSSClient:
         上传字节数据到 OSS
         """
         try:
-            resp = await self.client.put_object(
-                oss.PutObjectRequest(
-                    bucket=self.bucket,
-                    key=key,
-                    body=data
-                )
-            )
+            resp = await self.client.put_object(oss.PutObjectRequest(bucket=self.bucket, key=key, body=data))
 
             log.info(
-                f"[OSS Upload Success] key={key}, status={resp.status_code}, "
-                f"etag={resp.etag}, request_id={resp.request_id}"
+                f'[OSS Upload Success] key={key}, status={resp.status_code}, '
+                f'etag={resp.etag}, request_id={resp.request_id}'
             )
-            return f"https://media.jiqid.com/{key}"
+            return f'{self.CDN_HOST}/{key}'
 
         except Exception as e:
-            log.error(f"[OSS Upload Error] key={key}, error={e!r}")
-            return ""
+            log.error(f'[OSS Upload Error] key={key}, error={e!r}')
+            return ''
 
     def sign_url(self, object_name: str, expires: int = 60):
         auth = oss2.ProviderAuthV4(
-            StaticCredentialsProvider(self.provider.access_key_id, self.provider.access_key_secret))
+            StaticCredentialsProvider(self.provider.access_key_id, self.provider.access_key_secret)
+        )
 
         bucket = oss2.Bucket(auth, self.endpoint, self.bucket, region=self.region)
         url = bucket.sign_url('PUT', object_name, expires, slash_safe=True)
@@ -106,9 +93,9 @@ oss_client = AliOSSClient(
 )
 
 
-async def main():
-    key = "K10/feedback/log/test.log"
-    data = "Hello, OSS!".encode("utf-8")
+async def main() -> None:
+    key = 'K10/feedback/log/test.log'
+    data = b'Hello, OSS!'
 
     await oss_client.upload_bytes(key, data)
     await oss_client.close()
@@ -117,5 +104,5 @@ async def main():
     log.info(rv)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     asyncio.run(main())

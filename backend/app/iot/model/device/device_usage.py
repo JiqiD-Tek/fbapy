@@ -5,19 +5,23 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/26 15:40
 """
+
 import enum
-import sqlalchemy as sa
 
 from datetime import datetime
-from sqlalchemy import BigInteger, Enum as SQLEnum
+
+import sqlalchemy as sa
+
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.common.model import Base, id_key, TimeZone
+from backend.common.model import Base, TimeZone, id_key
 from backend.utils.timezone import timezone
 
 
 class UsageStatus(enum.Enum):
     """使用记录状态"""
+
     ACTIVE = 'ACTIVE'  # 使用中
     COMPLETED = 'COMPLETED'  # 正常结束并扣费
     FAILED = 'FAILED'  # 失败（余额不足等）
@@ -26,6 +30,7 @@ class UsageStatus(enum.Enum):
 
 class DeviceUsage(Base):
     """设备使用额度表"""
+
     __tablename__ = 'u_device_usage'
 
     id: Mapped[id_key] = mapped_column(init=False)

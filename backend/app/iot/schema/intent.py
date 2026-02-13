@@ -5,7 +5,6 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 14:47
 """
-from typing import Optional
 
 from pydantic import Field
 
@@ -17,5 +16,5 @@ class ParamBase(SchemaBase):
 
 
 class WeatherParam(ParamBase):
-    city: Optional[str] = Field(None, description='城市')
-    ip: Optional[str] = Field(None, description='IP地址')
+    city: str | None = Field(None, description='城市')
+    ip: str | None = Field(None, description='IP地址')

@@ -5,15 +5,14 @@ from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus, JoinConfig
 
+from backend.app.iot.model import Device, User
 from backend.app.iot.model.m2m import user_device
+from backend.app.iot.schema.user import CreateUserParam, UpdateUserParam
 from backend.utils.serializers import select_join_serialize
 from backend.utils.timezone import timezone
-from backend.app.iot.model import User, Device
-from backend.app.iot.schema.user import CreateUserParam, UpdateUserParam
 
 
 class CRUDUser(CRUDPlus[User]):
-
     async def get(self, db: AsyncSession, pk: int) -> User | None:
         return await self.select_model(db, pk)
 
@@ -41,22 +40,22 @@ class CRUDUser(CRUDPlus[User]):
         return await self.delete_model_by_column(db, allow_multiple=True, id__in=pks)
 
     async def update_login_time(self, db: AsyncSession, pk: int) -> int:
-        """ 更新用户上次登录时间 """
+        """更新用户上次登录时间"""
         return await self.update_model_by_column(db, {'last_login_time': timezone.now()}, id=pk)
 
     async def get_by_phone(self, db: AsyncSession, phone: str) -> User | None:
-        """ 通过手机获取用户 """
+        """通过手机获取用户"""
         return await self.select_model_by_column(db, phone=phone)
 
     async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
-        """ 通过邮箱获取用户 """
+        """通过邮箱获取用户"""
         return await self.select_model_by_column(db, email=email)
 
     async def get_join(
-            self,
-            db: AsyncSession,
-            *,
-            user_id: int | None = None,
+        self,
+        db: AsyncSession,
+        *,
+        user_id: int | None = None,
     ) -> Any | None:
         """
         获取用户关联信息

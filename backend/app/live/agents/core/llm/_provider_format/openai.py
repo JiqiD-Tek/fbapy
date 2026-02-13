@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Literal
-
-from backend.app.live.agents.core import llm
+from typing import TYPE_CHECKING, Any
 
 from .utils import group_tool_calls
 
+if TYPE_CHECKING:
+    from backend.app.live.agents.core import llm
 
-def to_chat_ctx(
-        chat_ctx: llm.ChatContext, *, inject_dummy_user_message: bool = True
-) -> tuple[list[dict], Literal[None]]:
+
+def to_chat_ctx(chat_ctx: llm.ChatContext, *, inject_dummy_user_message: bool = True) -> tuple[list[dict], None]:
     item_groups = group_tool_calls(chat_ctx)
     messages = []
     for group in item_groups:
@@ -17,75 +16,74 @@ def to_chat_ctx(
             continue
 
         # one message can contain zero or more tool calls
-        msg = _to_chat_item(group.message) if group.message else {"role": "assistant"}
+        msg = _to_chat_item(group.message) if group.message else {'role': 'assistant'}
         tool_calls = []
         for tool_call in group.tool_calls:
             tc: dict[str, Any] = {
-                "id": tool_call.call_id,
-                "type": "function",
-                "function": {"name": tool_call.name, "arguments": tool_call.arguments},
+                'id': tool_call.call_id,
+                'type': 'function',
+                'function': {'name': tool_call.name, 'arguments': tool_call.arguments},
             }
             # Include provider-specific extra content (e.g., Google thought signatures)
-            if tool_call.extra.get("google"):
-                tc["extra_content"] = {"google": tool_call.extra["google"]}
+            if tool_call.extra.get('google'):
+                tc['extra_content'] = {'google': tool_call.extra['google']}
             tool_calls.append(tc)
         if tool_calls:
-            msg["tool_calls"] = tool_calls
+            msg['tool_calls'] = tool_calls
         messages.append(msg)
 
         # append tool outputs following the tool calls
-        for tool_output in group.tool_outputs:
-            messages.append(_to_chat_item(tool_output))
+        messages.extend(_to_chat_item(tool_output) for tool_output in group.tool_outputs)
 
     return messages, None
 
 
 def _to_chat_item(msg: llm.ChatItem) -> dict[str, Any]:
-    if msg.type == "message":
+    if msg.type == 'message':
         list_content: list[dict[str, Any]] = []
-        text_content = ""
+        text_content = ''
         for content in msg.content:
             if isinstance(content, str):
                 if text_content:
-                    text_content += "\n"
+                    text_content += '\n'
                 text_content += content
 
         if not list_content:
             # certain providers require text-only content in a string vs a list.
             # for max-compatibility, we will combine all text content into a single string.
-            result: dict[str, Any] = {"role": msg.role, "content": text_content}
+            result: dict[str, Any] = {'role': msg.role, 'content': text_content}
         else:
             if text_content:
-                list_content.append({"type": "text", "text": text_content})
-            result = {"role": msg.role, "content": list_content}
+                list_content.append({'type': 'text', 'text': text_content})
+            result = {'role': msg.role, 'content': list_content}
 
         # Include provider-specific extra content (e.g., Google thought signatures)
-        if msg.extra.get("google"):
-            result["extra_content"] = {"google": msg.extra["google"]}
+        if msg.extra.get('google'):
+            result['extra_content'] = {'google': msg.extra['google']}
         return result
 
-    elif msg.type == "function_call":
+    if msg.type == 'function_call':
         tc: dict[str, Any] = {
-            "id": msg.call_id,
-            "type": "function",
-            "function": {
-                "name": msg.name,
-                "arguments": msg.arguments,
+            'id': msg.call_id,
+            'type': 'function',
+            'function': {
+                'name': msg.name,
+                'arguments': msg.arguments,
             },
         }
         # Include provider-specific extra content (e.g., Google thought signatures)
-        if msg.extra.get("google"):
-            tc["extra_content"] = {"google": msg.extra["google"]}
+        if msg.extra.get('google'):
+            tc['extra_content'] = {'google': msg.extra['google']}
         return {
-            "role": "assistant",
-            "tool_calls": [tc],
+            'role': 'assistant',
+            'tool_calls': [tc],
         }
 
-    elif msg.type == "function_call_output":
+    if msg.type == 'function_call_output':
         return {
-            "role": "tool",
-            "tool_call_id": msg.call_id,
-            "content": msg.output,
+            'role': 'tool',
+            'tool_call_id': msg.call_id,
+            'content': msg.output,
         }
 
-    raise ValueError(f"unsupported message type: {msg.type}")
+    raise ValueError(f'unsupported message type: {msg.type}')

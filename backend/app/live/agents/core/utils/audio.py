@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
-from collections.abc import AsyncGenerator
-from typing import Union
+
+from typing import TYPE_CHECKING, Union
 
 import aiofiles
 
 from livekit import rtc
-
 from loguru import logger
+
 from .aio.utils import cancel_and_wait
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # deprecated aliases
 AudioBuffer = Union[list[rtc.AudioFrame], rtc.AudioFrame]
@@ -31,11 +34,10 @@ def calculate_audio_duration(frames: AudioBuffer) -> float:
 
     Returns:
     - float: The total duration in seconds of all frames provided.
-    """  # noqa: E501
+    """
     if isinstance(frames, list):
         return sum(frame.duration for frame in frames)
-    else:
-        return frames.duration
+    return frames.duration
 
 
 class AudioByteStream:
@@ -139,7 +141,7 @@ class AudioByteStream:
             return []
 
         if len(self._buf) % self._bytes_per_sample != 0:
-            logger.warning("AudioByteStream: incomplete frame during flush, dropping")
+            logger.warning('AudioByteStream: incomplete frame during flush, dropping')
             return []
 
         frames = [
@@ -174,7 +176,7 @@ async def audio_frames_from_file(
     decoder = AudioStreamDecoder(sample_rate=sample_rate, num_channels=num_channels)
 
     async def file_reader() -> None:
-        async with aiofiles.open(file_path, mode="rb") as f:
+        async with aiofiles.open(file_path, mode='rb') as f:
             while True:
                 chunk = await f.read(4096)
                 if not chunk:

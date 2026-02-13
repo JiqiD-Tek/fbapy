@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import typing
-from typing import Callable, Union
 
-from ..utils import aio, shortuuid
+from collections.abc import Callable
+
+from backend.app.live.agents.core.utils import aio, shortuuid
+
 from .tokenizer import SentenceStream, TokenData, WordStream
 
 # Tokenizers can either provide us with a list of tokens or a list of tokens along with their start and end indices.  # noqa: E501
 # If the start and end indices are not available, we attempt to locate the token within the text using str.find.  # noqa: E501
-TokenizeCallable = Callable[[str], Union[list[str], list[tuple[str, int, int]]]]
+TokenizeCallable = Callable[[str], list[str] | list[tuple[str, int, int]]]
 
 
 class BufferedTokenStream:
@@ -28,8 +30,8 @@ class BufferedTokenStream:
         self._current_segment_id = shortuuid()
 
         self._buf_tokens: list[str] = []  # <= min_token_len
-        self._in_buf = ""
-        self._out_buf = ""
+        self._in_buf = ''
+        self._out_buf = ''
 
     @typing.no_type_check
     def push_text(self, text: str) -> None:
@@ -45,7 +47,7 @@ class BufferedTokenStream:
                 break
 
             if self._out_buf:
-                self._out_buf += " "
+                self._out_buf += ' '
 
             tok = tokens.pop(0)
             tok_text = tok
@@ -54,11 +56,9 @@ class BufferedTokenStream:
 
             self._out_buf += tok_text
             if len(self._out_buf) >= self._min_token_len:
-                self._event_ch.send_nowait(
-                    TokenData(token=self._out_buf, segment_id=self._current_segment_id)
-                )
+                self._event_ch.send_nowait(TokenData(token=self._out_buf, segment_id=self._current_segment_id))
 
-                self._out_buf = ""
+                self._out_buf = ''
 
             if isinstance(tok, tuple):
                 self._in_buf = self._in_buf[tok[2] :]
@@ -74,21 +74,19 @@ class BufferedTokenStream:
             tokens = self._tokenize_fnc(self._in_buf)
             if tokens:
                 if self._out_buf:
-                    self._out_buf += " "
+                    self._out_buf += ' '
 
                 if isinstance(tokens[0], tuple):
-                    self._out_buf += " ".join([tok[0] for tok in tokens])
+                    self._out_buf += ' '.join([tok[0] for tok in tokens])
                 else:
-                    self._out_buf += " ".join(tokens)
+                    self._out_buf += ' '.join(tokens)
 
             if self._out_buf:
-                self._event_ch.send_nowait(
-                    TokenData(token=self._out_buf, segment_id=self._current_segment_id)
-                )
+                self._event_ch.send_nowait(TokenData(token=self._out_buf, segment_id=self._current_segment_id))
 
         self._current_segment_id = shortuuid()
-        self._in_buf = ""
-        self._out_buf = ""
+        self._in_buf = ''
+        self._out_buf = ''
 
     def end_input(self) -> None:
         self.flush()
@@ -100,7 +98,7 @@ class BufferedTokenStream:
     def _check_not_closed(self) -> None:
         if self._event_ch.closed:
             cls = type(self)
-            raise RuntimeError(f"{cls.__module__}.{cls.__name__} is closed")
+            raise RuntimeError(f'{cls.__module__}.{cls.__name__} is closed')
 
     def __aiter__(self) -> BufferedTokenStream:
         return self

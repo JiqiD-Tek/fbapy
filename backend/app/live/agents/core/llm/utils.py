@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
-import sys
 import types
+
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Annotated,
     Any,
-    Callable,
+    Generic,
     Union,
     get_args,
     get_origin,
-    get_type_hints, Generic,
+    get_type_hints,
 )
 
 from pydantic import BaseModel, TypeAdapter, create_model
@@ -21,7 +21,6 @@ from pydantic_core import PydanticUndefined, from_json
 from typing_extensions import TypeVar
 
 from backend.app.live.agents.core.llm import _strict
-from backend.app.live.agents.core.llm.chat_context import ChatContext
 from backend.app.live.agents.core.llm.tool_context import (
     FunctionTool,
     RawFunctionTool,
@@ -30,14 +29,21 @@ from backend.app.live.agents.core.llm.tool_context import (
     is_raw_function_tool,
 )
 
-Userdata_T = TypeVar("Userdata_T")
+if TYPE_CHECKING:
+    import asyncio
+
+    from collections.abc import Callable
+
+    from backend.app.live.agents.core.llm.chat_context import ChatContext
+
+Userdata_T = TypeVar('Userdata_T')
 
 
 class RunContext(Generic[Userdata_T]): ...
 
 
-THINK_TAG_START = "<think>"
-THINK_TAG_END = "</think>"
+THINK_TAG_START = '<think>'
+THINK_TAG_END = '</think>'
 
 
 def _compute_lcs(old_ids: list[str], new_ids: list[str]) -> list[str]:
@@ -75,12 +81,8 @@ def _compute_lcs(old_ids: list[str], new_ids: list[str]) -> list[str]:
 @dataclass
 class DiffOps:
     to_remove: list[str]
-    to_create: list[
-        tuple[str | None, str]
-    ]  # (previous_item_id, id), if previous_item_id is None, add to the root
-    to_update: list[
-        tuple[str | None, str]
-    ]  # (previous_item_id, id), the items with the same id but different content
+    to_create: list[tuple[str | None, str]]  # (previous_item_id, id), if previous_item_id is None, add to the root
+    to_update: list[tuple[str | None, str]]  # (previous_item_id, id), the items with the same id but different content
 
 
 def compute_chat_ctx_diff(old_ctx: ChatContext, new_ctx: ChatContext) -> DiffOps:
@@ -104,7 +106,7 @@ def compute_chat_ctx_diff(old_ctx: ChatContext, new_ctx: ChatContext) -> DiffOps
         else:
             # check if the content is different
             old_msg = old_ctx_by_id[new_msg.id]
-            if new_msg.type == "message" and old_msg.type == "message":
+            if new_msg.type == 'message' and old_msg.type == 'message':
                 if new_msg.text_content != old_msg.text_content:
                     to_update.append((prev_id, new_msg.id))
                 # TODO: check other content types
@@ -129,9 +131,7 @@ class SerializedImage:
     external_url: str | None = None
 
 
-def build_legacy_openai_schema(
-        function_tool: FunctionTool, *, internally_tagged: bool = False
-) -> dict[str, Any]:
+def build_legacy_openai_schema(function_tool: FunctionTool, *, internally_tagged: bool = False) -> dict[str, Any]:
     """non-strict mode tool description
     see https://serde.rs/enum-representations.html for the internally tagged representation"""
     model = function_arguments_to_pydantic_model(function_tool)
@@ -140,24 +140,23 @@ def build_legacy_openai_schema(
 
     if internally_tagged:
         return {
-            "name": info.name,
-            "description": info.description or "",
-            "parameters": schema,
-            "type": "function",
+            'name': info.name,
+            'description': info.description or '',
+            'parameters': schema,
+            'type': 'function',
         }
-    else:
-        return {
-            "type": "function",
-            "function": {
-                "name": info.name,
-                "description": info.description or "",
-                "parameters": schema,
-            },
-        }
+    return {
+        'type': 'function',
+        'function': {
+            'name': info.name,
+            'description': info.description or '',
+            'parameters': schema,
+        },
+    }
 
 
 def build_strict_openai_schema(
-        function_tool: FunctionTool,
+    function_tool: FunctionTool,
 ) -> dict[str, Any]:
     """strict mode tool description"""
     model = function_arguments_to_pydantic_model(function_tool)
@@ -165,21 +164,21 @@ def build_strict_openai_schema(
     schema = _strict.to_strict_json_schema(model)
 
     return {
-        "type": "function",
-        "function": {
-            "name": info.name,
-            "strict": True,
-            "description": info.description or "",
-            "parameters": schema,
+        'type': 'function',
+        'function': {
+            'name': info.name,
+            'strict': True,
+            'description': info.description or '',
+            'parameters': schema,
         },
     }
 
 
-ResponseFormatT = TypeVar("ResponseFormatT", default=None)
+ResponseFormatT = TypeVar('ResponseFormatT', default=None)
 
 
 def is_typed_dict(cls: type | Any) -> bool:
-    return isinstance(cls, type) and issubclass(cls, dict) and hasattr(cls, "__annotations__")
+    return isinstance(cls, type) and issubclass(cls, dict) and hasattr(cls, '__annotations__')
 
 
 # mostly from https://github.com/openai/openai-python/blob/main/src/openai/lib/_parsing/_completions.py
@@ -187,15 +186,15 @@ def is_typed_dict(cls: type | Any) -> bool:
 
 
 def to_response_format_param(
-        response_format: type | dict[str, Any],
+    response_format: type | dict[str, Any],
 ) -> tuple[str, type[BaseModel] | TypeAdapter[Any]]:
     if isinstance(response_format, dict):
         # TODO(theomonnom): better type validation, copy TypedDict from OpenAI
-        if response_format.get("type", "") not in ("text", "json_schema", "json_object"):
-            raise TypeError("Unsupported response_format type")
+        if response_format.get('type', '') not in ('text', 'json_schema', 'json_object'):
+            raise TypeError('Unsupported response_format type')
 
         # TODO(long): fix return value
-        raise TypeError("Unsupported response_format type")
+        raise TypeError('Unsupported response_format type')
         return response_format
 
     # add support for TypedDict
@@ -208,13 +207,11 @@ def to_response_format_param(
     if inspect.isclass(response_format) and issubclass(response_format, BaseModel):
         name = response_format.__name__
         json_schema_type = response_format
-    elif inspect.isclass(response_format) and hasattr(
-            response_format, "__pydantic_config__"
-    ):  # @pydantic.dataclass
+    elif inspect.isclass(response_format) and hasattr(response_format, '__pydantic_config__'):  # @pydantic.dataclass
         name = response_format.__name__
         json_schema_type = TypeAdapter(response_format)
     else:
-        raise TypeError(f"Unsupported response_format type - {response_format}")
+        raise TypeError(f'Unsupported response_format type - {response_format}')
 
     return name, json_schema_type
 
@@ -224,11 +221,11 @@ def to_openai_response_format(response_format: type | dict[str, Any]) -> dict[st
 
     schema = _strict.to_strict_json_schema(json_schema_type)
     return {
-        "type": "json_schema",
-        "json_schema": {
-            "schema": schema,
-            "name": name,
-            "strict": True,
+        'type': 'json_schema',
+        'json_schema': {
+            'schema': schema,
+            'name': name,
+            'strict': True,
         },
     }
 
@@ -238,9 +235,9 @@ def function_arguments_to_pydantic_model(func: Callable[..., Any]) -> type[BaseM
 
     from docstring_parser import parse_from_object
 
-    fnc_names = func.__name__.split("_")
-    fnc_name = "".join(x.capitalize() for x in fnc_names)
-    model_name = fnc_name + "Args"
+    fnc_names = func.__name__.split('_')
+    fnc_name = ''.join(x.capitalize() for x in fnc_names)
+    model_name = fnc_name + 'Args'
 
     docstring = parse_from_object(func)
     param_docs = {p.arg_name: p.description for p in docstring.params}
@@ -265,25 +262,20 @@ def function_arguments_to_pydantic_model(func: Callable[..., Any]) -> type[BaseM
         if get_origin(type_hint) is Annotated:
             annotated_args = get_args(type_hint)
             type_hint = annotated_args[0]
-            annotated_field = next(
-                (x for x in annotated_args[1:] if isinstance(x, FieldInfo)), None
-            )
-            if annotated_field and hasattr(annotated_field, "asdict"):
+            annotated_field = next((x for x in annotated_args[1:] if isinstance(x, FieldInfo)), None)
+            if annotated_field and hasattr(annotated_field, 'asdict'):
                 # `asdict` is available after pydantic 2.12
-                field_attrs = annotated_field.asdict()["attributes"]
+                field_attrs = annotated_field.asdict()['attributes']
             elif annotated_field:
-                field_attrs["default"] = annotated_field.default
-                field_attrs["description"] = annotated_field.description
+                field_attrs['default'] = annotated_field.default
+                field_attrs['description'] = annotated_field.description
                 field_info = annotated_field
 
-        if (
-                default_value is not ...
-                and field_attrs.get("default", PydanticUndefined) is PydanticUndefined
-        ):
-            field_attrs["default"] = default_value
+        if default_value is not ... and field_attrs.get('default', PydanticUndefined) is PydanticUndefined:
+            field_attrs['default'] = default_value
 
-        if field_attrs.get("description") is None:
-            field_attrs["description"] = param_docs.get(param_name, None)
+        if field_attrs.get('description') is None:
+            field_attrs['description'] = param_docs.get(param_name)
 
         if not field_info:
             field_info = Field(**field_attrs)
@@ -297,10 +289,10 @@ def function_arguments_to_pydantic_model(func: Callable[..., Any]) -> type[BaseM
 
 
 def prepare_function_arguments(
-        *,
-        fnc: FunctionTool | RawFunctionTool,
-        json_arguments: str,  # raw function output from the LLM
-        call_ctx: RunContext[Any] | None = None,
+    *,
+    fnc: FunctionTool | RawFunctionTool,
+    json_arguments: str,  # raw function output from the LLM
+    call_ctx: RunContext[Any] | None = None,
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:  # returns args, kwargs
     """
     Create the positional and keyword arguments to call a function tool from
@@ -328,7 +320,7 @@ def prepare_function_arguments(
                     else:
                         raise ValueError(
                             f"Received None for required parameter '{param_name} ;"
-                            "this argument cannot be None and no default is available."
+                            'this argument cannot be None and no default is available.'
                         )
 
         model = model_type.model_validate(args_dict)  # can raise ValidationError
@@ -337,14 +329,14 @@ def prepare_function_arguments(
         # e.g async def open_gate(self, raw_arguments: dict[str, object]):
         # raw_arguments is required when using raw function action
         raw_fields = {
-            "raw_arguments": args_dict,
+            'raw_arguments': args_dict,
         }
     else:
-        raise ValueError(f"Unsupported function tool type: {type(fnc)}")
+        raise ValueError(f'Unsupported function tool type: {type(fnc)}')
 
     # inject RunContext if needed
     context_dict = {}
-    for param_name, _ in signature.parameters.items():
+    for param_name in signature.parameters.keys():
         type_hint = type_hints[param_name]
         if is_context_type(type_hint) and call_ctx is not None:
             context_dict[param_name] = call_ctx
@@ -361,8 +353,7 @@ def _is_optional_type(hint: Any) -> bool:
     origin = get_origin(hint)
 
     is_union = origin is Union
-    if sys.version_info >= (3, 10):
-        is_union = is_union or origin is types.UnionType
+    is_union = is_union or origin is types.UnionType
 
     return is_union and type(None) in get_args(hint)
 
@@ -383,13 +374,13 @@ def strip_thinking_tokens(content: str | None, thinking: asyncio.Event) -> str |
         idx = content.find(THINK_TAG_END)
         if idx >= 0:
             thinking.clear()
-            content = content[idx + len(THINK_TAG_END):]
+            content = content[idx + len(THINK_TAG_END) :]
         else:
             content = None
     else:
         idx = content.find(THINK_TAG_START)
         if idx >= 0:
             thinking.set()
-            content = content[idx + len(THINK_TAG_START):]
+            content = content[idx + len(THINK_TAG_START) :]
 
     return content

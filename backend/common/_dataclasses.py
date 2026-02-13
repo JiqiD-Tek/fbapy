@@ -29,6 +29,7 @@ class UserInfo:
     x_language: str | None
     x_timezone: str | None
 
+
 @dataclasses.dataclass
 class RequestCallNext:
     code: str

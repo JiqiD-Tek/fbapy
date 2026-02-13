@@ -1,13 +1,14 @@
 import asyncio
 import time
 import weakref
-from collections.abc import AsyncGenerator, Awaitable
+
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import Callable, Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from . import aio
 
-T = TypeVar("T")
+T = TypeVar('T')
 
 
 class ConnectionPool(Generic[T]):
@@ -20,10 +21,10 @@ class ConnectionPool(Generic[T]):
     def __init__(
         self,
         *,
-        max_session_duration: Optional[float] = None,
+        max_session_duration: float | None = None,
         mark_refreshed_on_get: bool = False,
-        connect_cb: Optional[Callable[[float], Awaitable[T]]] = None,
-        close_cb: Optional[Callable[[T], Awaitable[None]]] = None,
+        connect_cb: Callable[[float], Awaitable[T]] | None = None,
+        close_cb: Callable[[T], Awaitable[None]] | None = None,
         connect_timeout: float = 10.0,
     ) -> None:
         """Initialize the connection wrapper.
@@ -46,7 +47,7 @@ class ConnectionPool(Generic[T]):
         # store connections to be reaped (closed) later.
         self._to_close: set[T] = set()
 
-        self._prewarm_task: Optional[weakref.ref[asyncio.Task[None]]] = None
+        self._prewarm_task: weakref.ref[asyncio.Task[None]] | None = None
 
     async def _connect(self, timeout: float) -> T:
         """Create a new connection.
@@ -58,7 +59,7 @@ class ConnectionPool(Generic[T]):
             NotImplementedError: If no connect callback was provided
         """
         if self._connect_cb is None:
-            raise NotImplementedError("Must provide connect_cb or implement connect()")
+            raise NotImplementedError('Must provide connect_cb or implement connect()')
         connection = await self._connect_cb(timeout)
         self._connections[connection] = time.time()
         return connection
@@ -98,10 +99,7 @@ class ConnectionPool(Generic[T]):
             # try to reuse an available connection that hasn't expired
             while self._available:
                 conn = self._available.pop()
-                if (
-                    self._max_session_duration is None
-                    or now - self._connections[conn] <= self._max_session_duration
-                ):
+                if self._max_session_duration is None or now - self._connections[conn] <= self._max_session_duration:
                     if self._mark_refreshed_on_get:
                         self._connections[conn] = now
                     return conn

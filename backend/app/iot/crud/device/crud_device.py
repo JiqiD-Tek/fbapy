@@ -9,7 +9,6 @@ from backend.app.iot.schema.device.device import CreateDeviceParam, UpdateDevice
 
 
 class CRUDDevice(CRUDPlus[Device]):
-
     async def get(self, db: AsyncSession, pk: int) -> Device | None:
         return await self.select_model(db, pk)
 
@@ -42,8 +41,8 @@ class CRUDDevice(CRUDPlus[Device]):
     async def update(self, db: AsyncSession, pk: int, obj: UpdateDeviceParam) -> int:
         return await self.update_model(db, pk, obj)
 
-    async def delete(self, db: AsyncSession, pks: list[int]) -> int:
-        return await self.delete_model_by_column(db, allow_multiple=True, id__in=pks)
+    async def delete(self, db: AsyncSession, pk: int) -> int:
+        return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
     async def update_firmware_version(self, db: AsyncSession, pk: int, firmware_version: str) -> int:
         return await self.update_model(db, pk, {'firmware': firmware_version})

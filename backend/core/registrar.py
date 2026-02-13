@@ -19,7 +19,7 @@ from backend import __version__
 from backend.common.cache.pubsub import cache_pubsub_manager
 from backend.common.exception.exception_handler import register_exception
 from backend.common.log import set_custom_logfile, setup_logging
-from backend.common.mqtt_broker import init_mqtt, close_mqtt
+from backend.common.mqtt_broker import close_mqtt, init_mqtt
 from backend.common.response.response_code import StandardResponseCode
 from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR, UPLOAD_DIR

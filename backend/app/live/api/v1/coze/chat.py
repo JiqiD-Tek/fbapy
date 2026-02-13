@@ -1,46 +1,45 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 # @Author    : guhua@jiqid.com
 # @File      : protocol.py
 # @Created   : 2025/4/11 17:23
 
 import struct
-from typing import Annotated, AsyncGenerator
 
-from fastapi import WebSocket, APIRouter, Query
+from collections.abc import AsyncGenerator
+from typing import Annotated
+
+from fastapi import APIRouter, Query, WebSocket
 from fastapi.responses import StreamingResponse
 
-from backend.common.log import log
 from backend.app.live.agents.net.channel_pool import channel_pool
-
 from backend.app.live.service.coze.chat.chat_service import chat_service
+from backend.common.log import log
 from backend.core.conf import settings
 
 router = APIRouter()
 
 
-@router.websocket("")
-async def chat(websocket: WebSocket):
+@router.websocket('')
+async def chat(websocket: WebSocket) -> None:
     """CHAT"""
     await chat_service.receive_loop(websocket)
 
 
-@router.get("/tts", summary='获取tts语音', description='获取tts语音')
+@router.get('/tts', summary='获取tts语音', description='获取tts语音')
 async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.request_id')]):
     """http TTS"""
-    if "." not in token:
-        raise KeyError(f"Token格式错误，应为uid.request_id")
+    if '.' not in token:
+        raise KeyError('Token格式错误，应为uid.request_id')
 
     uid, request_id = token.rsplit('.', maxsplit=1)
     conn = await channel_pool.get_channel(uid)
 
     if conn is None or conn.tts is None:
-        raise KeyError(f"TTS client not exist")
+        raise KeyError('TTS client not exist')
 
-    if settings.SPEECH_ENCODING == "mp3":
+    if settings.SPEECH_ENCODING == 'mp3':
         return await _generate_mp3_response(conn, request_id)
-    else:
-        return await _generate_wav_response(conn, request_id)
+    return await _generate_wav_response(conn, request_id)
 
 
 async def _generate_mp3_response(conn, request_id: str) -> StreamingResponse:
@@ -52,19 +51,19 @@ async def _generate_mp3_response(conn, request_id: str) -> StreamingResponse:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:
-            log.error(f"MP3音频流生成失败: {e}")
+            log.error(f'MP3音频流生成失败: {e}')
             raise
 
     return StreamingResponse(
         audio_generator(),
-        media_type="audio/mpeg",
+        media_type='audio/mpeg',
         headers={
-            "Content-Disposition": f'inline; filename="tts_{request_id}.mp3"',
-            "X-Request-ID": request_id,
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
+            'Content-Disposition': f'inline; filename="tts_{request_id}.mp3"',
+            'X-Request-ID': request_id,
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        },
     )
 
 
@@ -75,8 +74,10 @@ async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
         """生成WAV文件头"""
         return struct.pack(
             '<4sI4s4sIHHIIHH4sI',
-            b'RIFF', 0,  # 总大小稍后填充
-            b'WAVE', b'fmt ',
+            b'RIFF',
+            0,  # 总大小稍后填充
+            b'WAVE',
+            b'fmt ',
             16,  # fmt块大小
             1,  # 音频格式（PCM）
             channels,
@@ -84,15 +85,14 @@ async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
             sample_rate * channels * bit_depth // 8,
             channels * bit_depth // 8,
             bit_depth,
-            b'data', 0  # 数据块大小稍后填充
+            b'data',
+            0,  # 数据块大小稍后填充
         )
 
     async def audio_generator() -> AsyncGenerator[bytes, None]:
         """生成包含WAV头的音频流"""
         # 首先生成WAV头（占位符）
-        wav_header = generate_wav_header(
-            sample_rate=24000, channels=1, bit_depth=16
-        )  # TODO 从配置中获取
+        wav_header = generate_wav_header(sample_rate=24000, channels=1, bit_depth=16)  # TODO 从配置中获取
         yield wav_header
 
         # 然后流式传输音频数据
@@ -101,17 +101,17 @@ async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:
-            log.error(f"WAV音频流生成失败: {e}")
+            log.error(f'WAV音频流生成失败: {e}')
             raise
 
     return StreamingResponse(
         audio_generator(),
-        media_type="audio/wav",
+        media_type='audio/wav',
         headers={
-            "Content-Disposition": f'inline; filename="tts_{request_id}.wav"',
-            "X-Request-ID": request_id,
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
+            'Content-Disposition': f'inline; filename="tts_{request_id}.wav"',
+            'X-Request-ID': request_id,
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        },
     )

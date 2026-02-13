@@ -15,21 +15,22 @@
 from __future__ import annotations
 
 import time
+
+from collections import UserList
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeAlias
 
 from pydantic import BaseModel, Field, TypeAdapter
-from typing_extensions import TypeAlias, TypedDict
-
-from backend.app.live.agents.core.utils.misc import shortuuid, is_given
-from backend.app.live.agents.core.utils._types import NOT_GIVEN, NotGivenOr
+from typing_extensions import TypedDict
 
 from backend.app.live.agents.core.llm import _provider_format
+from backend.app.live.agents.core.utils._types import NOT_GIVEN, NotGivenOr
+from backend.app.live.agents.core.utils.misc import is_given, shortuuid
 
 if TYPE_CHECKING:
     from backend.app.live.agents.core.llm import LLM, FunctionTool, ProviderTool, RawFunctionTool
 
-ChatRole: TypeAlias = Literal["developer", "system", "user", "assistant"]
+ChatRole: TypeAlias = Literal['developer', 'system', 'user', 'assistant']
 
 
 # The metrics are stored in a dict, since some fields may not be relevant
@@ -76,8 +77,8 @@ class MetricsReport(TypedDict, total=False):
 
 
 class ChatMessage(BaseModel):
-    id: str = Field(default_factory=lambda: shortuuid("item_"))
-    type: Literal["message"] = "message"
+    id: str = Field(default_factory=lambda: shortuuid('item_'))
+    type: Literal['message'] = 'message'
     role: ChatRole
     content: list[ChatContent]
     interrupted: bool = False
@@ -85,7 +86,7 @@ class ChatMessage(BaseModel):
     extra: dict[str, Any] = Field(default_factory=dict)
     metrics: MetricsReport = Field(default_factory=lambda: MetricsReport())
     created_at: float = Field(default_factory=time.time)
-    hash: bytes | None = Field(default=None, deprecated="hash is deprecated")
+    hash: bytes | None = Field(default=None, deprecated='hash is deprecated')
 
     @property
     def text_content(self) -> str | None:
@@ -97,15 +98,15 @@ class ChatMessage(BaseModel):
         text_parts = [c for c in self.content if isinstance(c, str)]
         if not text_parts:
             return None
-        return "\n".join(text_parts)
+        return '\n'.join(text_parts)
 
 
-ChatContent: TypeAlias = Union[str]
+ChatContent: TypeAlias = str
 
 
 class FunctionCall(BaseModel):
-    id: str = Field(default_factory=lambda: shortuuid("item_"))
-    type: Literal["function_call"] = "function_call"
+    id: str = Field(default_factory=lambda: shortuuid('item_'))
+    type: Literal['function_call'] = 'function_call'
     call_id: str
     arguments: str
     name: str
@@ -120,9 +121,9 @@ class FunctionCall(BaseModel):
 
 
 class FunctionCallOutput(BaseModel):
-    id: str = Field(default_factory=lambda: shortuuid("item_"))
-    type: Literal["function_call_output"] = Field(default="function_call_output")
-    name: str = Field(default="")
+    id: str = Field(default_factory=lambda: shortuuid('item_'))
+    type: Literal['function_call_output'] = Field(default='function_call_output')
+    name: str = Field(default='')
     call_id: str
     output: str
     is_error: bool
@@ -130,20 +131,18 @@ class FunctionCallOutput(BaseModel):
 
 
 class AgentHandoff(BaseModel):
-    id: str = Field(default_factory=lambda: shortuuid("item_"))
-    type: Literal["agent_handoff"] = Field(default="agent_handoff")
+    id: str = Field(default_factory=lambda: shortuuid('item_'))
+    type: Literal['agent_handoff'] = Field(default='agent_handoff')
     old_agent_id: str | None = None
     new_agent_id: str
     created_at: float = Field(default_factory=time.time)
 
 
-ChatItem = Annotated[
-    Union[ChatMessage, FunctionCall, FunctionCallOutput, AgentHandoff], Field(discriminator="type")
-]
+ChatItem = Annotated[ChatMessage | FunctionCall | FunctionCallOutput | AgentHandoff, Field(discriminator='type')]
 
 
 class ChatContext:
-    def __init__(self, items: NotGivenOr[list[ChatItem]] = NOT_GIVEN):
+    def __init__(self, items: NotGivenOr[list[ChatItem]] = NOT_GIVEN) -> None:
         self._items: list[ChatItem] = items if is_given(items) else []
 
     @classmethod
@@ -159,27 +158,27 @@ class ChatContext:
         self._items = items
 
     def add_message(
-            self,
-            *,
-            role: ChatRole,
-            content: list[ChatContent] | str,
-            id: NotGivenOr[str] = NOT_GIVEN,
-            interrupted: NotGivenOr[bool] = NOT_GIVEN,
-            created_at: NotGivenOr[float] = NOT_GIVEN,
-            metrics: NotGivenOr[MetricsReport] = NOT_GIVEN,
-            extra: NotGivenOr[dict[str, Any]] = NOT_GIVEN,
+        self,
+        *,
+        role: ChatRole,
+        content: list[ChatContent] | str,
+        id: NotGivenOr[str] = NOT_GIVEN,
+        interrupted: NotGivenOr[bool] = NOT_GIVEN,
+        created_at: NotGivenOr[float] = NOT_GIVEN,
+        metrics: NotGivenOr[MetricsReport] = NOT_GIVEN,
+        extra: NotGivenOr[dict[str, Any]] = NOT_GIVEN,
     ) -> ChatMessage:
         kwargs: dict[str, Any] = {}
         if is_given(id):
-            kwargs["id"] = id
+            kwargs['id'] = id
         if is_given(interrupted):
-            kwargs["interrupted"] = interrupted
+            kwargs['interrupted'] = interrupted
         if is_given(created_at):
-            kwargs["created_at"] = created_at
+            kwargs['created_at'] = created_at
         if is_given(metrics):
-            kwargs["metrics"] = metrics
+            kwargs['metrics'] = metrics
         if is_given(extra):
-            kwargs["extra"] = extra
+            kwargs['extra'] = extra
 
         if isinstance(content, str):
             message = ChatMessage(role=role, content=[content], **kwargs)
@@ -197,9 +196,9 @@ class ChatContext:
         """Insert an item or list of items into the chat context by creation time."""
         items = list(item) if isinstance(item, Sequence) else [item]
 
-        for _item in items:
-            idx = self.find_insertion_index(created_at=_item.created_at)
-            self._items.insert(idx, _item)
+        for item_ in items:
+            idx = self.find_insertion_index(created_at=item_.created_at)
+            self._items.insert(idx, item_)
 
     def get_by_id(self, item_id: str) -> ChatItem | None:
         return next((item for item in self.items if item.id == item_id), None)
@@ -208,15 +207,13 @@ class ChatContext:
         return next((i for i, item in enumerate(self.items) if item.id == item_id), None)
 
     def copy(
-            self,
-            *,
-            exclude_function_call: bool = False,
-            exclude_instructions: bool = False,
-            exclude_empty_message: bool = False,
-            exclude_handoff: bool = False,
-            tools: NotGivenOr[
-                Sequence[FunctionTool | RawFunctionTool | ProviderTool | str | Any]
-            ] = NOT_GIVEN,
+        self,
+        *,
+        exclude_function_call: bool = False,
+        exclude_instructions: bool = False,
+        exclude_empty_message: bool = False,
+        exclude_handoff: bool = False,
+        tools: NotGivenOr[Sequence[FunctionTool | RawFunctionTool | ProviderTool | str | Any]] = NOT_GIVEN,
     ) -> ChatContext:
         items = []
 
@@ -240,28 +237,24 @@ class ChatContext:
 
         for item in self.items:
             if exclude_function_call and item.type in [
-                "function_call",
-                "function_call_output",
+                'function_call',
+                'function_call_output',
             ]:
                 continue
 
-            if (
-                    exclude_instructions
-                    and item.type == "message"
-                    and item.role in ["system", "developer"]
-            ):
+            if exclude_instructions and item.type == 'message' and item.role in ['system', 'developer']:
                 continue
 
-            if exclude_empty_message and item.type == "message" and not item.content:
+            if exclude_empty_message and item.type == 'message' and not item.content:
                 continue
 
-            if exclude_handoff and item.type == "agent_handoff":
+            if exclude_handoff and item.type == 'agent_handoff':
                 continue
 
             if (
-                    is_given(tools)
-                    and (item.type == "function_call" or item.type == "function_call_output")
-                    and item.name not in valid_tools
+                is_given(tools)
+                and (item.type == 'function_call' or item.type == 'function_call_output')
+                and item.name not in valid_tools
             ):
                 continue
 
@@ -280,15 +273,15 @@ class ChatContext:
             return self
 
         instructions = next(
-            (item for item in self._items if item.type == "message" and item.role == "system"),
+            (item for item in self._items if item.type == 'message' and item.role == 'system'),
             None,
         )
 
         new_items = self._items[-max_items:]
         # chat_ctx shouldn't start with function_call or function_call_output
         while new_items and new_items[0].type in [
-            "function_call",
-            "function_call_output",
+            'function_call',
+            'function_call_output',
         ]:
             new_items.pop(0)
 
@@ -299,27 +292,23 @@ class ChatContext:
         return self
 
     def merge(
-            self,
-            other_chat_ctx: ChatContext,
-            *,
-            exclude_function_call: bool = False,
-            exclude_instructions: bool = False,
+        self,
+        other_chat_ctx: ChatContext,
+        *,
+        exclude_function_call: bool = False,
+        exclude_instructions: bool = False,
     ) -> ChatContext:
         """Add messages from `other_chat_ctx` into this one, avoiding duplicates, and keep items sorted by created_at."""
         existing_ids = {item.id for item in self._items}
 
         for item in other_chat_ctx.items:
             if exclude_function_call and item.type in [
-                "function_call",
-                "function_call_output",
+                'function_call',
+                'function_call_output',
             ]:
                 continue
 
-            if (
-                    exclude_instructions
-                    and item.type == "message"
-                    and item.role in ["system", "developer"]
-            ):
+            if exclude_instructions and item.type == 'message' and item.role in ['system', 'developer']:
                 continue
 
             if item.id not in existing_ids:
@@ -330,34 +319,34 @@ class ChatContext:
         return self
 
     def to_dict(
-            self,
-            *,
-            exclude_image: bool = True,
-            exclude_audio: bool = True,
-            exclude_timestamp: bool = True,
-            exclude_function_call: bool = False,
+        self,
+        *,
+        exclude_image: bool = True,
+        exclude_audio: bool = True,
+        exclude_timestamp: bool = True,
+        exclude_function_call: bool = False,
     ) -> dict[str, Any]:
         items: list[ChatItem] = []
         for item in self.items:
             if exclude_function_call and item.type in [
-                "function_call",
-                "function_call_output",
+                'function_call',
+                'function_call_output',
             ]:
                 continue
 
-            if item.type == "message":
+            if item.type == 'message':
                 item = item.model_copy()
 
             items.append(item)
 
         exclude_fields = set()
         if exclude_timestamp:
-            exclude_fields.add("created_at")
+            exclude_fields.add('created_at')
 
         return {
-            "items": [
+            'items': [
                 item.model_dump(
-                    mode="json",
+                    mode='json',
                     exclude_none=True,
                     exclude_defaults=False,
                     exclude=exclude_fields,
@@ -380,21 +369,21 @@ class ChatContext:
         return 0
 
     async def _summarize(
-            self,
-            llm_v: LLM,
-            *,
-            keep_last_turns: int = 2,
+        self,
+        llm_v: LLM,
+        *,
+        keep_last_turns: int = 2,
     ) -> ChatContext:
         to_summarize: list[ChatMessage] = []
         for item in self.items:
-            if item.type != "message":
+            if item.type != 'message':
                 continue
-            if item.role not in ("user", "assistant"):
+            if item.role not in ('user', 'assistant'):
                 continue
-            if item.extra.get("is_summary") is True:  # avoid making summary of summaries
+            if item.extra.get('is_summary') is True:  # avoid making summary of summaries
                 continue
 
-            text = (item.text_content or "").strip()
+            text = (item.text_content or '').strip()
             if text:
                 to_summarize.append(item)
         if not to_summarize:
@@ -409,44 +398,40 @@ class ChatContext:
         if not head:
             return self
 
-        source_text = "\n".join(f"{m.role}: {(m.text_content or '').strip()}" for m in head).strip()
+        source_text = '\n'.join(f'{m.role}: {(m.text_content or "").strip()}' for m in head).strip()
         if not source_text:
             return self
 
         chat_ctx = ChatContext()
         chat_ctx.add_message(
-            role="system",
+            role='system',
             content=(
-                "Compress older chat history into a short, faithful summary.\n"
-                "Focus on user goals, constraints, decisions, key facts/preferences/entities, and pending tasks.\n"
-                "Exclude chit-chat and greetings. Be concise."
+                'Compress older chat history into a short, faithful summary.\n'
+                'Focus on user goals, constraints, decisions, key facts/preferences/entities, and pending tasks.\n'
+                'Exclude chit-chat and greetings. Be concise.'
             ),
         )
         chat_ctx.add_message(
-            role="user",
-            content=f"Conversation to summarize:\n\n{source_text}",
+            role='user',
+            content=f'Conversation to summarize:\n\n{source_text}',
         )
 
-        chunks: list[str] = []
-        async for chunk in llm_v.chat(chat_ctx=chat_ctx):
-            if chunk.delta and chunk.delta.content:
-                chunks.append(chunk.delta.content)
+        chunks: list[str] = [
+            chunk.delta.content async for chunk in llm_v.chat(chat_ctx=chat_ctx) if chunk.delta and chunk.delta.content
+        ]
 
-        summary = "".join(chunks).strip()
+        summary = ''.join(chunks).strip()
         if not summary:
             return self
 
-        tail_start_ts = tail[0].created_at if tail else float("inf")
+        tail_start_ts = tail[0].created_at if tail else float('inf')
 
         preserved: list[ChatItem] = []
         for it in self.items:
-            if (
-                    it.type in ("function_call", "function_call_output")
-                    and it.created_at < tail_start_ts
-            ):
+            if it.type in ('function_call', 'function_call_output') and it.created_at < tail_start_ts:
                 continue
 
-            if it.type == "message" and it.role in ("user", "assistant"):
+            if it.type == 'message' and it.role in ('user', 'assistant'):
                 continue
 
             preserved.append(it)
@@ -455,10 +440,10 @@ class ChatContext:
 
         created_at_hint = (tail[0].created_at - 1e-6) if tail else (head[-1].created_at + 1e-6)
         self.add_message(
-            role="assistant",
-            content=f"[history summary]\n{summary}",
+            role='assistant',
+            content=f'[history summary]\n{summary}',
             created_at=created_at_hint,
-            extra={"is_summary": True},
+            extra={'is_summary': True},
         )
 
         for msg in tail:
@@ -469,7 +454,7 @@ class ChatContext:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ChatContext:
         item_adapter = TypeAdapter(list[ChatItem])
-        items = item_adapter.validate_python(data["items"])
+        items = item_adapter.validate_python(data['items'])
         return cls(items)
 
     @property
@@ -498,31 +483,29 @@ class ChatContext:
             if a.id != b.id or a.type != b.type:
                 return False
 
-            if a.type == "message" and b.type == "message":
+            if a.type == 'message' and b.type == 'message':
                 if a.role != b.role or a.interrupted != b.interrupted or a.content != b.content:
                     return False
 
-            elif a.type == "function_call" and b.type == "function_call":
+            elif a.type == 'function_call' and b.type == 'function_call':
                 if a.name != b.name or a.call_id != b.call_id or a.arguments != b.arguments:
                     return False
 
-            elif a.type == "function_call_output" and b.type == "function_call_output":
-                if (
-                        a.name != b.name
-                        or a.call_id != b.call_id
-                        or a.output != b.output
-                        or a.is_error != b.is_error
-                ):
-                    return False
+            elif (
+                a.type == 'function_call_output'
+                and b.type == 'function_call_output'
+                and (a.name != b.name or a.call_id != b.call_id or a.output != b.output or a.is_error != b.is_error)
+            ):
+                return False
 
         return True
 
     def to_provider_format(
-            self,
-            format: Literal["openai"] | str,
-            *,
-            inject_dummy_user_message: bool = True,
-            **kwargs: Any,
+        self,
+        format: Literal['openai'] | str,
+        *,
+        inject_dummy_user_message: bool = True,
+        **kwargs: Any,
     ) -> tuple[list[dict], Any]:
         """Convert the chat context to a provider-specific format.
 
@@ -532,23 +515,22 @@ class ChatContext:
         This is necessary because some providers expect a user message to be present for
         generating a response.
         """
-        kwargs["inject_dummy_user_message"] = inject_dummy_user_message
+        kwargs['inject_dummy_user_message'] = inject_dummy_user_message
 
-        if format == "openai":
+        if format == 'openai':
             return _provider_format.openai.to_chat_ctx(self, **kwargs)
-        else:
-            raise ValueError(f"Unsupported provider format: {format}")
+        raise ValueError(f'Unsupported provider format: {format}')
 
 
 class _ReadOnlyChatContext(ChatContext):
     """A read-only wrapper for ChatContext that prevents modifications."""
 
     error_msg = (
-        "trying to modify a read-only chat context, "
-        "please use .copy() and agent.update_chat_ctx() to modify the chat context"
+        'trying to modify a read-only chat context, '
+        'please use .copy() and agent.update_chat_ctx() to modify the chat context'
     )
 
-    class _ImmutableList(list[ChatItem]):
+    class _ImmutableList(UserList[ChatItem]):
         def _raise_error(self, *args: Any, **kwargs: Any) -> None:
             raise RuntimeError(_ReadOnlyChatContext.error_msg)
 
@@ -559,7 +541,7 @@ class _ReadOnlyChatContext(ChatContext):
         def copy(self) -> list[ChatItem]:
             return list(self)
 
-    def __init__(self, items: list[ChatItem]):
+    def __init__(self, items: list[ChatItem]) -> None:
         self._items = self._ImmutableList(items)
 
     @property

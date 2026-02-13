@@ -5,6 +5,7 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/12/08 17:34
 """
+
 from collections.abc import Sequence
 from typing import Any
 
@@ -15,7 +16,6 @@ from backend.app.iot.model import Feedback
 from backend.app.iot.schema.feedback import (
     CreateFeedbackParam,
     UpdateFeedbackParam,
-    DeleteFeedbackParam,
 )
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
@@ -26,7 +26,7 @@ class FeedbackService:
 
     @staticmethod
     async def get(*, db: AsyncSession, pk: int) -> Feedback:
-        """ 获取反馈详情 """
+        """获取反馈详情"""
         feedback = await feedback_dao.get(db, pk)
         if not feedback:
             raise errors.NotFoundError(msg='反馈不存在')
@@ -34,26 +34,26 @@ class FeedbackService:
 
     @staticmethod
     async def get_all(*, db: AsyncSession) -> Sequence[Feedback]:
-        """ 获取所有反馈  """
+        """获取所有反馈"""
         feedbacks = await feedback_dao.get_all(db)
         return feedbacks
 
     @staticmethod
     async def get_list(
-            *, db: AsyncSession, name: str | None = None,
-            did: str | None = None, status: int | None = None) -> dict[str, Any]:
-        """ 获取反馈列表（支持分页和查询条件） """
+        *, db: AsyncSession, name: str | None = None, did: str | None = None, status: int | None = None
+    ) -> dict[str, Any]:
+        """获取反馈列表（支持分页和查询条件）"""
         feedback_select = await feedback_dao.get_select(name=name, did=did, status=status)
         return await paging_data(db, feedback_select)
 
     @staticmethod
     async def create(*, db: AsyncSession, obj: CreateFeedbackParam) -> Feedback:
-        """ 创建反馈 """
+        """创建反馈"""
         return await feedback_dao.create(db, obj)
 
     @staticmethod
     async def update(*, db: AsyncSession, pk: int, obj: UpdateFeedbackParam) -> int:
-        """ 更新反馈  """
+        """更新反馈"""
         # 检查反馈是否存在
         feedback = await feedback_dao.get(db, pk)
         if not feedback:
@@ -71,9 +71,9 @@ class FeedbackService:
         return count
 
     @staticmethod
-    async def delete(*, db: AsyncSession, obj: DeleteFeedbackParam) -> int:
-        """ 批量删除反馈  """
-        count = await feedback_dao.delete(db, obj.pks)
+    async def delete(*, db: AsyncSession, pk: int) -> int:
+        """批量删除反馈"""
+        count = await feedback_dao.delete(db, pk)
         return count
 
 

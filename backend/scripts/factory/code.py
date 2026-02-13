@@ -5,11 +5,12 @@
 @Author  : guhua@jiqid.com
 @Date    : 2026/02/03 10:35
 """
+
 import re
 
-import openpyxl
 from pathlib import Path
-from typing import List, Union, Tuple
+
+import openpyxl
 
 from backend.common.log import log
 from backend.common.security.auth import identity_verifier
@@ -17,36 +18,36 @@ from backend.common.security.auth import identity_verifier
 
 class Code:
     @staticmethod
-    def write_to_excel(data: List[Tuple[str, str, str]], output_path: Union[str, Path]) -> bool:
-        """将数据写入Excel文件 """
+    def write_to_excel(data: list[tuple[str, str, str]], output_path: str | Path) -> bool:
+        """将数据写入Excel文件"""
         try:
             wb = openpyxl.Workbook()
             sheet = wb.active
 
             # 写入表头
-            headers = ["WifiMAC", "did", "Key"]
+            headers = ['WifiMAC', 'did', 'Key']
             for col, header in enumerate(headers, start=1):
                 sheet.cell(row=1, column=col, value=header)
 
             # 写入数据
             for row_idx, (mac, did, key) in enumerate(data, start=2):
                 # 格式化MAC地址（添加冒号分隔）
-                formatted_mac = ':'.join(re.findall('..', mac))
+                formatted_mac = ':'.join(re.findall(r'..', mac))
                 sheet.cell(row=row_idx, column=1, value=formatted_mac)
                 sheet.cell(row=row_idx, column=2, value=did)
                 sheet.cell(row=row_idx, column=3, value=key)
 
             wb.save(output_path)
 
-            log.info(f"成功 写入 到{output_path} {len(data)} 条数据")
+            log.info(f'成功 写入 到{output_path} {len(data)} 条数据')
             return True
         except Exception as e:
-            log.error(f"写入Excel失败: {str(e)}")
+            log.error(f'写入Excel失败: {e!s}')
             return False
 
     @staticmethod
-    def read_from_excel(input_path: Union[str, Path]) -> List[Tuple[str, str, str]]:
-        """从Excel文件读取数据 """
+    def read_from_excel(input_path: str | Path) -> list[tuple[str, str, str]]:
+        """从Excel文件读取数据"""
         try:
             wb = openpyxl.load_workbook(input_path, data_only=True)
             sheet = wb.active
@@ -65,41 +66,41 @@ class Code:
                     mac = mac.replace(':', '').replace('-', '').upper()
 
                 # 确保所有值都是字符串
-                mac = str(mac) if mac else ""
-                did = str(did) if did else ""
-                key = str(key) if key else ""
+                mac = str(mac) if mac else ''
+                did = str(did) if did else ''
+                key = str(key) if key else ''
 
                 data.append((mac, did, key))
 
-            log.info(f"从 {input_path} 成功读取 {len(data)} 条数据")
+            log.info(f'从 {input_path} 成功读取 {len(data)} 条数据')
             return data
 
         except FileNotFoundError:
-            log.error(f"文件不存在: {input_path}")
+            log.error(f'文件不存在: {input_path}')
             return []
         except Exception as e:
-            log.error(f"读取Excel文件失败: {str(e)}")
+            log.error(f'读取Excel文件失败: {e!s}')
             return []
 
     @classmethod
-    def process(cls, input_file: Union[str, Path], output_file: Union[str, Path]) -> bool:
+    def process(cls, input_file: str | Path, output_file: str | Path) -> bool:
         original_data = cls.read_from_excel(input_file)
 
         processed_data = []
-        for idx, (mac, old_did, old_key) in enumerate(original_data, start=1):
+        for idx, (mac, _old_did, _old_key) in enumerate(original_data, start=1):
             credentials = identity_verifier.derive_credentials(mac)
-            did = credentials["did"]
-            key = credentials["key"]
+            did = credentials['did']
+            key = credentials['key']
 
             processed_data.append((mac, did, key))
 
             if idx % 100 == 0:
-                log.info(f"已处理 {idx} 条记录...")
+                log.info(f'已处理 {idx} 条记录...')
 
         return cls.write_to_excel(processed_data, output_file)
 
 
 if __name__ == '__main__':
-    input_file = "xlsx/小米三元组_20260203_103140_K11_200.xlsx"
-    output_file = "xlsx/小米三元组_20260203_103140_K11_200_output.xlsx"
+    input_file = 'xlsx/小米三元组_20260203_103140_K11_200.xlsx'
+    output_file = 'xlsx/小米三元组_20260203_103140_K11_200_output.xlsx'
     Code.process(input_file, output_file)

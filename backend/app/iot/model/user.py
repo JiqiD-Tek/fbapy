@@ -5,9 +5,11 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 10:41
 """
+
 from datetime import datetime
 
 import sqlalchemy as sa
+
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.common.model import Base, TimeZone, id_key

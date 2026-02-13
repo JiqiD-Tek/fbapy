@@ -2,9 +2,8 @@ from datetime import datetime
 
 from pydantic import Field
 
-from backend.common.schema import SchemaBase
-
 from backend.app.iot.schema.user import GetUserInfoDetail
+from backend.common.schema import SchemaBase
 
 
 class AccessTokenBase(SchemaBase):
@@ -29,6 +28,7 @@ class GetLoginToken(AccessTokenBase):
 
 class CurrentLocation(SchemaBase):
     """获取登录令牌"""
+
     ip: str = Field(description='IP 地址')
     country: str = Field(description='国家')
     region: str = Field(description='地区')
@@ -37,6 +37,7 @@ class CurrentLocation(SchemaBase):
 
 class CozeToken(SchemaBase):
     """令牌"""
+
     token_type: str = Field(description='令牌类型')
     access_token: str = Field(description='访问令牌')
     expires_in: int = Field(description='令牌过期时间')
@@ -45,6 +46,7 @@ class CozeToken(SchemaBase):
 
 class LivekitToken(SchemaBase):
     """令牌"""
+
     url: str = Field(description='URL')
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
@@ -52,13 +54,14 @@ class LivekitToken(SchemaBase):
 
 class FbaToken(SchemaBase):
     """令牌"""
+
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
 
 
 class StsToken(SchemaBase):
-    """令牌
-    """
+    """令牌"""
+
     access_key_id: str = Field(description='key')
     access_key_secret: str = Field(description='秘钥')
     security_token: str = Field(description='令牌')
@@ -66,7 +69,7 @@ class StsToken(SchemaBase):
 
 
 class OSSToken(SchemaBase):
-    """令牌
-    """
+    """令牌"""
+
     url: str = Field(description='存储路径')
     sign_url: str = Field(description='签名路径')

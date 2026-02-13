@@ -5,8 +5,8 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/12/04
 """
+
 from datetime import datetime
-from typing import Optional
 
 from pydantic import ConfigDict, Field
 
@@ -21,9 +21,9 @@ class DeviceSchemaBase(SchemaBase):
     mac: str = Field(description='设备MAC地址')
     model: str = Field(description='设备型号')
 
-    name: Optional[str] = Field(None, description='设备名称')
-    firmware: Optional[str] = Field(None, description='固件版本')
-    hardware: Optional[str] = Field(None, description='硬件版本')
+    name: str | None = Field(None, description='设备名称')
+    firmware: str | None = Field(None, description='固件版本')
+    hardware: str | None = Field(None, description='硬件版本')
 
     quota: int = Field(0, description='当前使用时长（秒）')
 
@@ -36,10 +36,10 @@ class UpdateDeviceParam(DeviceSchemaBase):
     """更新设备参数"""
 
     # 可选字段，更新时可以不传
-    did: Optional[str] = Field(None, description='设备编码')
-    sn: Optional[str] = Field(None, description='设备序列号')
-    mac: Optional[str] = Field(None, description='设备MAC地址')
-    model: Optional[str] = Field(None, description='设备型号')
+    did: str | None = Field(None, description='设备编码')
+    sn: str | None = Field(None, description='设备序列号')
+    mac: str | None = Field(None, description='设备MAC地址')
+    model: str | None = Field(None, description='设备型号')
 
 
 class DeleteDeviceParam(SchemaBase):
@@ -55,4 +55,4 @@ class GetDeviceDetail(DeviceSchemaBase):
 
     id: int = Field(description='设备 ID')
     created_time: datetime = Field(description='创建时间')
-    updated_time: Optional[datetime] = Field(None, description='更新时间')
+    updated_time: datetime | None = Field(None, description='更新时间')

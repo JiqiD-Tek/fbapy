@@ -2,18 +2,22 @@ from fastapi import Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
-from backend.app.iot.service.user_service import user_service
+from backend.app.admin.service.login_log_service import login_log_service
+from backend.app.iot.crud.crud_user import user_dao
 from backend.app.iot.crud.device.crud_device import device_dao
 from backend.app.iot.model import Device
+from backend.app.iot.model.user import User
 from backend.app.iot.schema.device.device import CreateDeviceParam
-from backend.common.security.auth import identity_verifier
+from backend.app.iot.schema.token import GetLoginToken, GetNewToken
+from backend.app.iot.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam
+from backend.app.iot.service.user_service import user_service
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType
 from backend.common.exception import errors
 from backend.common.i18n import t
 from backend.common.log import log
 from backend.common.response.response_code import CustomErrorCode
-from backend.common.security.encryptor import encryptor
+from backend.common.security.auth import identity_verifier
 from backend.common.security.jwt import (
     create_access_token,
     create_new_token,
@@ -25,14 +29,6 @@ from backend.core.conf import settings
 from backend.database.db import uuid4_str
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
-
-from backend.app.admin.service.login_log_service import login_log_service
-
-from backend.app.iot.crud.crud_user import user_dao
-from backend.app.iot.schema.token import GetLoginToken, GetNewToken
-from backend.app.iot.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam
-
-from backend.app.iot.model.user import User
 
 
 class AuthService:
@@ -85,12 +81,12 @@ class AuthService:
         return user
 
     async def login(
-            self,
-            *,
-            db: AsyncSession,
-            response: Response,
-            obj: AuthLoginParam,
-            background_tasks: BackgroundTasks,
+        self,
+        *,
+        db: AsyncSession,
+        response: Response,
+        obj: AuthLoginParam,
+        background_tasks: BackgroundTasks,
     ) -> GetLoginToken:
         """
         用户登录

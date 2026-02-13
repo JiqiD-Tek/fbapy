@@ -4,10 +4,11 @@ from fastapi import APIRouter, Path, Request
 
 from backend.app.iot.schema.device.device import GetDeviceDetail
 from backend.app.iot.schema.user import (
-    GetUserInfoDetail, UserDeviceParam,
+    GetUserInfoDetail,
+    UserDeviceParam,
 )
 from backend.app.iot.service.user_service import user_service
-from backend.common.response.response_schema import ResponseSchemaModel, response_base, ResponseModel
+from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
@@ -22,7 +23,7 @@ async def get_k10_user(request: Request) -> ResponseSchemaModel[GetUserInfoDetai
 
 @router.get('/{pk}/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
 async def get_user_devices(
-        db: CurrentSession, pk: Annotated[int, Path(description='用户 ID')]
+    db: CurrentSession, pk: Annotated[int, Path(description='用户 ID')]
 ) -> ResponseSchemaModel[list[GetDeviceDetail]]:
     data = await user_service.get_devices(db=db, pk=pk)
     return response_base.success(data=data)
@@ -30,8 +31,8 @@ async def get_user_devices(
 
 @router.post('/bind', summary='设备绑定', dependencies=[DependsJwtAuth])
 async def bind_device(
-        db: CurrentSessionTransaction,
-        obj: UserDeviceParam,
+    db: CurrentSessionTransaction,
+    obj: UserDeviceParam,
 ) -> ResponseModel:
     """设备绑定"""
     await user_service.bind_device(db=db, obj=obj)
@@ -40,8 +41,8 @@ async def bind_device(
 
 @router.post('/unbind', summary='设备解绑', dependencies=[DependsJwtAuth])
 async def unbind_device(
-        db: CurrentSessionTransaction,
-        obj: UserDeviceParam,
+    db: CurrentSessionTransaction,
+    obj: UserDeviceParam,
 ) -> ResponseModel:
     """设备解绑"""
     await user_service.unbind_device(db=db, obj=obj)

@@ -13,27 +13,26 @@
 # limitations under the License.
 
 import io
+
 from dataclasses import dataclass
 from importlib import import_module
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import Literal, Optional
 
+from PIL import Image
 from livekit import rtc
-
-if TYPE_CHECKING:
-    from PIL import Image
 
 
 @dataclass
 class EncodeOptions:
     """Options for encoding rtc.VideoFrame to portable image formats."""
 
-    format: Literal["JPEG", "PNG"] = "JPEG"
+    format: Literal['JPEG', 'PNG'] = 'JPEG'
     """The format to encode the image."""
 
-    resize_options: Optional["ResizeOptions"] = None
+    resize_options: Optional['ResizeOptions'] = None
     """Options for resizing the image."""
 
-    quality: Optional[int] = 75
+    quality: int | None = 75
     """Image compression quality, 0-100. Only applies to JPEG."""
 
 
@@ -48,11 +47,11 @@ class ResizeOptions:
     """The desired height to resize the image to."""
 
     strategy: Literal[
-        "center_aspect_fit",
-        "center_aspect_cover",
-        "scale_aspect_fit",
-        "scale_aspect_cover",
-        "skew",
+        'center_aspect_fit',
+        'center_aspect_cover',
+        'scale_aspect_fit',
+        'scale_aspect_cover',
+        'skew',
     ]
     """The strategy to use when resizing the image:
     - center_aspect_fit: Fit the image into the provided dimensions, with letterboxing
@@ -65,8 +64,8 @@ class ResizeOptions:
 
 def import_pil() -> None:
     try:
-        if "Image" not in globals():
-            globals()["Image"] = import_module("PIL.Image")
+        if 'Image' not in globals():
+            globals()['Image'] = import_module('PIL.Image')
     except ImportError:
         raise ImportError(
             "You haven't included the 'images' optional dependencies. Please install the 'codecs' extra by running `pip install livekit-agents[images]`"  # noqa: E501
@@ -83,31 +82,31 @@ def encode(frame: rtc.VideoFrame, options: EncodeOptions) -> bytes:
     resized = _resize_image(img, options)
     buffer = io.BytesIO()
     kwargs = {}
-    if options.format == "JPEG" and options.quality is not None:
-        kwargs["quality"] = options.quality
+    if options.format == 'JPEG' and options.quality is not None:
+        kwargs['quality'] = options.quality
     resized.save(buffer, options.format, **kwargs)
     buffer.seek(0)
     return buffer.read()
 
 
-def _image_from_frame(frame: rtc.VideoFrame) -> "Image.Image":
+def _image_from_frame(frame: rtc.VideoFrame) -> 'Image.Image':
     converted = frame
     if frame.type != rtc.VideoBufferType.RGBA:
         converted = frame.convert(rtc.VideoBufferType.RGBA)
 
-    rgb_image = Image.frombytes("RGBA", (frame.width, frame.height), converted.data).convert("RGB")
+    rgb_image = Image.frombytes('RGBA', (frame.width, frame.height), converted.data).convert('RGB')
     return rgb_image
 
 
-def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image":
+def _resize_image(image: 'Image.Image', options: EncodeOptions) -> 'Image.Image':
     if options.resize_options is None:
         return image
 
     resize_opts = options.resize_options
-    if resize_opts.strategy == "skew":
+    if resize_opts.strategy == 'skew':
         return image.resize((resize_opts.width, resize_opts.height))
-    elif resize_opts.strategy == "center_aspect_fit":
-        result = Image.new("RGB", (resize_opts.width, resize_opts.height))  # noqa
+    if resize_opts.strategy == 'center_aspect_fit':
+        result = Image.new('RGB', (resize_opts.width, resize_opts.height))
 
         # Start with assuming the new image is narrower than the original
         new_width = resize_opts.width
@@ -129,8 +128,8 @@ def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image"
             ),
         )
         return result
-    elif resize_opts.strategy == "center_aspect_cover":
-        result = Image.new("RGB", (resize_opts.width, resize_opts.height))  # noqa
+    if resize_opts.strategy == 'center_aspect_cover':
+        result = Image.new('RGB', (resize_opts.width, resize_opts.height))
 
         # Start with assuming the new image is shorter than the original
         new_height = int(image.height * (resize_opts.width / image.width))
@@ -142,7 +141,7 @@ def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image"
             new_height = resize_opts.height
 
         resized = image.resize((new_width, new_height))
-        Image.Image.paste(  # noqa
+        Image.Image.paste(
             result,
             resized,
             (
@@ -151,7 +150,7 @@ def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image"
             ),
         )
         return result
-    elif resize_opts.strategy == "scale_aspect_cover":
+    if resize_opts.strategy == 'scale_aspect_cover':
         # Start with assuming width is the limiting dimension
         new_width = resize_opts.width
         new_height = int(image.height * (resize_opts.width / image.width))
@@ -162,7 +161,7 @@ def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image"
             new_width = int(image.width * (resize_opts.height / image.height))
 
         return image.resize((new_width, new_height))
-    elif resize_opts.strategy == "scale_aspect_fit":
+    if resize_opts.strategy == 'scale_aspect_fit':
         # Start with assuming width is the limiting dimension
         new_width = resize_opts.width
         new_height = int(image.height * (resize_opts.width / image.width))
@@ -174,4 +173,4 @@ def _resize_image(image: "Image.Image", options: EncodeOptions) -> "Image.Image"
 
         return image.resize((new_width, new_height))
 
-    raise ValueError(f"Unknown resize strategy: {resize_opts.strategy}")
+    raise ValueError(f'Unknown resize strategy: {resize_opts.strategy}')

@@ -5,33 +5,36 @@
 @Author  : guhua@jiqid.com
 @Date    : 2025/06/25 14:42
 """
-import uuid
+
 import asyncio
+import uuid
 
 from collections import deque
-from cachetools import TTLCache
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
-from typing import Optional, AsyncGenerator
+
+from cachetools import TTLCache
 
 from backend.common.log import log
 
 
 class TTSCache:
-    """TTS语音合成缓存系统 """
+    """TTS语音合成缓存系统"""
 
-    def __init__(self, maxsize: int = 10, ttl: float = 3600):
-        """初始化TTS缓存
-        """
-        self._request_id: Optional[str] = None
+    def __init__(self, maxsize: int = 10, ttl: float = 3600) -> None:
+        """初始化TTS缓存"""
+        self._request_id: str | None = None
 
         self._loop = asyncio.get_event_loop()
         self._audio_queues: TTLCache[str, asyncio.Queue[bytes]] = TTLCache(
-            maxsize=maxsize, ttl=ttl, timer=lambda: self._loop.time(),  # 与事件循环时间同步
+            maxsize=maxsize,
+            ttl=ttl,
+            timer=lambda: self._loop.time(),  # 与事件循环时间同步
         )
         self._lock = asyncio.Lock()  # 异步互斥锁
 
     @property
-    def request_id(self) -> Optional[str]:
+    def request_id(self) -> str | None:
         """获取当前活跃的请求ID（线程安全）
 
         返回：
@@ -41,80 +44,74 @@ class TTSCache:
         return self._request_id
 
     async def create_new_request(self, maxsize: int = 10_000) -> str:
-        """创建新的语音合成请求会话
-        """
+        """创建新的语音合成请求会话"""
         async with self._lock:
-            self._request_id = f"tts_req_{uuid.uuid4().hex}"
+            self._request_id = f'tts_req_{uuid.uuid4().hex}'
             self._audio_queues[self._request_id] = asyncio.Queue(maxsize=maxsize)
             return self._request_id
 
     @asynccontextmanager
     async def stream_audio_generator(
-            self,
-            request_id: Optional[str] = None,
-            timeout: Optional[float] = 30.,
+        self,
+        request_id: str | None = None,
+        timeout: float | None = 30.0,
     ) -> AsyncGenerator[AsyncGenerator[bytes, None], None]:
-        """流式音频生成器上下文管理器（带数据缓存和恢复功能）
-        """
+        """流式音频生成器上下文管理器（带数据缓存和恢复功能）"""
         target_id = request_id or self._request_id
         if not target_id:
-            raise ValueError("必须指定有效的请求ID")
+            raise ValueError('必须指定有效的请求ID')
 
         queue = self._audio_queues.get(target_id)
         if queue is None:
-            raise ValueError(f"请求{target_id}对应的音频队列不存在")
+            raise ValueError(f'请求{target_id}对应的音频队列不存在')
 
-        log.debug(f"读取音频长度: {queue.qsize()}")
+        log.debug(f'读取音频长度: {queue.qsize()}')
 
         async def _generator() -> AsyncGenerator[bytes, None]:
             cache = deque()
             try:
                 while True:
-                    chunk = await asyncio.wait_for(
-                        queue.get(),
-                        timeout=timeout
-                    )
+                    chunk = await asyncio.wait_for(queue.get(), timeout=timeout)
                     cache.append(chunk)
 
-                    if chunk == b"":  # 结束信号
-                        log.debug(f"读取音频结束信号")
+                    if chunk == b'':  # 结束信号
+                        log.debug('读取音频结束信号')
                         break
 
                     yield chunk
 
             except asyncio.CancelledError:
-                log.info(f"客户端中断连接，request_id={target_id}")
+                log.info(f'客户端中断连接，request_id={target_id}')
             except Exception as e:
-                log.error(f"音频流生成异常 - {e}", exc_info=True)
+                log.error(f'音频流生成异常 - {e}', exc_info=True)
                 raise
             finally:
                 # 恢复未消费数据（如果队列已空）
                 if cache and queue.empty():
                     for data in cache:
                         queue.put_nowait(data)
-                log.debug(f"恢复音频长度: {queue.qsize()}")
+                log.debug(f'恢复音频长度: {queue.qsize()}')
 
         try:
             yield _generator()
         finally:
-            log.debug(f"音频流生成器关闭，request_id={target_id}")
+            log.debug(f'音频流生成器关闭，request_id={target_id}')
 
     async def append_audio_delta(self, delta: bytes) -> None:
-        """向当前语音请求队列追加音频数据块
-        """
+        """向当前语音请求队列追加音频数据块"""
         if self._request_id is None:
-            raise ValueError("必须指定有效的请求ID")
+            raise ValueError('必须指定有效的请求ID')
 
         queue = self._audio_queues.get(self._request_id)
         if queue is None:
-            raise ValueError(f"请求{self._request_id}对应的音频队列不存在")
+            raise ValueError(f'请求{self._request_id}对应的音频队列不存在')
 
         try:
             queue.put_nowait(delta)  # 使用put_nowait避免阻塞，队列满时会抛出QueueFull异常
         except asyncio.QueueFull:
-            log.error(f"音频队列已满，丢弃数据块 (request_id={self._request_id})")
+            log.error(f'音频队列已满，丢弃数据块 (request_id={self._request_id})')
         except Exception as e:
-            log.error(f"追加音频数据异常 - {e}", exc_info=True)
+            log.error(f'追加音频数据异常 - {e}', exc_info=True)
             raise
 
     async def aclose(self) -> bool:
@@ -129,10 +126,10 @@ class TTSCache:
 
                 self._audio_queues.clear()
                 self._request_id = None
-                log.debug(f"TTS缓存已安全关闭")
+                log.debug('TTS缓存已安全关闭')
 
             return True
 
         except Exception as e:
-            log.error(f"缓存关闭时发生异常 - {e}", exc_info=True)
+            log.error(f'缓存关闭时发生异常 - {e}', exc_info=True)
             return False

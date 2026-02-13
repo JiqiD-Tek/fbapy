@@ -5,13 +5,13 @@
 @Author  ：guhua@jiqid.com
 @Date    ：2025/05/16 16:46
 """
+
 import base64
-from typing import Dict, Optional
 
 from pydantic import BaseModel, field_serializer
-from backend.common.log import log
 
-from backend.app.live.agents.net.coze.models import WebsocketsEvent, WebsocketsEventType, OutputAudio
+from backend.app.live.agents.net.coze.models import OutputAudio, WebsocketsEvent, WebsocketsEventType
+from backend.common.log import log
 
 
 # req
@@ -31,7 +31,7 @@ class InputTextBufferCompleteEvent(WebsocketsEvent):
 # req
 class SpeechUpdateEvent(WebsocketsEvent):
     class Data(BaseModel):
-        output_audio: Optional[OutputAudio] = None
+        output_audio: OutputAudio | None = None
 
     event_type: WebsocketsEventType = WebsocketsEventType.SPEECH_UPDATE
     data: Data
@@ -61,7 +61,7 @@ class SpeechAudioUpdateEvent(WebsocketsEvent):
     class Data(BaseModel):
         delta: bytes
 
-        @field_serializer("delta")
+        @field_serializer('delta')
         def serialize_delta(self, delta: bytes, _info):
             return base64.b64encode(delta)
 
@@ -74,102 +74,82 @@ class SpeechAudioCompletedEvent(WebsocketsEvent):
     event_type: WebsocketsEventType = WebsocketsEventType.SPEECH_AUDIO_COMPLETED
 
 
-def load_req_event(message: Dict) -> Optional[WebsocketsEvent]:
-    event_id = message.get("id") or ""
-    event_type = message.get("event_type") or ""
-    detail = WebsocketsEvent.Detail.model_validate(message.get("detail") or {})
-    data = message.get("data") or {}
+def load_req_event(message: dict) -> WebsocketsEvent | None:
+    event_id = message.get('id') or ''
+    event_type = message.get('event_type') or ''
+    detail = WebsocketsEvent.Detail.model_validate(message.get('detail') or {})
+    data = message.get('data') or {}
 
     if event_type == WebsocketsEventType.INPUT_TEXT_BUFFER_APPEND.value:
-        return InputTextBufferAppendEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": InputTextBufferAppendEvent.Data.model_validate(
-                    {
-                        "delta": data.get("delta"),
-                    }
-                ),
-            }
-        )
+        return InputTextBufferAppendEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+            'data': InputTextBufferAppendEvent.Data.model_validate({
+                'delta': data.get('delta'),
+            }),
+        })
 
     if event_type == WebsocketsEventType.INPUT_TEXT_BUFFER_COMPLETE.value:
-        return InputTextBufferCompleteEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-            }
-        )
+        return InputTextBufferCompleteEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+        })
 
     if event_type == WebsocketsEventType.SPEECH_UPDATE.value:
-        output_audio = data.get("output_audio")
+        output_audio = data.get('output_audio')
         if output_audio is None:
             raise ValueError("Missing 'output_audio' in event data")
-        return SpeechUpdateEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": SpeechUpdateEvent.Data.model_validate(
-                    {
-                        "output_audio": OutputAudio.model_validate(output_audio),
-                    }
-                )
-            }
-        )
+        return SpeechUpdateEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+            'data': SpeechUpdateEvent.Data.model_validate({
+                'output_audio': OutputAudio.model_validate(output_audio),
+            }),
+        })
 
-    log.warning(f"[v1/audio/speech] unknown event, type={event_type}, logid={detail.logid}")
+    log.warning(f'[v1/audio/speech] unknown event, type={event_type}, logid={detail.logid}')
     return None
 
 
-def load_resp_event(message: Dict) -> Optional[WebsocketsEvent]:
-    event_id = message.get("id") or ""
-    detail = WebsocketsEvent.Detail.model_validate(message.get("detail") or {})
-    event_type = message.get("event_type") or ""
-    data = message.get("data") or {}
+def load_resp_event(message: dict) -> WebsocketsEvent | None:
+    event_id = message.get('id') or ''
+    detail = WebsocketsEvent.Detail.model_validate(message.get('detail') or {})
+    event_type = message.get('event_type') or ''
+    data = message.get('data') or {}
 
     if event_type == WebsocketsEventType.SPEECH_CREATED.value:
-        return SpeechCreatedEvent.model_validate({"id": event_id, "detail": detail})
+        return SpeechCreatedEvent.model_validate({'id': event_id, 'detail': detail})
 
     if event_type == WebsocketsEventType.INPUT_TEXT_BUFFER_COMPLETED.value:
-        return InputTextBufferCompletedEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-            }
-        )
+        return InputTextBufferCompletedEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+        })
 
     if event_type == WebsocketsEventType.SPEECH_AUDIO_URL.value:
-        return SpeechAudioUrlEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": SpeechAudioUrlEvent.Data.model_validate(data),
-            }
-        )
+        return SpeechAudioUrlEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+            'data': SpeechAudioUrlEvent.Data.model_validate(data),
+        })
 
     if event_type == WebsocketsEventType.SPEECH_AUDIO_UPDATE.value:
-        delta_base64 = data.get("delta")
+        delta_base64 = data.get('delta')
         if delta_base64 is None:
             raise ValueError("Missing 'delta' in event data")
-        return SpeechAudioUpdateEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-                "data": SpeechAudioUpdateEvent.Data.model_validate(
-                    {
-                        "delta": base64.b64decode(delta_base64),
-                    }
-                ),
-            }
-        )
+        return SpeechAudioUpdateEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+            'data': SpeechAudioUpdateEvent.Data.model_validate({
+                'delta': base64.b64decode(delta_base64),
+            }),
+        })
 
     if event_type == WebsocketsEventType.SPEECH_AUDIO_COMPLETED.value:
-        return SpeechAudioCompletedEvent.model_validate(
-            {
-                "id": event_id,
-                "detail": detail,
-            }
-        )
+        return SpeechAudioCompletedEvent.model_validate({
+            'id': event_id,
+            'detail': detail,
+        })
 
-    log.warning(f"[v1/audio/speech] unknown event, type={event_type}, logid={detail.logid}")
+    log.warning(f'[v1/audio/speech] unknown event, type={event_type}, logid={detail.logid}')
     return None
