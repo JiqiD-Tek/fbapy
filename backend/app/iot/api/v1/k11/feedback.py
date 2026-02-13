@@ -16,7 +16,7 @@ from backend.common.security.jwt import DependsJwtAuth
 
 from backend.app.iot.service.feedback import feedback_service
 from backend.app.iot.service.messaging import MessagingService
-from backend.app.iot.service.storage import StorageService
+from backend.app.iot.service.storage import storage_service
 
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.app.iot.schema.feedback import GetFeedbackDetail, CreateFeedbackParam, UpdateFeedbackParam, \
@@ -69,9 +69,6 @@ async def create_feedback(
         comment: Optional[str] = Body(None, description='处理备注'),
 
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
-    if status == 1:  # 需要上传日志
-        file_url = StorageService(did=did).log_feedback()
-
     obj = CreateFeedbackParam(
         did=did, category=category, content=content, pic_url=pic_url,
         file_url=file_url, contact=contact, comment=comment, status=status,
@@ -80,7 +77,7 @@ async def create_feedback(
 
     if status == 1:
         messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
-        await messaging_service.send_request_log(feedback_id=feedback.id, store_url=file_url)
+        await messaging_service.send_request_log(feedback_id=feedback.id)
 
     return response_base.success(data=feedback)
 

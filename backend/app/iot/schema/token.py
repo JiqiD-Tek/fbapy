@@ -63,3 +63,10 @@ class StsToken(SchemaBase):
     access_key_secret: str = Field(description='秘钥')
     security_token: str = Field(description='令牌')
     expiration: str = Field(description='失效时间')
+
+
+class OSSToken(SchemaBase):
+    """令牌
+    """
+    url: str = Field(description='存储路径')
+    sign_url: str = Field(description='签名路径')

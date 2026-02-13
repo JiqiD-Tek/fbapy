@@ -12,8 +12,10 @@ from typing import Annotated
 from livekit import api
 from pyrate_limiter import Duration, Rate
 
-from fastapi import APIRouter, Depends, Request, Response, Query
+from fastapi import APIRouter, Depends, Request, Response, Path, Query
 from starlette.background import BackgroundTasks
+
+from backend.app.iot.service.storage import storage_service
 from backend.utils.limiter import RateLimiter
 from backend.common.ali_sts import sts_client
 from backend.common.context import ctx
@@ -29,7 +31,7 @@ from backend.database.redis import redis_client
 
 from backend.app.iot.schema.captcha import GetCaptchaDetail
 from backend.app.iot.schema.token import GetLoginToken, GetNewToken, CozeToken, LivekitToken, CurrentLocation, FbaToken, \
-    StsToken
+    StsToken, OSSToken
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
 from backend.app.iot.service.auth import auth_service
 from backend.app.iot.service.device import device_service
@@ -146,6 +148,28 @@ async def sts_token(
     if obj.password == credentials["did"]:
         data = sts_client.assume_role()
         data = StsToken(**data)
+
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/oss_token/{ext}',
+    summary='阿里云OSS',
+    # dependencies=[DependsJwtAuth],
+)
+async def oss_token(
+        request: Request,
+        ext: Annotated[str, Path(description="文件类型")],
+        obj: DeviceAuthParam,
+) -> ResponseSchemaModel[OSSToken]:
+    credentials = identity_verifier.derive_credentials(mac=obj.username)
+
+    data = None
+    if obj.password == credentials["did"]:
+        object_name = storage_service.create_object_name(did=credentials["did"], ext=ext)
+        url = storage_service.get_object_url(object_name)
+        sign_url = storage_service.get_sign_url(object_name)
+        data = OSSToken(url=url, sign_url=sign_url)
 
     return response_base.success(data=data)
 

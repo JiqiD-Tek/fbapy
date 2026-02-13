@@ -64,6 +64,7 @@ dependencies = [
     "alibabacloud-dysmsapi20180501>=1.0.10",
     "alibabacloud-oss-v2>=1.2.1",
     "alibabacloud-sts20150401>=1.2.0",
+    "oss2>=2.19.1",
     "paho-mqtt>=2.1.0",
     "cachetools>=6.2.2",
     "livekit>=1.0.23",

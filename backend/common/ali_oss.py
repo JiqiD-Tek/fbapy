@@ -7,6 +7,9 @@ Author: guhua@jiqid.com
 import asyncio
 from typing import Optional
 
+import oss2
+from oss2.credentials import StaticCredentialsProvider
+
 import alibabacloud_oss_v2 as oss
 import alibabacloud_oss_v2.aio as oss_aio
 
@@ -44,6 +47,7 @@ class AliOSSClient:
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
 
+        self.endpoint = "https://oss-cn-hangzhou.aliyuncs.com"
         self.bucket = bucket
         self.region = region
 
@@ -85,6 +89,14 @@ class AliOSSClient:
             log.error(f"[OSS Upload Error] key={key}, error={e!r}")
             return ""
 
+    def sign_url(self, object_name: str, expires: int = 60):
+        auth = oss2.ProviderAuthV4(
+            StaticCredentialsProvider(self.provider.access_key_id, self.provider.access_key_secret))
+
+        bucket = oss2.Bucket(auth, self.endpoint, self.bucket, region=self.region)
+        url = bucket.sign_url('PUT', object_name, expires, slash_safe=True)
+        return url
+
 
 oss_client = AliOSSClient(
     access_key_id=settings.OSS_ACCESS_KEY_ID,
@@ -100,6 +112,9 @@ async def main():
 
     await oss_client.upload_bytes(key, data)
     await oss_client.close()
+
+    rv = oss_client.sign_url(key)
+    log.info(rv)
 
 
 if __name__ == "__main__":

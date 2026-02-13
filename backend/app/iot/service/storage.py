@@ -7,14 +7,14 @@
 """
 
 import uuid
+
+from backend.common.ali_oss import oss_client
 from backend.utils.timezone import timezone
 
 
 class StorageService:
-    BASE_URL = "https://media.jiqid.com/k11"
-
-    def __init__(self, did: str):
-        self.did = did
+    HOSTNAME = "https://media.jiqid.com"
+    PRODUCT = "k11"
 
     @staticmethod
     def _today() -> str:
@@ -26,58 +26,22 @@ class StorageService:
         """生成唯一 UUID（短）"""
         return uuid.uuid4().hex[:6]
 
-    @staticmethod
-    def _filename(file_type: str, ext: str) -> str:
-        """生成文件名"""
-        return f"{file_type}_{StorageService._today()}_{StorageService._uuid()}.{ext}"
+    def create_object_name(self, did: str, ext: str = "jpg") -> str:
+        filename = f"{self._today()}_{self._uuid()}.{ext}"
+        key = f"{self.PRODUCT}/{ext}/{did}/{filename}"
+        return key
 
-    def image_feedback(self, ext: str = "jpg") -> str:
-        """生成反馈图片路径"""
-        filename = self._filename("photo", ext)
-        return f"{self.BASE_URL}/image/feedback/{self.did}/{filename}"
+    def get_object_url(self, object_name: str) -> str:
+        return f"{self.HOSTNAME}/{object_name}"
 
-    def audio_input(self, ext: str = "wav") -> str:
-        """生成用户输入音频路径"""
-        filename = self._filename("voice", ext)
-        return f"{self.BASE_URL}/audio/input/{self.did}/{filename}"
+    def get_sign_url(self, object_name: str):
+        return oss_client.sign_url(object_name)
 
-    def audio_output(self, ext: str = "mp3") -> str:
-        """生成系统输出音频路径"""
-        filename = self._filename("tts", ext)
-        return f"{self.BASE_URL}/audio/output/{self.did}/{filename}"
 
-    def log_system(self, ext: str = "log") -> str:
-        """生成系统日志路径"""
-        filename = self._filename("system", ext)
-        return f"{self.BASE_URL}/log/system/{self.did}/{filename}"
-
-    def log_feedback(self, ext: str = "log") -> str:
-        """生成反馈日志路径"""
-        filename = self._filename("feedback", ext)
-        return f"{self.BASE_URL}/log/feedback/{self.did}/{filename}"
-
-    def ota_release(self, filename: str) -> str:
-        """生成 OTA release 固件路径（文件名自定）"""
-        return f"{self.BASE_URL}/ota/release/{filename}"
-
-    def ota_beta(self, filename: str) -> str:
-        """生成 OTA beta 固件路径"""
-        return f"{self.BASE_URL}/ota/beta/{filename}"
-
-    def temp_file(self, ext: str = "dat") -> str:
-        """生成临时文件路径"""
-        filename = self._filename("tmp", ext)
-        return f"{self.BASE_URL}/temp/{self.did}/{filename}"
-
+storage_service = StorageService()
 
 if __name__ == "__main__":
-    storage = StorageService("D98BB367386B5B18A815EC31F74B43A6")
-
-    print(storage.image_feedback())
-    print(storage.audio_input())
-    print(storage.audio_output())
-    print(storage.log_system())
-    print(storage.log_feedback())
-    print(storage.ota_release("k10_1.3.0.bin"))
-    print(storage.ota_beta("k10_beta_1.3.1.bin"))
-    print(storage.temp_file())
+    object_name = storage_service.create_object_name(did="D98BB367386B5B18A815EC31F74B43A6")
+    print(object_name)
+    print(storage_service.get_object_url(object_name))
+    print(storage_service.get_sign_url(object_name))
