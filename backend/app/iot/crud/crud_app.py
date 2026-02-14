@@ -35,8 +35,8 @@ class CRUDApp(CRUDPlus[App]):
     async def update(self, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         return await self.update_model(db, pk, obj)
 
-    async def delete(self, db: AsyncSession, pks: list[int]) -> int:
-        return await self.delete_model_by_column(db, allow_multiple=True, id__in=pks)
+    async def delete(self, db: AsyncSession, pk: int) -> int:
+        return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
 
 app_dao: CRUDApp = CRUDApp(App)

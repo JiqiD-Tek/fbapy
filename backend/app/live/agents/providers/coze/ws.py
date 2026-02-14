@@ -146,7 +146,7 @@ class AsyncWebSocketClient:
                     f'请求长度: {len(data)}字节 | '
                     f'响应长度: {len(response) if response else 0}字节'
                 )
-                return response
+
 
             except websockets.ConnectionClosed as e:
                 self._conn = None  # 清除失效连接
@@ -162,6 +162,9 @@ class AsyncWebSocketClient:
                     f'操作失败（耗时: {(time.perf_counter() - start_time):.2f}s）| 错误: {type(e).__name__}: {e!s}'
                 )
                 raise RuntimeError('消息处理失败') from e
+
+            else:
+                return response
 
     async def aclose(self, code: int = 1000, reason: str = '无') -> None:
         """优雅关闭WebSocket连接

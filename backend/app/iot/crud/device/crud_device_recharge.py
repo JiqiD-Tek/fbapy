@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.iot.model.device.device_recharge import DeviceRecharge
+from backend.app.iot.model import DeviceRecharge
 from backend.app.iot.schema.device.device_recharge import CreateDeviceRechargeParam, UpdateDeviceRechargeParam
 
 

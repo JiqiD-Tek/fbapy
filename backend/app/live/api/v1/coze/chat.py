@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, WebSocket
 from fastapi.responses import StreamingResponse
 
+from backend.app.live.agents.net.channel import Channel
 from backend.app.live.agents.net.channel_pool import channel_pool
 from backend.app.live.service.coze.chat.chat_service import chat_service
 from backend.common.log import log
@@ -26,7 +27,7 @@ async def chat(websocket: WebSocket) -> None:
 
 
 @router.get('/tts', summary='获取tts语音', description='获取tts语音')
-async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.request_id')]):
+async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.request_id')]) -> StreamingResponse:
     """http TTS"""
     if '.' not in token:
         raise KeyError('Token格式错误，应为uid.request_id')
@@ -38,16 +39,16 @@ async def tts(token: Annotated[str, Query(description='TTS Token，格式为uid.
         raise KeyError('TTS client not exist')
 
     if settings.SPEECH_ENCODING == 'mp3':
-        return await _generate_mp3_response(conn, request_id)
-    return await _generate_wav_response(conn, request_id)
+        return _generate_mp3_response(conn, request_id)
+    return _generate_wav_response(conn, request_id)
 
 
-async def _generate_mp3_response(conn, request_id: str) -> StreamingResponse:
+def _generate_mp3_response(conn: Channel, request_id: str) -> StreamingResponse:
     """生成MP3格式的音频响应"""
 
     async def audio_generator() -> AsyncGenerator[bytes, None]:
         try:
-            async with conn.tts.tts_cache.stream_audio_generator(request_id) as stream:
+            async with conn.assistant.tts.tts_cache.stream_audio_generator(request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:
@@ -67,7 +68,7 @@ async def _generate_mp3_response(conn, request_id: str) -> StreamingResponse:
     )
 
 
-async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
+def _generate_wav_response(conn: Channel, request_id: str) -> StreamingResponse:
     """生成WAV格式的音频响应"""
 
     def generate_wav_header(sample_rate: int = 24000, channels: int = 1, bit_depth: int = 16) -> bytes:
@@ -97,7 +98,7 @@ async def _generate_wav_response(conn, request_id: str) -> StreamingResponse:
 
         # 然后流式传输音频数据
         try:
-            async with conn.tts.tts_cache.stream_audio_generator(request_id) as stream:
+            async with conn.assistant.tts.tts_cache.stream_audio_generator(request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as e:

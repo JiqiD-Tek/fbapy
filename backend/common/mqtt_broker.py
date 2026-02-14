@@ -125,13 +125,14 @@ class MQTTBroker:
                 log.debug('连接任务已在进行中，等待结果...')
                 try:
                     await asyncio.wait_for(self._connection_task, timeout=self.config.connection_timeout)
-                    return self.connected
                 except asyncio.TimeoutError:
                     log.error(f'连接任务在 {self.config.connection_timeout}s 后超时')
                     return False
                 except Exception as e:
                     log.error(f'连接任务发生意外错误: {e}', exc_info=True)
                     return False
+                else:
+                    return self.connected
 
             # 启动新的连接循环
             self._stop_event.clear()
@@ -142,7 +143,7 @@ class MQTTBroker:
             try:
                 # 等待连接成功事件
                 await asyncio.wait_for(self._connection_event.wait(), timeout=self.config.connection_timeout)
-                return self.connected
+
             except asyncio.TimeoutError:
                 log.error(f'连接在 {self.config.connection_timeout}s 后超时')
                 # 超时后尝试断开连接并清理资源
@@ -152,9 +153,11 @@ class MQTTBroker:
                 log.error(f'连接过程中发生意外错误: {e}', exc_info=True)
                 await self.disconnect()
                 return False
+            else:
+                return self.connected
 
     def _on_connect(
-        self, client: mqtt.Client, userdata: Any, flags: dict, rc: int, properties: mqtt.Properties | None = None
+            self, client: mqtt.Client, userdata: Any, flags: dict, rc: int, properties: mqtt.Properties | None = None
     ) -> None:
         """客户端连接到 Broker 时的回调。"""
         with self._callback_lock:
@@ -173,7 +176,7 @@ class MQTTBroker:
                 asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self._loop)
 
     def _on_disconnect(
-        self, client: mqtt.Client, userdata: Any, rc: int, properties: mqtt.Properties | None = None
+            self, client: mqtt.Client, userdata: Any, rc: int, properties: mqtt.Properties | None = None
     ) -> None:
         """客户端断开连接时的回调。"""
         with self._callback_lock:
@@ -441,7 +444,7 @@ class MQTTBroker:
                 return True
 
     async def publish(
-        self, topic: str, payload: str | dict | bytes | None = None, qos: int = 1, retain: bool = False
+            self, topic: str, payload: str | dict | bytes | None = None, qos: int = 1, retain: bool = False
     ) -> bool:
         """发布消息到指定主题。"""
         if not self.connected or not self.client:
@@ -524,7 +527,7 @@ class MQTTDependency:
         async with cls._lock:
             if cls._instance is None:
                 # 1. 创建配置
-                config = config or await create_mqtt_config()
+                config = config or create_mqtt_config()
 
                 # 2. 创建实例
                 cls._instance = MQTTBroker(config)
@@ -549,7 +552,7 @@ class MQTTDependency:
                 log.info('MQTT 管理器已关闭')
 
 
-async def create_mqtt_config(client_id: str | None = None) -> MQTTConfig:
+def create_mqtt_config(client_id: str | None = None) -> MQTTConfig:
     """创建并验证 MQTT 配置。"""
     try:
         client_id = client_id or f'fbapy_{uuid.uuid4().hex}'

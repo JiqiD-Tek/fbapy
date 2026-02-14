@@ -17,7 +17,7 @@ from backend.common.log import log
 
 class AMapClient:
     def __init__(
-        self, api_key: str = 'f8467ff040f77ebe50456656ff718633', cache_ttl: int = 86400, max_cache_size: int = 1000
+            self, api_key: str = 'f8467ff040f77ebe50456656ff718633', cache_ttl: int = 86400, max_cache_size: int = 1000
     ) -> None:
         """
         :param api_key: 高德地图API Key
@@ -81,7 +81,7 @@ class AMapClient:
 
         return data
 
-    async def get_weather_info(self, query) -> dict:
+    async def get_weather_info(self, query: str) -> dict:
         if not query:
             raise ValueError('city不能为空')
 
@@ -108,7 +108,7 @@ class AMapClient:
             else:
                 return response
 
-    async def _get_weather_info(self, adcode) -> dict:
+    async def _get_weather_info(self, adcode: str) -> dict:
         url = f'{self.host}/v3/weather/weatherInfo'
         params = {'city': adcode, 'key': self.key, 'extensions': 'all'}
 

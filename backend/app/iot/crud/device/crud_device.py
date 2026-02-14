@@ -4,7 +4,7 @@ from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.iot.model.device.device import Device
+from backend.app.iot.model import Device
 from backend.app.iot.schema.device.device import CreateDeviceParam, UpdateDeviceParam
 
 

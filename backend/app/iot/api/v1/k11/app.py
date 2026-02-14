@@ -98,10 +98,9 @@ async def update_app(
 )
 async def delete_app(
     db: CurrentSessionTransaction,
-    obj: DeleteAppParam,
-    pk,
+    pk: Annotated[int, Path(description='应用 ID')]
 ) -> ResponseModel:
-    count = await app_service.delete(db=db, obj=obj)
+    count = await app_service.delete(db=db, pk=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()

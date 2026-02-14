@@ -7,7 +7,8 @@
 """
 
 import asyncio
-
+from collections.abc import Callable
+from typing import Any, Optional
 import azure.cognitiveservices.speech as speechsdk
 
 from backend.app.live.agents.core.stt.stt import STT
@@ -33,7 +34,7 @@ class AzureSTT(STT):
 
         self.loop: asyncio.AbstractEventLoop | None = None
 
-    def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
+    def set_callbacks(self, append_cb: Optional[Callable] = None, finish_cb: Optional[Callable] = None) -> None:
         """设置回调函数"""
         self._append_callback = append_cb
         self._finish_callback = finish_cb
@@ -148,7 +149,7 @@ class AzureSTT(STT):
     async def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         await self._cleanup()
 
 

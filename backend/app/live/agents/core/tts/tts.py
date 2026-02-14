@@ -5,7 +5,8 @@
 @Author  ：guhua@jiqid.com
 @Date    ：2025/06/12 19:22
 """
-
+from collections.abc import Callable
+from typing import Optional
 from typing import Union
 
 from backend.app.live.agents.core import tokenize
@@ -26,7 +27,7 @@ class TTS:
         self._audio_callback = None  # 音频回调
         self.tts_cache = TTSCache(maxsize=10, ttl=3600)  # 音频缓存
 
-    def set_callback(self, callback=None) -> None:
+    def set_callback(self, callback: Optional[Callable] = None) -> None:
         """设置音频数据回调函数"""
 
     def push_text(self, token: str) -> None:

@@ -1,3 +1,5 @@
+from typing import Dict
+
 from fastapi import APIRouter
 
 from backend.app.admin.api.router import v1 as admin_v1
@@ -14,6 +16,6 @@ router.include_router(live_v1)
 
 
 @router.get('/health', tags=['Health'])
-async def health_check():
+async def health_check() -> Dict[str, str]:
     """健康检查端点"""
     return {'status': 'ok', 'message': 'Service is healthy'}

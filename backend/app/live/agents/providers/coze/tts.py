@@ -13,7 +13,7 @@ import traceback
 import uuid
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 from websockets import ConnectionClosedError, ConnectionClosedOK
@@ -81,19 +81,19 @@ class TTSConfig(BaseModel):
 
 
 def create_tts_config(
-    appid: str,
-    token: str,
-    cluster: str,
-    uid: str = '',
-    text: str = '',
-    reqid: str = '',
-    text_type: str = 'plain',
-    operation: str = 'submit',
-    voice_type: str = 'BV064_streaming',  # https://www.volcengine.com/docs/6561/97465  S_HFruD8as1 BV064_streaming
-    encoding: str = 'pcm',
-    speed_ratio: float = 1.0,
-    volume_ratio: float = 1.0,
-    pitch_ratio: float = 1.0,
+        appid: str,
+        token: str,
+        cluster: str,
+        uid: str = '',
+        text: str = '',
+        reqid: str = '',
+        text_type: str = 'plain',
+        operation: str = 'submit',
+        voice_type: str = 'BV064_streaming',  # https://www.volcengine.com/docs/6561/97465  S_HFruD8as1 BV064_streaming
+        encoding: str = 'pcm',
+        speed_ratio: float = 1.0,
+        volume_ratio: float = 1.0,
+        pitch_ratio: float = 1.0,
 ) -> TTSConfig:
     """
     创建TTS（文本转语音）请求对象的工厂方法
@@ -196,7 +196,7 @@ class CozeTTS(AsyncWebSocketClient, TTS):
     def push_text(self, token: str) -> None:
         self._input_ch.send_nowait(token)
 
-    def set_callback(self, callback=None) -> None:
+    def set_callback(self, callback: Optional[Callable] = None) -> None:
         self._audio_callback = callback
 
     async def aclose(self, code: int = 1000, reason: str = '') -> None:
@@ -264,8 +264,8 @@ class CozeTTS(AsyncWebSocketClient, TTS):
         serialization_method = resp[2] >> 4
         message_compression = resp[2] & 0x0F
         reserved = resp[3]
-        header_extensions = resp[4 : header_size * 4]
-        payload = resp[header_size * 4 :]
+        header_extensions = resp[4: header_size * 4]
+        payload = resp[header_size * 4:]
 
         log.debug(f'Protocol version: {protocol_version:#x} - version {protocol_version}')
         log.debug(f'Header size: {header_size:#x} - {header_size * 4} bytes')

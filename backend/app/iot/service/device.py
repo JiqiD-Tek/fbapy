@@ -155,7 +155,7 @@ class DeviceService:
     @staticmethod
     async def delete(*, db: AsyncSession, pk: int) -> int:
         """批量删除设备"""
-        count = await device_dao.delete(db, obj.pks)
+        count = await device_dao.delete(db, pk)
         return count
 
 

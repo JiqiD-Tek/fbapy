@@ -79,7 +79,7 @@ class ChatService(CozeService):
         await channel.assistant.aclose()  # 打断
 
     async def on_conversation_chat_submit_tool_outputs(
-        self, uid: str, event: ConversationChatSubmitToolOutputsEvent
+            self, uid: str, event: ConversationChatSubmitToolOutputsEvent
     ) -> None:
         """调用工具"""
 
@@ -87,7 +87,7 @@ class ChatService(CozeService):
         """对话消息"""
 
     def to_dict(
-        self, origin: dict[WebsocketsEventType, Callable] | None = None
+            self, origin: dict[WebsocketsEventType, Callable] | None = None
     ) -> dict[WebsocketsEventType, Callable] | None:
         res = {
             WebsocketsEventType.CLIENT_ERROR: self.on_client_error,
@@ -148,7 +148,7 @@ class ChatService(CozeService):
         channel.assistant.stt.set_callbacks(append_cb=on_append_text, finish_cb=on_finish_text)  # 语音识别(stt)回调
         channel.assistant.tts.set_callback(callback=on_audio)  # 语音合成(tts)回调
 
-    async def _chatgpt_query(self, uid, text) -> None:
+    async def _chatgpt_query(self, uid: str, text: str) -> None:
         """意图识别"""
         if not (channel := await channel_pool.get_channel(uid)):
             return

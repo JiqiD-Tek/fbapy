@@ -26,13 +26,13 @@ from backend.core.conf import settings
 
 class AliSmsClient:
     def __init__(
-        self,
-        access_key_id: str,
-        access_key_secret: str,
-        sign_name: str,
-        template_code: str,
-        cn_endpoint: str = 'dysmsapi.aliyuncs.com',
-        global_endpoint: str = 'dysmsapi.eu-central-1.aliyuncs.com',
+            self,
+            access_key_id: str,
+            access_key_secret: str,
+            sign_name: str,
+            template_code: str,
+            cn_endpoint: str = 'dysmsapi.aliyuncs.com',
+            global_endpoint: str = 'dysmsapi.eu-central-1.aliyuncs.com',
     ) -> None:
         self.sign_name = sign_name
         self.template_code = template_code
@@ -88,13 +88,13 @@ class AliSmsClient:
         try:
             resp = await self.cn_client.send_sms_with_options_async(req, util_models.RuntimeOptions())
             log.info(f'[SMS CN] phone={phone}, code={resp.body.code}, msg={resp.body.message}')
-            return resp.body.code == 'OK'
-
         except Exception as e:
             log.error(f'[SMS CN ERROR] phone={phone}, error={e!r}')
             return False
 
-    # ----------------------------
+        else:
+            return resp.body.code == 'OK'
+
     # Global SMS
     # ----------------------------
     async def _send_global(self, to: str, code: str) -> bool:
@@ -108,11 +108,11 @@ class AliSmsClient:
         try:
             resp = await self.global_client.send_message_to_globe_with_options_async(req, util_models.RuntimeOptions())
             log.info(f'[SMS GLOBAL] to={to}, code={resp.body.response_code}, msg={resp.body.response_description}')
-            return resp.body.response_code == 'OK'
-
         except Exception as e:
             log.error(f'[SMS GLOBAL ERROR] to={to}, error={e!r}')
             return False
+        else:
+            return resp.body.response_code == 'OK'
 
 
 sms_client = AliSmsClient(

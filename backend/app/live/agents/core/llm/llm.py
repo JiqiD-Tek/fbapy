@@ -95,9 +95,9 @@ class LLM:
         self._client = None
 
     def chat(
-        self,
-        chat_ctx: ChatContext,
-        tools: list[FunctionTool | RawFunctionTool | ProviderTool] | None = None,
+            self,
+            chat_ctx: ChatContext,
+            tools: list[FunctionTool | RawFunctionTool | ProviderTool] | None = None,
     ):
         return LLMStream(
             self,
@@ -119,24 +119,24 @@ class LLM:
                 log.error(f'关闭 AsyncOpenAI client 失败: {e}')
 
     async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        exc_tb: TracebackType | None,
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            exc_tb: TracebackType | None,
     ) -> None:
         await self.aclose()
 
 
 class LLMStream:
     def __init__(
-        self,
-        llm: LLM,
-        model: str,
-        chat_ctx: ChatContext,
-        tools: list[FunctionTool | RawFunctionTool | ProviderTool],
-        strict_tool_schema: bool,
-        extra_kwargs: dict[str, Any],
-        provider_fmt: str = 'openai',  # used internally for chat_ctx format
+            self,
+            llm: LLM,
+            model: str,
+            chat_ctx: ChatContext,
+            tools: list[FunctionTool | RawFunctionTool | ProviderTool],
+            strict_tool_schema: bool = False,
+            extra_kwargs: dict[str, Any] = None,
+            provider_fmt: str = 'openai',  # used internally for chat_ctx format
     ) -> None:
         self._llm = llm
         self._model = model
@@ -295,25 +295,25 @@ class LLMStream:
 
         return val
 
-    def __aiter__(self) -> AsyncIterator[ChatChunk]:
+    def __aiter__(self):
         return self
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        exc_tb: TracebackType | None,
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            exc_tb: TracebackType | None,
     ) -> None:
         await self.aclose()
 
 
 def to_fnc_ctx(
-    fnc_ctx: Sequence[FunctionTool | RawFunctionTool | ProviderTool],
-    *,
-    strict: bool = True,
+        fnc_ctx: Sequence[FunctionTool | RawFunctionTool | ProviderTool],
+        *,
+        strict: bool = True,
 ) -> list[ChatCompletionToolParam]:
     tools: list[ChatCompletionToolParam] = []
     for fnc in fnc_ctx:

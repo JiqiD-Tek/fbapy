@@ -71,9 +71,9 @@ class AppService:
         return count
 
     @staticmethod
-    async def delete(*, db: AsyncSession, obj: DeleteAppParam) -> int:
+    async def delete(*, db: AsyncSession, pk: int) -> int:
         """批量删除应用"""
-        count = await app_dao.delete(db, obj.pks)
+        count = await app_dao.delete(db, pk)
         return count
 
 

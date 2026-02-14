@@ -75,7 +75,7 @@ class Channel:
     async def safe_send_bytes(self, data: bytes) -> None:
         await self._safe_send(data, binary=True)
 
-    async def _safe_send(self, data: str | bytes, binary: bool) -> None:
+    async def _safe_send(self, data: str | bytes, binary: bool = False) -> None:
         try:
             if binary:
                 await self.websocket.send_bytes(data)
@@ -94,7 +94,7 @@ class Channel:
                 websocket.close(code=error_code.code, reason=reason or error_code.reason), timeout=3.0
             )
 
-    async def put_nowait(self, event: WebsocketsEvent):
+    async def put_nowait(self, event: WebsocketsEvent) -> None:
         """Put an event into the output queue."""
         return self._event_ch.send_nowait(event)
 

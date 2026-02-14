@@ -9,6 +9,7 @@
 import asyncio
 
 from datetime import timedelta
+from typing import Any
 
 from langchain_community.tools import DuckDuckGoSearchRun
 
@@ -21,7 +22,7 @@ duck_tool = DuckDuckGoSearchRun()
 
 
 @function_tool()
-async def get_weather(city: str):
+async def get_weather(city: str) -> dict[str, Any] | str | None:
     """
     Retrieve current weather information for a given city.
 

@@ -11,10 +11,11 @@ import functools
 import traceback
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Optional
 
 from backend.app.live.agents.core.llm import ChatContext, FunctionToolCall, ToolContext
 from backend.app.live.agents.core.llm.utils import prepare_function_arguments
+from backend.app.live.agents.net.coze.chat import ChatUpdateEvent
 from backend.app.live.agents.providers.coze.llm import CozeLLM as CozeLLM  # Use same name
 from backend.app.live.agents.providers.coze.stt import CozeSTT as CozeSTT  # Use same name
 from backend.app.live.agents.providers.coze.tts import CozeTTS as CozeTTS  # Use same name
@@ -30,7 +31,7 @@ TTS = CozeTTS
 class Assistant:
     """AI助手"""
 
-    def __init__(self, uid: str, chat_config=None) -> None:
+    def __init__(self, uid: str, chat_config: ChatUpdateEvent.ChatConfig = None) -> None:
         self.uid = uid
         self.username = chat_config.parameters.get('username', 'yoyo')
         self.language = chat_config.parameters.get('language', 'zh-CN')
@@ -48,7 +49,13 @@ class Assistant:
 
         log.info(f'Assistant 初始化完成 [UID:{self.uid}]')
 
-    async def chat(self, user_input: str, api_data=None, on_token=None, on_finish=None, on_error=None) -> None:
+    async def chat(
+            self, user_input: str,
+            api_data: str = None,
+            on_token: Optional[Callable] = None,
+            on_finish: Optional[Callable] = None,
+            on_error: Optional[Callable] = None
+    ) -> None:
         """执行流式文本生成查询"""
         self.chat_ctx.add_message(role='user', content=self.render_user_prompt(user_input, api_data=api_data))
         tools = self.tool_ctx.all_tools if api_data is None else None
@@ -57,8 +64,8 @@ class Assistant:
         tool_calls_sent: list[FunctionToolCall] = []
         try:
             async with self.llm.chat(
-                chat_ctx=self.chat_ctx,
-                tools=tools,
+                    chat_ctx=self.chat_ctx,
+                    tools=tools,
             ) as stream:
                 async for chunk in stream:
                     if chunk.delta:  # 内容
@@ -195,6 +202,7 @@ def main() -> None:
         parameters = {}
 
     async def callback(text: str) -> None:
+        await asyncio.sleep(1)
         log.debug(f'{text}')
 
     async def _run() -> None:

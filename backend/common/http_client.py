@@ -64,7 +64,6 @@ class HTTPClient:
         try:
             response = await self._http_client.request(method, url, **kwargs)
             response.raise_for_status()  # 如果响应状态码不是 200，会抛出 HTTPStatusError
-            return response
         except httpx.RequestError as e:
             log.error(f'Request error: {e}')
             raise
@@ -74,6 +73,8 @@ class HTTPClient:
         except Exception as e:
             log.error(f'Unexpected error: {e}')
             raise
+        else:
+            return response
 
     async def get(self, url: str, params: dict[str, str] | None = None, **kwargs) -> httpx.Response:
         """封装 GET 请求"""

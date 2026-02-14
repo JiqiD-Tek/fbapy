@@ -103,7 +103,7 @@ class ChannelPool:
         log.debug('WebSocket连接建立')
 
         try:
-            uid = await self._validate_token(websocket, is_open=False)
+            uid = await self._validate_token(websocket, require_open=False)
             return await self._register(uid, websocket)
         except ConnectionError:
             await Channel.terminate_connection(websocket, WebSocketErrorCode.INVALID_TOKEN)
@@ -117,9 +117,9 @@ class ChannelPool:
             raise
 
     @staticmethod
-    async def _validate_token(websocket: WebSocket, is_open: bool = False) -> str:
+    async def _validate_token(websocket: WebSocket, require_open: bool = False) -> str:
         """验证令牌"""
-        if not is_open:
+        if not require_open:
             return uuid.uuid4().hex
 
         token = websocket.headers.get('Authorization', '').replace('Bearer', '').strip()
@@ -146,9 +146,9 @@ class ChannelPool:
             # ---------- 提取通道 IP ----------
             ip_headers = websocket.headers
             ip = (
-                ip_headers.get('x-real-ip')
-                or (ip_headers.get('x-forwarded-for') or '').split(',')[0].strip()
-                or getattr(websocket.client, 'host', 'unknown')
+                    ip_headers.get('x-real-ip')
+                    or (ip_headers.get('x-forwarded-for') or '').split(',')[0].strip()
+                    or getattr(websocket.client, 'host', 'unknown')
             )
 
             # ---------- 重复连接检测 ----------
@@ -174,8 +174,6 @@ class ChannelPool:
                 log.exception(f'💥 Redis 注册失败 [UID:{uid}]，已回滚连接池: {redis_ex}')
                 raise
 
-            return channel
-
         except CapacityExceededError:
             log.error(f'🚫 连接池已满，拒绝新连接 [UID:{uid}]')
             raise
@@ -185,6 +183,9 @@ class ChannelPool:
             # 确保清理不完整注册
             await self._safe_cleanup(uid)
             raise
+
+        else:
+            return channel
 
     async def _safe_cleanup(self, uid: str) -> None:
         """安全清理：无论 Redis / Pool 状态如何，都尽力回收"""
@@ -230,19 +231,19 @@ class ChannelPool:
 
     async def read_text(self, uid: str) -> AsyncGenerator[str, None]:
         """持续读取通道文本消息"""
-        async for msg in self._read(uid, is_binary=False):
+        async for msg in self._read(uid, as_binary=False):
             yield msg
 
     async def read_bytes(self, uid: str) -> AsyncGenerator[bytes, None]:
         """持续读取通道二进制消息"""
-        async for msg in self._read(uid, is_binary=True):
+        async for msg in self._read(uid, as_binary=True):
             yield msg
 
-    async def _read(self, uid: str, is_binary: bool) -> AsyncGenerator[str | bytes, None]:
+    async def _read(self, uid: str, as_binary: bool = False) -> AsyncGenerator[str | bytes, None]:
         """内部消息读取核心实现"""
         try:
             channel = await self.get_channel(uid)
-            if is_binary:
+            if as_binary:
                 async for msg in channel.websocket.iter_bytes():
                     yield msg
             else:
@@ -374,11 +375,17 @@ class ChannelPool:
             connections = list(self._channels.values())
             self._channels.clear()
 
-        for conn in connections:
+        async def safe_close(conn):
             try:
                 await conn.aclose()
             except Exception as ex:
                 log.warning(f'关闭连接失败 [UID:{conn.uid}] - {ex}')
+
+        # 并发执行所有关闭操作
+        await asyncio.gather(
+            *[safe_close(conn) for conn in connections],
+            return_exceptions=True  # 避免一个失败影响其他
+        )
 
         log.debug('所有连接已清空')
 

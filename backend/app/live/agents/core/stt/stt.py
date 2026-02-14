@@ -5,6 +5,8 @@
 @Author  ：guhua@jiqid.com
 @Date    ：2025/06/12 19:22
 """
+from collections.abc import Callable
+from typing import Optional
 
 
 class STT:
@@ -13,7 +15,7 @@ class STT:
     def __init__(self, *, language: str = 'zh-CN', **kwargs) -> None:
         super().__init__(**kwargs)
 
-    def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
+    def set_callbacks(self, append_cb: Optional[Callable] = None, finish_cb: Optional[Callable] = None) -> None:
         """设置识别结果回调函数"""
 
     async def start(self) -> None:

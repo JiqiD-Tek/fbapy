@@ -19,7 +19,7 @@ class Encryptor:
     对称加密
     """
 
-    def __init__(self, key=settings.ENCRYPT_SECRET_KEY) -> None:
+    def __init__(self, key: str = settings.ENCRYPT_SECRET_KEY) -> None:
         self.key = key.encode()  # key 长度必须 16/24/32 字节
         self.iv = self.key[:16]  # 固定16字节IV
 

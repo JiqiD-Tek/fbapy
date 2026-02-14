@@ -43,7 +43,8 @@ class SpeechService(CozeService):
 
         tts = TTS()
         tts.set_callback(audio_callback)
-        await tts.query(text, is_final=True)
+        tts.push_text(text)
+        tts.flush()
         try:
             await asyncio.wait_for(completion_event.wait(), timeout=30.0)
         except asyncio.TimeoutError:

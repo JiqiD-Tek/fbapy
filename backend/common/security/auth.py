@@ -107,7 +107,7 @@ class IdentityVerifier(IdentityGenerator):
     - 使用 TTLCache 防止 nonce 重放
     """
 
-    def __init__(self, master_secret: str, salt: str, max_cache_size=10000, cache_ttl=60) -> None:
+    def __init__(self, master_secret: str, salt: str, max_cache_size: int = 10000, cache_ttl: int = 60) -> None:
         """
         初始化 RegistrationServer
 
@@ -173,16 +173,17 @@ class RequestBuilder:
 
     @staticmethod
     def build_registration_request(
-        mac: str,
-        did: str,
-        key: str,  # 三元组 必传
-        sn: str = 'K102501A0100123',
-        model: str = 'K10',  # 设备信息
+            mac: str,
+            did: str,
+            key: str,  # 三元组 必传
+            sn: str = 'K102501A0100123',
+            model: str = 'K10',  # 设备信息
     ) -> dict[str, str]:
         mac = normalize_mac(mac)
         data = {
             'mac': mac,
             'did': did,
+            'key': key,
             'timestamp': int(time.time()),
             'nonce': uuid.uuid4().hex,
             'sn': sn,
@@ -200,7 +201,7 @@ identity_verifier = IdentityVerifier(settings.MASTER_SECRET, salt=settings.KEY_S
 
 
 # ------------------ 测试 ------------------
-def main(mac) -> None:
+def main(mac: str) -> None:
     credentials = identity_verifier.derive_credentials(mac)
     log.debug(f'三元组: {credentials}')
 

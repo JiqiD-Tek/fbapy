@@ -15,7 +15,7 @@ import uuid
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -107,23 +107,23 @@ class AsrConfig(BaseModel):
 
 
 def create_asr_config(
-    appid: str,
-    cluster: str,
-    token: str,
-    uid: str = '',
-    reqid: str = '',
-    nbest: int = 1,
-    workflow: str = 'audio_in,resample,partition,vad,fe,decode,itn,nlu_punctuate',
-    show_language: bool = False,
-    show_utterances: bool = False,
-    result_type: str = 'full',  # single, full
-    audio_format: str = 'pcm',  # 默认音频采集使用的pcm
-    rate: int = 16000,
-    language: str = 'zh-CN',  # 语言 zh-CN, en-US
-    bits: int = 16,
-    channel: int = 1,
-    codec: str = 'raw',
-    sequence: int = 1,
+        appid: str,
+        cluster: str,
+        token: str,
+        uid: str = '',
+        reqid: str = '',
+        nbest: int = 1,
+        workflow: str = 'audio_in,resample,partition,vad,fe,decode,itn,nlu_punctuate',
+        show_language: bool = False,
+        show_utterances: bool = False,
+        result_type: str = 'full',  # single, full
+        audio_format: str = 'pcm',  # 默认音频采集使用的pcm
+        rate: int = 16000,
+        language: str = 'zh-CN',  # 语言 zh-CN, en-US
+        bits: int = 16,
+        channel: int = 1,
+        codec: str = 'raw',
+        sequence: int = 1,
 ) -> AsrConfig:
     """
     创建ASR配置对象的工厂函数
@@ -202,7 +202,7 @@ class AudioChunkBuffer:
         offset = 0
 
         for chunk in self.buffer:
-            result[offset : offset + len(chunk)] = chunk
+            result[offset: offset + len(chunk)] = chunk
             offset += len(chunk)
 
         self.buffer.clear()
@@ -232,7 +232,11 @@ class CozeSTT(AsyncWebSocketClient, STT):
         self.append_callback = None
         self.finish_callback = None
 
-    def set_callbacks(self, append_cb=None, finish_cb=None) -> None:
+    def set_callbacks(
+            self,
+            append_cb: Optional[Callable] = None,
+            finish_cb: Optional[Callable] = None
+    ) -> None:
         """设置回调函数"""
         self.append_callback = append_cb
         self.finish_callback = finish_cb
@@ -315,13 +319,13 @@ class CozeSTT(AsyncWebSocketClient, STT):
 
     @staticmethod
     def _generate_header(
-        version=PROTOCOL_VERSION,
-        message_type=CLIENT_FULL_REQUEST,
-        message_type_specific_flags=NO_SEQUENCE,
-        serial_method=JSON,
-        compression_type=GZIP,
-        reserved_data=0x00,
-        extension_header=b'',
+            version=PROTOCOL_VERSION,
+            message_type=CLIENT_FULL_REQUEST,
+            message_type_specific_flags=NO_SEQUENCE,
+            serial_method=JSON,
+            compression_type=GZIP,
+            reserved_data=0x00,
+            extension_header=b'',
     ):
         """
         protocol_version(4 bits), header_size(4 bits),
@@ -356,8 +360,8 @@ class CozeSTT(AsyncWebSocketClient, STT):
         serialization_method = resp[2] >> 4
         message_compression = resp[2] & 0x0F
         resp[3]
-        resp[4 : header_size * 4]
-        payload = resp[header_size * 4 :]
+        resp[4: header_size * 4]
+        payload = resp[header_size * 4:]
 
         result = {}
         payload_msg = None

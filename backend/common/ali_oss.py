@@ -24,7 +24,7 @@ class StaticCredentialProvider(oss.credentials.CredentialsProvider):
         self.access_key_id = access_key_id
         self.access_key_secret = access_key_secret
 
-    def get_credentials(self):
+    def get_credentials(self) -> oss.credentials.Credentials:
         return oss.credentials.Credentials(self.access_key_id, self.access_key_secret)
 
 
@@ -69,20 +69,21 @@ class AliOSSClient:
                 f'[OSS Upload Success] key={key}, status={resp.status_code}, '
                 f'etag={resp.etag}, request_id={resp.request_id}'
             )
-            return f'{self.CDN_HOST}/{key}'
 
         except Exception as e:
             log.error(f'[OSS Upload Error] key={key}, error={e!r}')
             return ''
 
-    def sign_url(self, object_name: str, expires: int = 60):
+        else:
+            return f'{self.CDN_HOST}/{key}'
+
+    def sign_url(self, object_name: str, expires: int = 60) -> str:
         auth = oss2.ProviderAuthV4(
             StaticCredentialsProvider(self.provider.access_key_id, self.provider.access_key_secret)
         )
 
         bucket = oss2.Bucket(auth, self.endpoint, self.bucket, region=self.region)
-        url = bucket.sign_url('PUT', object_name, expires, slash_safe=True)
-        return url
+        return bucket.sign_url('PUT', object_name, expires, slash_safe=True)
 
 
 oss_client = AliOSSClient(

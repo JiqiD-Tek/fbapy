@@ -9,7 +9,7 @@ from backend.core.conf import settings
 
 
 class STSClient:
-    def __init__(self, access_key_id, access_key_secret) -> None:
+    def __init__(self, access_key_id: str, access_key_secret: str) -> None:
         self.config = Config(
             access_key_id=access_key_id,
             access_key_secret=access_key_secret,
@@ -22,16 +22,13 @@ class STSClient:
         self.role_arn = 'acs:ram::1685160280862218:role/k11'
         self.role_session_name = 'alice'
 
-    def assume_role(self, duration=3600, policy=None):
+    def assume_role(self, duration=3600) -> dict:
         """
         获取临时凭证
         """
         request = AssumeRoleRequest(
             role_arn=self.role_arn, role_session_name=self.role_session_name, duration_seconds=duration
         )
-
-        if policy:
-            request.policy = json.dumps(policy)
 
         response = self.client.assume_role(request)
 

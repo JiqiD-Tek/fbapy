@@ -52,9 +52,9 @@ class TTSCache:
 
     @asynccontextmanager
     async def stream_audio_generator(
-        self,
-        request_id: str | None = None,
-        timeout: float | None = 30.0,
+            self,
+            request_id: str | None = None,
+            timeout: float | None = 30.0,
     ) -> AsyncGenerator[AsyncGenerator[bytes, None], None]:
         """流式音频生成器上下文管理器（带数据缓存和恢复功能）"""
         target_id = request_id or self._request_id
@@ -128,8 +128,9 @@ class TTSCache:
                 self._request_id = None
                 log.debug('TTS缓存已安全关闭')
 
-            return True
-
         except Exception as e:
             log.error(f'缓存关闭时发生异常 - {e}', exc_info=True)
             return False
+
+        else:
+            return True
