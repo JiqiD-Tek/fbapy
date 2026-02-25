@@ -109,8 +109,9 @@ def init_otel(app: FastAPI) -> None:
     init_metrics(resource)
     init_logging(resource)
 
-    redis_otel = get_observability_instance()
-    redis_otel.init(OTelConfig())
+    # 注释掉以下两行，禁用 redis-py 内置观测性
+    # redis_otel = get_observability_instance()
+    # redis_otel.init(OTelConfig())
 
     AsyncioInstrumentor().instrument()
     LoggingInstrumentor().instrument(set_logging_format=True)
