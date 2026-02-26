@@ -26,7 +26,7 @@ router = APIRouter()
 @router.get(
     '/{pk}',
     summary='获取应用详情',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
 )
 async def get_app(
     db: CurrentSession, pk: Annotated[int, Path(description='应用 ID')]
@@ -41,7 +41,10 @@ async def get_app(
 @router.get(
     '',
     summary='分页获取应用列表',
-    dependencies=[DependsJwtAuth, DependsPagination],
+    dependencies=[
+        # DependsJwtAuth,
+        DependsPagination
+    ],
 )
 async def get_app_paginated(
     db: CurrentSession,
