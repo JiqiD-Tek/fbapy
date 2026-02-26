@@ -55,10 +55,10 @@ router = APIRouter()
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_get_captcha(
-    db: CurrentSession,
-    background_tasks: BackgroundTasks,
-    phone: Annotated[str | None, Query(description='手机号')] = None,
-    email: Annotated[str | None, Query(description='邮箱')] = None,
+        db: CurrentSession,
+        background_tasks: BackgroundTasks,
+        phone: Annotated[str | None, Query(description='手机号')] = None,
+        email: Annotated[str | None, Query(description='邮箱')] = None,
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 
@@ -91,10 +91,10 @@ async def k11_get_captcha(
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
 async def k11_login(
-    db: CurrentSessionTransaction,
-    response: Response,
-    obj: AuthLoginParam,
-    background_tasks: BackgroundTasks,
+        db: CurrentSessionTransaction,
+        response: Response,
+        obj: AuthLoginParam,
+        background_tasks: BackgroundTasks,
 ) -> ResponseSchemaModel[GetLoginToken]:
     data = await auth_service.login(db=db, response=response, obj=obj, background_tasks=background_tasks)
     return response_base.success(data=data)
@@ -102,8 +102,8 @@ async def k11_login(
 
 @router.post('/refresh', summary='刷新 token')
 async def k11_refresh_token(
-    db: CurrentSession,
-    refresh_token: Annotated[str, Query(description='刷新 token')],
+        db: CurrentSession,
+        refresh_token: Annotated[str, Query(description='刷新 token')],
 ) -> ResponseSchemaModel[GetNewToken]:
     data = await auth_service.refresh_token(db=db, refresh_token=refresh_token)
     return response_base.success(data=data)
@@ -121,8 +121,8 @@ async def k11_logout(request: Request) -> ResponseModel:
     # dependencies=[DependsJwtAuth],
 )
 async def mqtt_login(
-    request: Request,
-    obj: DeviceAuthParam,
+        request: Request,
+        obj: DeviceAuthParam,
 ) -> dict:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
     if obj.password != credentials['did']:
@@ -137,8 +137,8 @@ async def mqtt_login(
     # dependencies=[DependsJwtAuth],
 )
 async def sts_token(
-    request: Request,
-    obj: DeviceAuthParam,
+        request: Request,
+        obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[StsToken]:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
 
@@ -156,9 +156,9 @@ async def sts_token(
     # dependencies=[DependsJwtAuth],
 )
 async def oss_token(
-    request: Request,
-    ext: Annotated[str, Path(description='文件类型')],
-    obj: DeviceAuthParam,
+        request: Request,
+        ext: Annotated[str, Path(description='文件类型')],
+        obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[OSSToken]:
     credentials = identity_verifier.derive_credentials(mac=obj.username)
 
@@ -193,8 +193,8 @@ async def current_location() -> ResponseSchemaModel[CurrentLocation]:
     # dependencies=[DependsJwtAuth],
 )
 async def coze_token(
-    db: CurrentSessionTransaction,
-    obj: DeviceAuthParam,
+        db: CurrentSessionTransaction,
+        obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[CozeToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
@@ -217,6 +217,7 @@ async def coze_token(
         access_token=oauth_token.access_token,
         expires_in=oauth_token.expires_in,
         ttl=quota,
+        bot_id=settings.COZE_BOT_ID,
     )
     return response_base.success(data=token)
 
@@ -227,8 +228,8 @@ async def coze_token(
     # dependencies=[DependsJwtAuth],
 )
 async def livekit_token(
-    db: CurrentSessionTransaction,
-    obj: LivekitDeviceAuthParam,
+        db: CurrentSessionTransaction,
+        obj: LivekitDeviceAuthParam,
 ) -> ResponseSchemaModel[LivekitToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
@@ -262,8 +263,8 @@ async def livekit_token(
     dependencies=[DependsJwtAuth],
 )
 async def fba_token(
-    db: CurrentSessionTransaction,
-    obj: DeviceAuthParam,
+        db: CurrentSessionTransaction,
+        obj: DeviceAuthParam,
 ) -> ResponseSchemaModel[FbaToken]:
     quota = await device_service.allocate_quota(db=db, mac=obj.username, did=obj.password)
 
@@ -283,8 +284,8 @@ async def fba_token(
     dependencies=[DependsJwtAuth],
 )
 async def end_usage(
-    db: CurrentSessionTransaction,
-    obj: DeviceAuthParam,
+        db: CurrentSessionTransaction,
+        obj: DeviceAuthParam,
 ) -> ResponseModel:
     quota = await device_service.end_usage(db=db, mac=obj.username, did=obj.password)
 

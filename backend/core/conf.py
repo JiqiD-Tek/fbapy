@@ -346,6 +346,7 @@ class Settings(BaseSettings):
     COZE_CLIENT_ID: str = ''
     COZE_PRIVATE_KEY: str = ''
     COZE_PUBLIC_KEY_ID: str = ''
+    COZE_BOT_ID: str = ''
 
     # MQTT
     MQTT_HOST: str = '10.240.225.23'
