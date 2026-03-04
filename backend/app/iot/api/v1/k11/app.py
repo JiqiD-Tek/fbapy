@@ -11,7 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query
 
 from backend.app.iot.schema.app import CreateAppParam, DeleteAppParam, GetAppDetail, UpdateAppParam
-from backend.app.iot.service.app import app_service
+from backend.app.iot.service.app_service import app_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth

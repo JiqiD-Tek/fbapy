@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : device.py
+@File    : device_service.py
 @Author  : guhua@jiqid.com
 @Date    : 2025/12/09 13:50
 """
@@ -24,11 +24,11 @@ from backend.common.response.response_code import CustomErrorCode
 from backend.common.security.auth import identity_verifier
 from backend.utils.timezone import timezone
 
+MAX_ALLOW_QUOTA = 3600 * 10  # 最大允许时长
+
 
 class DeviceService:
     """设备服务类"""
-
-    MAX_ALLOW_QUOTA = 600  # 最大允许时长
 
     async def allocate_quota(self, db: AsyncSession, mac: str, did: str) -> int:
         """为设备分配可用配额并创建使用记录"""
@@ -38,7 +38,7 @@ class DeviceService:
             raise errors.CustomError(error=CustomErrorCode.DEVICE_QUOTA_NOT_ENOUGH)
 
         # 2. 计算本次可申请配额
-        alloc_quota = min(quota, self.MAX_ALLOW_QUOTA)
+        alloc_quota = min(quota, MAX_ALLOW_QUOTA)
         if alloc_quota <= 0:
             raise errors.CustomError(error=CustomErrorCode.DEVICE_QUOTA_NOT_ENOUGH)
 
@@ -124,12 +124,12 @@ class DeviceService:
 
     @staticmethod
     async def get_list(
-        *,
-        db: AsyncSession,
-        did: str | None = None,
-        sn: str | None = None,
-        mac: str | None = None,
-        model: str | None = None,
+            *,
+            db: AsyncSession,
+            did: str | None = None,
+            sn: str | None = None,
+            mac: str | None = None,
+            model: str | None = None,
     ) -> dict[str, Any]:
         """获取设备列表（支持分页和查询条件）"""
         device_select = await device_dao.get_select(

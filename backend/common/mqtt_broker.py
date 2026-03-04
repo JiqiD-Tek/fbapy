@@ -87,13 +87,17 @@ class MQTTBroker:
         self.client: mqtt.Client | None = None
         self.connected = False
         self.reconnect_attempts = 0
+        self._client_id = self.config.client_id or f'fbapy_{uuid.uuid4().hex}'
 
         # 存储订阅信息，key: 原始 topic (str, 可能包含 $share/)
         # value: {callback_id: MessageCallback}
         self.subscriptions: dict[str, dict[int, MessageCallback]] = {}
+        # 记录每个 topic 下 callback 的 qos
+        self._subscriptions_qos: dict[str, dict[int, int]] = {}
         # MQTTMatcher 存储的是实际的 topic filter (不含 $share/group/)
         # key: actual_filter (str), value: {callback_id: MessageCallback}
         self._matcher = MQTTMatcher()
+        self._matcher_callbacks: dict[str, dict[int, MessageCallback]] = {}
         self._callback_id_counter = 0
 
         # 异步事件用于控制连接循环
@@ -122,39 +126,28 @@ class MQTTBroker:
                 return True
 
             if self._connection_task and not self._connection_task.done():
-                log.debug('连接任务已在进行中，等待结果...')
-                try:
-                    await asyncio.wait_for(self._connection_task, timeout=self.config.connection_timeout)
-                except asyncio.TimeoutError:
-                    log.error(f'连接任务在 {self.config.connection_timeout}s 后超时')
-                    return False
-                except Exception as e:
-                    log.error(f'连接任务发生意外错误: {e}', exc_info=True)
-                    return False
-                else:
-                    return self.connected
-
-            # 启动新的连接循环
-            self._stop_event.clear()
-            self._connection_event.clear()
-            self._disconnect_event.clear()
-            self._connection_task = self._loop.create_task(self._connection_loop(), name='mqtt_connection_loop')
-
-            try:
-                # 等待连接成功事件
-                await asyncio.wait_for(self._connection_event.wait(), timeout=self.config.connection_timeout)
-
-            except asyncio.TimeoutError:
-                log.error(f'连接在 {self.config.connection_timeout}s 后超时')
-                # 超时后尝试断开连接并清理资源
-                await self.disconnect()
-                return False
-            except Exception as e:
-                log.error(f'连接过程中发生意外错误: {e}', exc_info=True)
-                await self.disconnect()
-                return False
+                log.debug('连接任务已在进行中，等待连接事件...')
             else:
-                return self.connected
+                # 启动新的连接循环
+                self._stop_event.clear()
+                self._connection_event.clear()
+                self._disconnect_event.clear()
+                self._connection_task = self._loop.create_task(self._connection_loop(), name='mqtt_connection_loop')
+
+        try:
+            # 等待连接成功事件
+            await asyncio.wait_for(self._connection_event.wait(), timeout=self.config.connection_timeout)
+        except asyncio.TimeoutError:
+            log.error(f'连接在 {self.config.connection_timeout}s 后超时')
+            # 连接超时后在锁外清理，避免重入死锁
+            await self.disconnect()
+            return False
+        except Exception as e:
+            log.error(f'连接过程中发生意外错误: {e}', exc_info=True)
+            await self.disconnect()
+            return False
+        else:
+            return self.connected
 
     def _on_connect(
             self, client: mqtt.Client, userdata: Any, flags: dict, rc: int, properties: mqtt.Properties | None = None
@@ -165,15 +158,15 @@ class MQTTBroker:
                 self.connected = True
                 self.reconnect_attempts = 0
                 # 成功连接后，重新订阅所有主题
-                asyncio.run_coroutine_threadsafe(self._resubscribe_all(), self._loop)
+                self._submit_coroutine_threadsafe(self._resubscribe_all())
                 # 设置连接事件，唤醒等待 connect() 的协程
-                asyncio.run_coroutine_threadsafe(self._set_event(self._connection_event), self._loop)
+                self._call_loop_threadsafe(self._connection_event.set)
                 log.info(f'成功连接到 MQTT Broker {self.config.host}:{self.config.port}')
             else:
                 log.error(f'连接失败，错误码 {rc}: {mqtt.connack_string(rc)}')
                 self.connected = False
                 # 清除连接事件，确保 connect() 失败
-                asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self._loop)
+                self._call_loop_threadsafe(self._connection_event.clear)
 
     def _on_disconnect(
             self, client: mqtt.Client, userdata: Any, rc: int, properties: mqtt.Properties | None = None
@@ -182,9 +175,9 @@ class MQTTBroker:
         with self._callback_lock:
             self.connected = False
             # 清除连接事件
-            asyncio.run_coroutine_threadsafe(self._clear_event(self._connection_event), self._loop)
+            self._call_loop_threadsafe(self._connection_event.clear)
             # 触发断开事件，通知连接循环醒来
-            asyncio.run_coroutine_threadsafe(self._set_event(self._disconnect_event), self._loop)
+            self._call_loop_threadsafe(self._disconnect_event.set)
             if rc != mqtt.MQTT_ERR_SUCCESS:
                 log.warning(f'意外断开连接，错误码: {rc}')
 
@@ -237,7 +230,7 @@ class MQTTBroker:
 
         for callback in callbacks_to_run:
             # 使用 call_soon_threadsafe 将执行安排到主事件循环
-            self._loop.call_soon_threadsafe(_invoke, callback)
+            self._call_loop_threadsafe(_invoke, callback)
 
     @staticmethod
     def _extract_actual_filter(topic: str) -> str:
@@ -252,23 +245,50 @@ class MQTTBroker:
                 return parts[2]
         return topic
 
-    async def _set_event(self, event: asyncio.Event) -> None:
-        """设置 asyncio.Event。"""
-        event.set()
+    @staticmethod
+    def _validate_qos(qos: int) -> int:
+        """校验 QoS 取值。"""
+        if qos not in {0, 1, 2}:
+            raise ValueError('qos 必须是 0、1 或 2')
+        return qos
 
-    async def _clear_event(self, event: asyncio.Event) -> None:
-        """清除 asyncio.Event。"""
-        event.clear()
+    @staticmethod
+    def _max_qos(qos_map: dict[int, int], default: int = 1) -> int:
+        """获取回调集合中的最大 QoS。"""
+        return max(qos_map.values(), default=default)
+
+    @staticmethod
+    def _consume_threadsafe_future(future: Any) -> None:
+        """消费 run_coroutine_threadsafe 的 future，避免异常静默。"""
+        try:
+            future.result()
+        except Exception as e:
+            log.error(f'线程安全协程调度失败: {e}', exc_info=True)
+
+    def _call_loop_threadsafe(self, callback: Callable[..., Any], *args: Any) -> None:
+        """在线程安全上下文调度回调到事件循环。"""
+        loop = self._loop
+        if loop and not loop.is_closed() and loop.is_running():
+            loop.call_soon_threadsafe(callback, *args)
+
+    def _submit_coroutine_threadsafe(self, coro: Awaitable[Any]) -> None:
+        """在线程安全上下文调度协程到事件循环。"""
+        loop = self._loop
+        if not loop or loop.is_closed() or not loop.is_running():
+            if asyncio.iscoroutine(coro):
+                coro.close()
+            return
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        future.add_done_callback(self._consume_threadsafe_future)
 
     async def _connection_loop(self) -> None:
         """核心连接循环，负责连接、重连和保持连接。"""
         while not self._stop_event.is_set():
             try:
                 # 1. 准备客户端
-                client_id = self.config.client_id or f'fbapy_{uuid.uuid4().hex}'
-                log.info(f'正在尝试连接 MQTT Broker (ID: {client_id})')
+                log.info(f'正在尝试连接 MQTT Broker (ID: {self._client_id})')
 
-                self.client = mqtt.Client(client_id=client_id, protocol=self.config.version.value)
+                self.client = mqtt.Client(client_id=self._client_id, protocol=self.config.version.value)
                 self.client.on_connect = self._on_connect
                 self.client.on_disconnect = self._on_disconnect
                 self.client.on_message = self._on_message
@@ -288,13 +308,16 @@ class MQTTBroker:
 
                 # 4. 挂起协程，直到断开连接或外部停止
                 self._disconnect_event.clear()
-                await asyncio.wait(
-                    [
-                        self._loop.create_task(self._disconnect_event.wait()),
-                        self._loop.create_task(self._stop_event.wait()),
-                    ],
+                disconnect_task = self._loop.create_task(self._disconnect_event.wait(), name='mqtt_disconnect_wait')
+                stop_task = self._loop.create_task(self._stop_event.wait(), name='mqtt_stop_wait')
+                _, pending = await asyncio.wait(
+                    {disconnect_task, stop_task},
                     return_when=asyncio.FIRST_COMPLETED,
                 )
+                for task in pending:
+                    task.cancel()
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
 
             except asyncio.TimeoutError:
                 log.error('MQTT 连接超时')
@@ -305,19 +328,17 @@ class MQTTBroker:
             finally:
                 # 5. 清理资源
                 self.connected = False
+                self._connection_event.clear()
                 if self.client:
-                    self.client.loop_stop()
-                    # 仅在非主动停止时调用 disconnect，否则 paho-mqtt 可能会在 loop_stop 后尝试重连
-                    # 但由于我们使用 loop_start/loop_stop 模式，这里调用 disconnect 是安全的
-                    self.client.disconnect()
+                    try:
+                        self.client.disconnect()
+                    finally:
+                        self.client.loop_stop()
                     self.client = None
 
                 # 6. 如果不是主动停止，则执行退避重连
                 if not self._stop_event.is_set():
                     await self._handle_reconnect()
-                else:
-                    # 如果是主动停止，确保连接事件被清除
-                    await self._clear_event(self._connection_event)
 
     async def _handle_reconnect(self) -> None:
         """执行指数退避重连。"""
@@ -352,8 +373,7 @@ class MQTTBroker:
                 if callbacks:
                     # 重新订阅时，使用原始的 topic 字符串（可能包含 $share/）和最高 QoS
                     # 找到该主题下所有回调中最高的 QoS
-                    qoss = [qos for qos in callbacks.keys() if isinstance(qos, int)]
-                    max_qos = max(qoss) if qoss else 1
+                    max_qos = self._max_qos(self._subscriptions_qos.get(topic, {}), default=1)
                     topics_to_subscribe.append((topic, max_qos))
 
         if not topics_to_subscribe:
@@ -374,32 +394,37 @@ class MQTTBroker:
         订阅一个主题并注册回调函数。
         返回一个用于取消订阅的 callback_id。
         """
-        if not isinstance(callback, Callable):
+        if not callable(callback):
             raise TypeError('callback 必须是可调用对象')
+        qos = self._validate_qos(qos)
 
         async with self._client_lock:
             with self._callback_lock:
                 self._callback_id_counter += 1
                 callback_id = self._callback_id_counter
 
-                # 1. 更新内部订阅状态
                 # 1. 提取实际的主题过滤器
                 actual_filter = self._extract_actual_filter(topic)
 
                 # 2. 更新内部订阅状态
-                if topic not in self.subscriptions:
-                    self.subscriptions[topic] = {}
-                    # 使用实际过滤器注册到 MQTTMatcher
-                    self._matcher[actual_filter] = self.subscriptions[topic]
+                topic_callbacks = self.subscriptions.setdefault(topic, {})
+                topic_qos_map = self._subscriptions_qos.setdefault(topic, {})
+                topic_callbacks[callback_id] = callback
+                topic_qos_map[callback_id] = qos
 
-                self.subscriptions[topic][callback_id] = callback
+                # 使用独立的 matcher 存储，避免不同 topic 共享同一 actual_filter 时互相覆盖
+                matcher_callbacks = self._matcher_callbacks.get(actual_filter)
+                if matcher_callbacks is None:
+                    matcher_callbacks = {}
+                    self._matcher_callbacks[actual_filter] = matcher_callbacks
+                    self._matcher[actual_filter] = matcher_callbacks
+                matcher_callbacks[callback_id] = callback
 
                 # 3. 如果已连接，则执行 paho-mqtt 订阅
                 if self.connected and self.client:
-                    # 检查是否需要更新 QoS
-                    # 简单起见，每次都重新订阅，paho-mqtt 会处理重复订阅
-                    self.client.subscribe(topic, qos=qos)
-                    log.info(f'已订阅主题: {topic} (QoS: {qos})')
+                    topic_max_qos = self._max_qos(topic_qos_map, default=qos)
+                    self.client.subscribe(topic, qos=topic_max_qos)
+                    log.info(f'已订阅主题: {topic} (QoS: {topic_max_qos})')
 
                 return callback_id
 
@@ -411,42 +436,68 @@ class MQTTBroker:
         """
         async with self._client_lock:
             with self._callback_lock:
-                if topic not in self.subscriptions:
+                topic_callbacks = self.subscriptions.get(topic)
+                if not topic_callbacks:
                     log.warning(f'尝试取消订阅不存在的主题: {topic}')
                     return False
 
                 actual_filter = self._extract_actual_filter(topic)
+                topic_qos_map = self._subscriptions_qos.setdefault(topic, {})
+                matcher_callbacks = self._matcher_callbacks.get(actual_filter)
 
                 if callback_id is not None:
                     # 移除单个回调
-                    if callback_id in self.subscriptions[topic]:
-                        del self.subscriptions[topic][callback_id]
-                        log.debug(f'已移除主题 {topic} 的回调 ID: {callback_id}')
-                    else:
+                    if callback_id not in topic_callbacks:
                         log.warning(f'主题 {topic} 下不存在回调 ID: {callback_id}')
                         return False
 
-                # 检查是否还有其他回调
-                if callback_id is None or not self.subscriptions[topic]:
-                    # 移除所有回调，并取消 paho-mqtt 订阅
-                    if topic in self.subscriptions:
-                        del self.subscriptions[topic]
-                        # 从 matcher 中移除的是实际过滤器
-                        if actual_filter in self._matcher:
-                            del self._matcher[actual_filter]
+                    previous_qos = self._max_qos(topic_qos_map, default=1)
+                    del topic_callbacks[callback_id]
+                    topic_qos_map.pop(callback_id, None)
+                    if matcher_callbacks is not None:
+                        matcher_callbacks.pop(callback_id, None)
+                    log.debug(f'已移除主题 {topic} 的回调 ID: {callback_id}')
 
-                    if self.client and self.connected:
+                # 检查是否还有其他回调
+                should_unsubscribe_topic = callback_id is None or not topic_callbacks
+
+                if callback_id is None:
+                    callback_ids = list(topic_callbacks)
+                    for callback_key in callback_ids:
+                        if matcher_callbacks is not None:
+                            matcher_callbacks.pop(callback_key, None)
+                    topic_callbacks.clear()
+                    topic_qos_map.clear()
+
+                if should_unsubscribe_topic:
+                    self.subscriptions.pop(topic, None)
+                    self._subscriptions_qos.pop(topic, None)
+                elif callback_id is not None:
+                    new_qos = self._max_qos(topic_qos_map, default=previous_qos)
+                else:
+                    new_qos = None
+
+                if matcher_callbacks is not None and not matcher_callbacks:
+                    self._matcher_callbacks.pop(actual_filter, None)
+                    if actual_filter in self._matcher:
+                        del self._matcher[actual_filter]
+
+                if self.client and self.connected:
+                    if should_unsubscribe_topic:
                         self.client.unsubscribe(topic)
                         log.info(f'已发送取消订阅请求: {topic}')
-                    return True
+                    elif callback_id is not None:
+                        # 主题仍有回调时同步 QoS，确保后续消息等级符合当前最大 QoS
+                        self.client.subscribe(topic, qos=new_qos)
+                        log.debug(f'已更新主题 {topic} 的订阅 QoS: {new_qos}')
 
-                # 如果只移除了一个回调，且该主题下仍有其他回调，则不取消 paho-mqtt 订阅
                 return True
 
     async def publish(
             self, topic: str, payload: str | dict | bytes | None = None, qos: int = 1, retain: bool = False
     ) -> bool:
         """发布消息到指定主题。"""
+        qos = self._validate_qos(qos)
         if not self.connected or not self.client:
             log.warning(f'无法发布到 {topic}: 客户端未连接')
             return False
@@ -492,13 +543,16 @@ class MQTTBroker:
 
             # 确保 client 被清理
             if self.client:
-                self.client.loop_stop()
-                self.client.disconnect()
+                try:
+                    self.client.disconnect()
+                finally:
+                    self.client.loop_stop()
                 self.client = None
 
             self.connected = False
             self._connection_task = None
-            await self._clear_event(self._connection_event)
+            self._connection_event.clear()
+            self._disconnect_event.clear()
             log.info('MQTT 客户端已断开连接')
 
     @asynccontextmanager

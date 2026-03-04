@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : storage.py
+@File    : storage_service.py
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/13 10:15
 """

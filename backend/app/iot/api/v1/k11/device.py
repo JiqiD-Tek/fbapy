@@ -14,7 +14,7 @@ from backend.app.iot.schema.device.device import (
     GetDeviceDetail,
     UpdateDeviceParam,
 )
-from backend.app.iot.service.device import device_service
+from backend.app.iot.service.device_service import device_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth

@@ -29,9 +29,9 @@ from backend.app.iot.schema.token import (
     StsToken,
 )
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceAuthParam
-from backend.app.iot.service.auth import auth_service
-from backend.app.iot.service.device import device_service
-from backend.app.iot.service.storage import storage_service
+from backend.app.iot.service.auth_service import auth_service
+from backend.app.iot.service.device_service import device_service
+from backend.app.iot.service.storage_service import storage_service
 from backend.common.ali_sms import sms_client
 from backend.common.ali_sts import sts_client
 from backend.common.context import ctx

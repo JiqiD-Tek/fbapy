@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : messaging.py
+@File    : messaging_service.py
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/12 20:25
 """

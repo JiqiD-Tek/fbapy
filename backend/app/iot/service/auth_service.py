@@ -10,6 +10,7 @@ from backend.app.iot.model.user import User
 from backend.app.iot.schema.device.device import CreateDeviceParam
 from backend.app.iot.schema.token import GetLoginToken, GetNewToken
 from backend.app.iot.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam
+from backend.app.iot.service.device_service import MAX_ALLOW_QUOTA
 from backend.app.iot.service.user_service import user_service
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType
@@ -43,7 +44,7 @@ class AuthService:
         device = await device_dao.get_by_did(db, obj.device.did)
         if device is None:
             device_param = CreateDeviceParam.model_construct(
-                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did, quota=36000
+                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did, quota=MAX_ALLOW_QUOTA
             )
             device = await device_dao.create(db, device_param)
 

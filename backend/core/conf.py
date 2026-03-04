@@ -324,6 +324,7 @@ class Settings(BaseSettings):
     # 三元组
     MASTER_SECRET: str = ''  # 主密钥
     KEY_SALT: str = ''  # 密钥盐
+    AUTH_SECRET_MIN_LENGTH: int = 16
 
     # SMS
     SMS_ACCESS_KEY_ID: str = ''
@@ -413,6 +414,27 @@ class Settings(BaseSettings):
             values['GRAFANA_METRICS_ENABLE'] = True
 
         return values
+
+    @model_validator(mode='after')
+    def check_auth_secrets(self) -> 'Settings':
+        min_length = self.AUTH_SECRET_MIN_LENGTH
+
+        master_secret = self.MASTER_SECRET.strip()
+        key_salt = self.KEY_SALT.strip()
+
+        if not master_secret:
+            raise ValueError('MASTER_SECRET must not be empty')
+        if len(master_secret) < min_length:
+            raise ValueError(f'MASTER_SECRET must be at least {min_length} characters long')
+
+        if not key_salt:
+            raise ValueError('KEY_SALT must not be empty')
+        if len(key_salt) < min_length:
+            raise ValueError(f'KEY_SALT must be at least {min_length} characters long')
+
+        self.MASTER_SECRET = master_secret
+        self.KEY_SALT = key_salt
+        return self
 
 
 @cache

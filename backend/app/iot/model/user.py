@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : auth.py
+@File    : user.py
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 10:41
 """
