@@ -9,7 +9,7 @@ from backend.app.iot.model import Device
 from backend.app.iot.model.user import User
 from backend.app.iot.schema.device.device import CreateDeviceParam
 from backend.app.iot.schema.token import GetLoginToken, GetNewToken
-from backend.app.iot.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam
+from backend.app.iot.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam, DeviceAuthParam
 from backend.app.iot.service.device_service import MAX_ALLOW_QUOTA
 from backend.app.iot.service.user_service import user_service
 from backend.common.context import ctx
@@ -36,28 +36,28 @@ class AuthService:
     """认证服务类"""
 
     @classmethod
-    async def _register_device(cls, db: AsyncSession, obj: AuthLoginParam) -> Device:
-        valid = identity_verifier.verify(**obj.device.model_dump())
+    async def _register_device(cls, db: AsyncSession, device: DeviceAuthParam) -> Device:
+        valid = identity_verifier.verify(**device.model_dump())
         if not valid:
             raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
 
-        device = await device_dao.get_by_did(db, obj.device.did)
-        if device is None:
+        model = await device_dao.get_by_did(db, device.did)
+        if model is None:
             device_param = CreateDeviceParam.model_construct(
-                model=obj.device.model, sn=obj.device.sn, mac=obj.device.mac, did=obj.device.did, quota=MAX_ALLOW_QUOTA
+                model=device.model, sn=device.sn, mac=device.mac, did=device.did, quota=MAX_ALLOW_QUOTA
             )
-            device = await device_dao.create(db, device_param)
+            model = await device_dao.create(db, device_param)
 
-        return device
+        return model
 
     @classmethod
-    async def _register_user(cls, db: AsyncSession, obj: AuthLoginParam) -> User:
+    async def _register_user(cls, db: AsyncSession, auth: AuthLoginParam) -> User:
         # 邮箱、手机号 加密存储
-        # phone = encryptor.encrypt(obj.phone)
-        # email = encryptor.encrypt(obj.email)
+        # phone = encryptor.encrypt(auth.phone)
+        # email = encryptor.encrypt(auth.email)
 
-        phone = obj.phone
-        email = obj.email
+        phone = auth.phone
+        email = auth.email
 
         if phone:
             user = await user_dao.get_by_phone(db, phone)
@@ -72,45 +72,45 @@ class AuthService:
 
         return user
 
-    async def _register(self, db: AsyncSession, obj: AuthLoginParam) -> User:
+    async def _register(self, db: AsyncSession, auth: AuthLoginParam, device: DeviceAuthParam) -> User:
         # 设备合法的用户才支持注册
-        device = await self._register_device(db, obj)
-        user = await self._register_user(db, obj)
+        device = await self._register_device(db, device)
+        user = await self._register_user(db, auth)
         # 绑定设备
         await user_service.bind_device(db=db, obj=UserDeviceParam(user_id=user.id, device_id=device.id))
 
         return user
 
     async def login(
-        self,
-        *,
-        db: AsyncSession,
-        response: Response,
-        obj: AuthLoginParam,
-        background_tasks: BackgroundTasks,
+            self,
+            *,
+            db: AsyncSession,
+            auth: AuthLoginParam,
+            device: DeviceAuthParam,
+            background_tasks: BackgroundTasks,
     ) -> GetLoginToken:
         """
         用户登录
 
         :param db: 数据库会话
-        :param response: 响应对象
-        :param obj: 登录参数
+        :param auth: 登录参数
+        :param device: 设备信息
         :param background_tasks: 后台任务
         :return:
         """
         user = None
         try:
             if settings.LOGIN_CAPTCHA_ENABLED:
-                if not obj.uuid or not obj.captcha:
+                if not auth.uuid or not auth.captcha:
                     raise errors.RequestError(msg=t('error.captcha.invalid'))
-                captcha_code = await redis_client.get(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
+                captcha_code = await redis_client.get(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{auth.uuid}')
                 if not captcha_code:
                     raise errors.RequestError(msg=t('error.captcha.expired'))
-                if captcha_code.lower() != obj.captcha.lower():
+                if captcha_code.lower() != auth.captcha.lower():
                     raise errors.CustomError(error=CustomErrorCode.CAPTCHA_ERROR)
-                await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{obj.uuid}')
+                await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{auth.uuid}')
 
-            user = await self._register(db, obj)
+            user = await self._register(db, auth, device)
             await user_dao.update_login_time(db, user.id)
             await db.refresh(user)
             access_token_data = await create_access_token(

@@ -21,7 +21,7 @@ from backend.app.iot.schema.device.device_usage import CreateDeviceUsageParam, U
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.common.response.response_code import CustomErrorCode
-from backend.common.security.auth import identity_verifier
+from backend.common.security.auth import verify_device_credentials
 from backend.utils.timezone import timezone
 
 MAX_ALLOW_QUOTA = 3600 * 10  # 最大允许时长
@@ -57,9 +57,7 @@ class DeviceService:
     async def end_usage(self, db: AsyncSession, mac: str, did: str) -> int:
         """结束设备使用并结算配额"""
         # 1. 权限校验
-        credentials = identity_verifier.derive_credentials(mac=mac)
-        if did != credentials.get('did'):
-            raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
+        verify_device_credentials(mac=mac, did=did)
 
         # 2. 获取设备
         device = await self.get_by_did(db=db, did=did)

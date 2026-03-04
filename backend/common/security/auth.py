@@ -1,14 +1,18 @@
 # -*- coding: UTF-8 -*-
 import base64
 import hashlib
-import time
 import uuid
 
-from cachetools import TTLCache
+from typing import Annotated
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from fastapi import Cookie, Depends, Header
 
+from backend.app.iot.schema.user import DeviceAuthParam
+from backend.common.exception import errors
 from backend.common.log import log
+from backend.common.response.response_code import CustomErrorCode
 from backend.core.conf import settings
 
 
@@ -102,27 +106,9 @@ class IdentityVerifier(IdentityGenerator):
     - DID：服务器派生的唯一设备逻辑 ID（UUIDv5）
     - key：当前版本保留占位，不使用
 
-    特性：
-    - 提供简单的时间窗口校验
-    - 使用 TTLCache 防止 nonce 重放
     """
 
-    def __init__(self, master_secret: str, salt: str, max_cache_size: int = 10000, cache_ttl: int = 60) -> None:
-        """
-        初始化 RegistrationServer
-
-        Args:
-            master_secret: 用于派生 DID 的服务器私有密钥
-            salt: 目前保留，用于 key 派生（未启用）
-            max_cache_size: nonce 缓存最大条目数
-            cache_ttl: nonce 缓存过期时间（秒）
-        """
-        super().__init__(master_secret, salt)
-        # nonce 缓存，用于防止重放攻击
-        # TTLCache 会在条目超过 ttl 后自动删除
-        self.nonce_cache = TTLCache(maxsize=max_cache_size, ttl=cache_ttl)
-
-    def verify(self, mac: str, did: str, timestamp: int, nonce: str, **kwargs) -> bool:
+    def verify(self, mac: str, did: str, **kwargs) -> bool:
         """
         验证设备注册请求是否合法
 
@@ -134,27 +120,11 @@ class IdentityVerifier(IdentityGenerator):
         Args:
             mac: 设备 MAC 地址
             did: 请求中提供的 DID
-            timestamp: 请求时间戳（秒）
-            nonce: 请求随机值，防止重放
             kwargs: 其他可选字段（忽略）
 
         Returns:
             bool: True = 请求合法，False = 请求非法
         """
-        # ------------------ 时间校验 ------------------
-        # 请求时间与服务器时间差绝对值超过 60 秒即拒绝
-        if abs(time.time() - timestamp) > 60:
-            log.error('时间校验失败')
-            return False
-
-        # ------------------ nonce 校验 ------------------
-        # 如果 nonce 已存在缓存，说明请求重复
-        if nonce in self.nonce_cache:
-            log.error('nonce 重复')
-            return False
-        # 将当前 nonce 加入缓存，过期后自动删除
-        self.nonce_cache[nonce] = True
-
         # ------------------ DID 校验 ------------------
         # 根据 MAC 派生 DID
         credentials = self.derive_credentials(mac)
@@ -177,15 +147,13 @@ class RequestBuilder:
             did: str,
             key: str,  # 三元组 必传
             sn: str = 'K102501A0100123',
-            model: str = 'K10',  # 设备信息
+            model: str = 'K11',  # 设备信息
     ) -> dict[str, str]:
         mac = normalize_mac(mac)
         data = {
             'mac': mac,
             'did': did,
             'key': key,
-            'timestamp': int(time.time()),
-            'nonce': uuid.uuid4().hex,
             'sn': sn,
             'model': model,
         }
@@ -198,6 +166,92 @@ def normalize_mac(mac: str) -> str:
 
 
 identity_verifier = IdentityVerifier(settings.MASTER_SECRET, salt=settings.KEY_SALT)
+
+
+def verify_device_credentials(mac: str, did: str) -> dict[str, str]:
+    """
+    校验设备 MAC / DID 合法性并返回派生结果
+
+    :param mac: 设备 MAC 地址
+    :param did: 设备 DID
+    :return: 派生凭据字典
+    """
+    credentials = identity_verifier.derive_credentials(mac=mac)
+    if did != credentials.get('did'):
+        raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
+    return credentials
+
+
+def verify_device_request(
+        *,
+        mac: str,
+        did: str,
+        sn: str,
+        model: str,
+) -> dict[str, str]:
+    """
+    校验完整设备请求（含时间戳和防重放）并返回派生结果
+
+    :param mac: 设备 MAC 地址
+    :param did: 设备 DID
+    :param sn: 设备序列号
+    :param model: 设备型号
+    :return: 派生凭据字典
+    """
+    valid = identity_verifier.verify(
+        mac=mac,
+        did=did,
+        sn=sn,
+        model=model,
+    )
+    if not valid:
+        raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
+    return identity_verifier.derive_credentials(mac=mac)
+
+
+async def device_auth_verify(
+        mac: Annotated[str | None, Header(description='MAC 地址')] = None,
+        did: Annotated[str | None, Header(description='设备did')] = None,
+        sn: Annotated[str | None, Header(description='设备序列号')] = None,
+        model: Annotated[str | None, Header(description='设备型号')] = None,
+        mac_cookie: Annotated[str | None, Cookie(alias='mac', description='MAC 地址')] = None,
+        did_cookie: Annotated[str | None, Cookie(alias='did', description='设备did')] = None,
+        sn_cookie: Annotated[str | None, Cookie(alias='sn', description='设备序列号')] = None,
+        model_cookie: Annotated[str | None, Cookie(alias='model', description='设备型号')] = None,
+) -> DeviceAuthParam:
+    """
+    从请求头/Cookie 读取设备认证参数并执行 MAC / DID 校验（Header 优先）
+
+    :param mac: 设备 MAC 地址（header）
+    :param did: 设备 did（header）
+    :param sn: 设备序列号（header）
+    :param model: 设备型号（header）
+    :param mac_cookie: 设备 MAC 地址（cookie）
+    :param did_cookie: 设备 did（cookie）
+    :param sn_cookie: 设备序列号（cookie）
+    :param model_cookie: 设备型号（cookie）
+    :return: 规范化后的设备认证参数（DeviceAuthParam）
+    """
+    # Header 优先，Cookie 兜底
+    mac = mac or mac_cookie
+    did = did or did_cookie
+    sn = sn or sn_cookie
+    model = model or model_cookie
+
+    if not mac or not did or not sn or not model:
+        raise errors.CustomError(error=CustomErrorCode.DEVICE_ILLEGAL)
+
+    device = DeviceAuthParam(mac=mac, did=did, sn=sn, model=model)
+    verify_device_request(
+        mac=device.mac,
+        did=device.did,
+        sn=sn,
+        model=model,
+    )
+    return device
+
+
+DependsDeviceAuth = Depends(device_auth_verify)
 
 
 # ------------------ 测试 ------------------

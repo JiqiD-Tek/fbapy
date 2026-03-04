@@ -13,23 +13,11 @@ from pydantic import ConfigDict, Field
 from backend.common.schema import SchemaBase
 
 
-class DeviceAuthSchemaBase(SchemaBase):
-    """设备认证基础模型"""
-
-    did: str = Field(description='设备 ID')
-    sn: str = Field(description='设备序列号')
-    mac: str = Field(description='MAC 地址')
-    model: str = Field(description='设备型号')
-    timestamp: int = Field(description='时间戳')
-    nonce: str = Field(description='防重放')
-
-
 class AuthSchemaBase(SchemaBase):
     """用户认证基础模型"""
 
     phone: str | None = Field(None, description='手机号')
     email: str | None = Field(None, description='邮箱')
-    device: DeviceAuthSchemaBase = Field(description='设备认证信息')
 
 
 class AuthLoginParam(AuthSchemaBase):
@@ -42,14 +30,22 @@ class AuthLoginParam(AuthSchemaBase):
 class DeviceAuthParam(SchemaBase):
     """设备登录参数"""
 
+    mac: str = Field(description='MAC 地址')
+    did: str = Field(description='设备did')
+    sn: str = Field(description='设备序列号')
+    model: str = Field(description='设备型号')
+
+
+class MQTTAuthParam(SchemaBase):
+    """MQTT登录参数"""
+
     username: str = Field(description='MAC 地址')
     password: str = Field(description='设备did')
 
 
-class LivekitDeviceAuthParam(DeviceAuthParam):
-    """Livekit设备登录参数"""
+class LivekitDeviceParam(SchemaBase):
+    """Livekit设备参数"""
 
-    # 业务数据
     metadata: str = Field(description='元数据')
     room: str = Field(description='房间名')
     name: str = Field(description='名称')
