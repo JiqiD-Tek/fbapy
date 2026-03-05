@@ -9,7 +9,8 @@ from backend.core.conf import settings
 class TimeZone:
     def __init__(self, tz: str = settings.DATETIME_TIMEZONE) -> None:
         """初始化时区转换器"""
-        self.tz_info = zoneinfo.ZoneInfo(tz or settings.DATETIME_TIMEZONE)
+        tz_name = tz or settings.DATETIME_TIMEZONE
+        self.tz_info = zoneinfo.ZoneInfo(tz_name)
 
     def now(self) -> datetime:
         """获取当前时区时间"""
