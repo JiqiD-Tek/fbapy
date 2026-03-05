@@ -3,6 +3,7 @@ import zoneinfo
 from datetime import datetime
 from datetime import timezone as datetime_timezone
 
+from backend.common.log import log
 from backend.core.conf import settings
 
 
@@ -62,4 +63,4 @@ timezone: TimeZone = TimeZone()
 
 now = timezone.now()
 utc_now = timezone.to_utc(now)
-print(now, utc_now)
+log.debug(f'{settings.DATETIME_TIMEZONE} 当前时区时间: {now}, UTC 时间: {utc_now}')
