@@ -169,7 +169,7 @@ async def coze_token(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[CozeToken]:
-    quota = await device_service.allocate_quota(db=db, mac=device.mac, did=device.did)
+    quota = await device_service.allocate_quota(db=db, did=device.did)
 
     config = {
         'client_type': 'jwt',
@@ -201,7 +201,7 @@ async def livekit_token(
         obj: LivekitDeviceParam,  # 业务字段（room/name/metadata）
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[LivekitToken]:
-    quota = await device_service.allocate_quota(db=db, mac=device.mac, did=device.did)
+    quota = await device_service.allocate_quota(db=db, did=device.did)
 
     token = (
         api
@@ -209,7 +209,7 @@ async def livekit_token(
             api_key=settings.LIVEKIT_API_KEY,
             api_secret=settings.LIVEKIT_API_SECRET,
         )
-        .with_identity(identity=device.password)
+        .with_identity(identity=device.did)
         .with_name(name=obj.name)
         .with_metadata(metadata=obj.metadata)
         .with_ttl(ttl=datetime.timedelta(seconds=quota))
@@ -232,9 +232,9 @@ async def fba_token(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[FbaToken]:
-    quota = await device_service.allocate_quota(db=db, mac=device.mac, did=device.did)
+    quota = await device_service.allocate_quota(db=db, did=device.did)
 
-    payload = {'mac': device.username, 'did': device.password, 'ttl': quota}
+    payload = {'mac': device.mac, 'did': device.did, 'ttl': quota}
     token = jwt_encode(payload=payload)
 
     token = FbaToken(
@@ -249,6 +249,6 @@ async def end_usage(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseModel:
-    quota = await device_service.end_usage(db=db, mac=device.mac, did=device.did)
+    quota = await device_service.end_usage(db=db, did=device.did)
 
     return response_base.success(data=quota)
