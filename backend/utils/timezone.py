@@ -14,6 +14,7 @@ class TimeZone:
     def now(self) -> datetime:
         """获取当前时区时间"""
         tz_info = zoneinfo.ZoneInfo("UTC")
+        print(f"[DEBUG] Using timezone: {tz_info}")  # 添加这行
         return datetime.now(tz_info)
 
     def from_datetime(self, t: datetime) -> datetime:
