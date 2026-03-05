@@ -2,7 +2,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from backend.common.context import ctx
-from backend.utils.request_parse import parse_ip_info, parse_user_agent_info, parse_user_info
+from backend.utils.request_parse import parse_ip_info, parse_user_agent_info
 
 
 class StateMiddleware(BaseHTTPMiddleware):
@@ -27,11 +27,6 @@ class StateMiddleware(BaseHTTPMiddleware):
         ctx.os = ua_info.os
         ctx.browser = ua_info.browser
         ctx.device = ua_info.device
-
-        user_info = parse_user_info(request)
-        ctx.x_country = user_info.x_country
-        ctx.x_language = user_info.x_language
-        ctx.x_timezone = user_info.x_timezone
 
         response = await call_next(request)
 
