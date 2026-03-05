@@ -12,6 +12,7 @@ from backend.database.db import CurrentSession
 from backend.database.redis import redis_client
 from backend.utils.dynamic_config import load_login_config
 from backend.utils.limiter import RateLimiter
+from backend.utils.timezone import timezone
 
 router = APIRouter()
 
@@ -35,5 +36,6 @@ async def get_captcha(db: CurrentSession) -> ResponseSchemaModel[GetCaptchaDetai
         expire_seconds=settings.LOGIN_CAPTCHA_EXPIRE_SECONDS,
         uuid=captcha_uuid,
         image=img,
+        now=timezone.now(),
     )
     return response_base.success(data=data)

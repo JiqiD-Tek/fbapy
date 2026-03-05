@@ -185,7 +185,7 @@ class Settings(BaseSettings):
 
     # 时间配置
     DATETIME_TIMEZONE: str = 'UTC'  # 如：Asia/Shanghai、UTC
-    DATETIME_FORMAT: str = '%Y-%m-%d %H:%M:%S'
+    DATETIME_FORMAT: str = "%Y-%m-%dT%H:%M:%S.%fZ"
 
     # 文件上传
     UPLOAD_READ_SIZE: int = 1024

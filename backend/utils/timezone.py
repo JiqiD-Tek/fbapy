@@ -59,3 +59,7 @@ class TimeZone:
 
 
 timezone: TimeZone = TimeZone()
+
+now = timezone.now()
+utc_now = timezone.to_utc(now)
+print(now, utc_now)
