@@ -12,10 +12,13 @@ class TimeZone:
         self.tz_info = zoneinfo.ZoneInfo(tz or settings.DATETIME_TIMEZONE)
 
     def now(self) -> datetime:
-        """获取当前时区时间"""
         tz_info = zoneinfo.ZoneInfo("UTC")
-        print(f"[DEBUG] Using timezone: {tz_info}")  # 添加这行
-        return datetime.now(tz_info)
+        print(f"[DEBUG] tz_info object: {tz_info}")
+        print(f"[DEBUG] tz_info.key: {tz_info.key}")
+        print(f"[DEBUG] tz_info.utcoffset(None): {tz_info.utcoffset(None)}")
+        now_dt = datetime.now(tz_info)
+        print(f"[DEBUG] now_dt: {now_dt}, tzinfo: {now_dt.tzinfo}")
+        return now_dt
 
     def from_datetime(self, t: datetime) -> datetime:
         """
