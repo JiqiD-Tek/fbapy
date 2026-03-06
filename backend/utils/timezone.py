@@ -8,17 +8,16 @@ from backend.core.conf import settings
 
 class TimeZone:
     def __init__(self, tz: str = settings.DATETIME_TIMEZONE) -> None:
-        """初始化时区转换器"""
-        self.tz_info = zoneinfo.ZoneInfo(tz or settings.DATETIME_TIMEZONE)
+        """Initialize timezone helper."""
+        tz_name = (tz or settings.DATETIME_TIMEZONE).strip()
+        # UTC should not depend on system tzdb.
+        if tz_name.upper() in {'UTC', 'ETC/UTC'}:
+            self.tz_info = datetime_timezone.utc
+        else:
+            self.tz_info = zoneinfo.ZoneInfo(tz_name)
 
     def now(self) -> datetime:
-        tz_info = zoneinfo.ZoneInfo("UTC")
-        print(f"[DEBUG] tz_info object: {tz_info}")
-        print(f"[DEBUG] tz_info.key: {tz_info.key}")
-        print(f"[DEBUG] tz_info.utcoffset(None): {tz_info.utcoffset(None)}")
-        now_dt = datetime.now(tz_info)
-        print(f"[DEBUG] now_dt: {now_dt}, tzinfo: {now_dt.tzinfo}")
-        return now_dt
+        return datetime.now(self.tz_info)
 
     def from_datetime(self, t: datetime) -> datetime:
         """
