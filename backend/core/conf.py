@@ -356,9 +356,9 @@ class Settings(BaseSettings):
     MQTT_JWT_SECRET: str = ''
     MQTT_PASSWORD: str = ''
     MQTT_UP_TOPICS: list[str] = [
-        '$share/group/K10/+/up/status',
-        '$share/group/K10/+/up/property',
-        '$share/group/K10/+/up/ack',
+        '$share/group/k11/+/up/status',
+        '$share/group/k11/+/up/property',
+        '$share/group/k11/+/up/ack',
     ]
 
     # 大模型

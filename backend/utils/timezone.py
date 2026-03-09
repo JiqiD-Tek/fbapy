@@ -63,7 +63,3 @@ class TimeZone:
 
 
 timezone: TimeZone = TimeZone()
-
-now = timezone.now()
-utc_now = timezone.to_utc(now)
-print(f'{settings.DATETIME_TIMEZONE} 当前时区时间: {now}, UTC 时间: {utc_now}')

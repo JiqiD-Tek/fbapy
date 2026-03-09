@@ -611,13 +611,17 @@ def create_mqtt_config(client_id: str | None = None) -> MQTTConfig:
     try:
         client_id = client_id or f'fbapy_{uuid.uuid4().hex}'
 
+        username = "3E:96:10:BA:61:2F"
+        password = "D98BB367386B5B18A815EC31F74B43A6"
+
         # 服务器端认证：使用 JWT 编码密码
+        username = settings.MQTT_USERNAME
         password = jwt.encode(claims={}, key=settings.MQTT_JWT_SECRET, algorithm='HS256')
 
         return MQTTConfig(
             host=settings.MQTT_HOST,
             port=settings.MQTT_PORT,
-            username=settings.MQTT_USERNAME,
+            username=username,
             password=password,
             client_id=client_id,
             connection_timeout=30.0,
