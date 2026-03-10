@@ -5,16 +5,17 @@ from datetime import timezone as datetime_timezone
 
 from backend.core.conf import settings
 
+# 基于 wikipedia：https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+_UTC_IDENTIFIERS = frozenset({'Etc/UCT', 'Etc/Universal', 'Etc/UTC', 'Etc/Zulu', 'UCT', 'Universal', 'UTC', 'Zulu'})
+
 
 class TimeZone:
-    def __init__(self, tz: str = settings.DATETIME_TIMEZONE) -> None:
-        """Initialize timezone helper."""
-        tz_name = (tz or settings.DATETIME_TIMEZONE).strip()
-        # UTC should not depend on system tzdb.
-        if tz_name.upper() in {'UTC', 'ETC/UTC'}:
+    def __init__(self) -> None:
+        """初始化时区转换器"""
+        if settings.DATETIME_TIMEZONE in _UTC_IDENTIFIERS:
             self.tz_info = datetime_timezone.utc
         else:
-            self.tz_info = zoneinfo.ZoneInfo(tz_name)
+            self.tz_info = zoneinfo.ZoneInfo(settings.DATETIME_TIMEZONE)
 
     def now(self) -> datetime:
         return datetime.now(self.tz_info)
