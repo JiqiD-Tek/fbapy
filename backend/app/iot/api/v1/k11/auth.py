@@ -63,6 +63,9 @@ async def k11_get_captcha(
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
 
+    if email == "testk11@jiqid.com":  # 测试用
+        code = '1234'
+
     if phone:
         background_tasks.add_task(sms_client.send_code, phone, code)
     elif email:
