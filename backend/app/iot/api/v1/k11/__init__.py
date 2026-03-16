@@ -23,5 +23,5 @@ router.include_router(auth_router, prefix='/auth', tags=['用户授权'], depend
 router.include_router(mqtt_router, prefix='/auth', tags=['用户授权'])
 router.include_router(feedback_router, prefix='/feedback', tags=['反馈管理'], dependencies=[DependsDeviceAuth])
 router.include_router(device_router, prefix='/device', tags=['设备管理'], dependencies=[DependsDeviceAuth])
-router.include_router(function_router, prefix='/function', tags=['第三方功能'], dependencies=[DependsDeviceAuth])
+router.include_router(function_router, prefix='/function', tags=['第三方功能'])
 router.include_router(user_router, prefix='/user', tags=['用户管理'], dependencies=[DependsDeviceAuth])
