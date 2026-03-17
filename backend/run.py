@@ -15,7 +15,7 @@ if __name__ == '__main__':
         target='main:app',
         interface='asgi',
         address='127.0.0.1',
-        port=8000,
+        port=8001,
         reload=True,
         reload_filter=CustomReloadFilter,
     ).serve()

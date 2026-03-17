@@ -35,6 +35,7 @@ class CustomErrorCode(CustomCodeBase):
     PHONE_EMAIL_NONE = (40002, 'error.phone.email.none')  # 手机邮箱不能同时为空
     DEVICE_ILLEGAL = (40003, 'error.device.illegal')  # 非法 设备
     DEVICE_QUOTA_NOT_ENOUGH = (40004, 'error.device.quota.not.enough')  # 配额不足
+    PHONE_ERROR = (40005, 'error.phone.error')  # 手机格式错误
 
 
 @dataclasses.dataclass

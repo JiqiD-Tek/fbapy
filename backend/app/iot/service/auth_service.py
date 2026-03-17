@@ -44,7 +44,7 @@ class AuthService:
         model = await device_dao.get_by_did(db, device.did)
         if model is None:
             device_param = CreateDeviceParam.model_construct(
-                model=device.model, sn=device.sn, mac=device.mac, did=device.did, quota=36000  # 默认配额 10小时
+                model=device.model, sn=device.sn, mac=device.mac, did=device.did, quota=3600 * 24  # 默认配额 24小时
             )
             model = await device_dao.create(db, device_param)
 
