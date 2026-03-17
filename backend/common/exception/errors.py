@@ -29,21 +29,22 @@ class HTTPError(HTTPException):
 class CustomError(BaseExceptionError):
     """自定义异常"""
 
-    def __init__(self, *, error: CustomErrorCode, data: Any = None, background: BackgroundTask | None = None) -> None:
+    def __init__(self, *, error: CustomErrorCode, msg: Any = None, data: Any = None,
+                 background: BackgroundTask | None = None) -> None:
         self.code = error.code
-        super().__init__(msg=error.msg, data=data, background=background)
+        super().__init__(msg=msg or error.msg, data=data, background=background)
 
 
 class RequestError(BaseExceptionError):
     """请求异常"""
 
     def __init__(
-        self,
-        *,
-        code: int = StandardResponseCode.HTTP_400,
-        msg: str = 'Bad Request',
-        data: Any = None,
-        background: BackgroundTask | None = None,
+            self,
+            *,
+            code: int = StandardResponseCode.HTTP_400,
+            msg: str = 'Bad Request',
+            data: Any = None,
+            background: BackgroundTask | None = None,
     ) -> None:
         self.code = code
         super().__init__(msg=msg, data=data, background=background)
@@ -73,11 +74,11 @@ class ServerError(BaseExceptionError):
     code = StandardResponseCode.HTTP_500
 
     def __init__(
-        self,
-        *,
-        msg: str = 'Internal Server Error',
-        data: Any = None,
-        background: BackgroundTask | None = None,
+            self,
+            *,
+            msg: str = 'Internal Server Error',
+            data: Any = None,
+            background: BackgroundTask | None = None,
     ) -> None:
         super().__init__(msg=msg, data=data, background=background)
 
@@ -97,11 +98,11 @@ class AuthorizationError(BaseExceptionError):
     code = StandardResponseCode.HTTP_403
 
     def __init__(
-        self,
-        *,
-        msg: str = 'Permission Denied',
-        data: Any = None,
-        background: BackgroundTask | None = None,
+            self,
+            *,
+            msg: str = 'Permission Denied',
+            data: Any = None,
+            background: BackgroundTask | None = None,
     ) -> None:
         super().__init__(msg=msg, data=data, background=background)
 

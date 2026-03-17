@@ -69,7 +69,7 @@ async def k11_get_captcha(
     if phone:
         sms_result = await sms_client.send_code(phone, code)
         if not sms_result["success"]:
-            raise errors.CustomError(error=CustomErrorCode.PHONE_ERROR, data=sms_result)
+            raise errors.CustomError(error=CustomErrorCode.PHONE_ERROR, msg=sms_result["status"])
     elif email:
         content = {'code': code, 'expired': int(settings.LOGIN_CAPTCHA_EXPIRE_SECONDS / 60)}
         background_tasks.add_task(send_email, db, email, '验证码', content, 'captcha.html')
