@@ -17,7 +17,7 @@ from livekit import api
 from pyrate_limiter import Duration, Rate
 from starlette.background import BackgroundTasks
 
-from backend.app.iot.schema.captcha import GetCaptchaDetail
+from backend.app.iot.schema.captcha import GetCaptchaDetail, SmsSendDetail
 from backend.app.iot.schema.token import (
     CozeToken,
     CurrentLocation,
@@ -62,12 +62,13 @@ async def k11_get_captcha(
         email: Annotated[str | None, Query(description='邮箱')] = None,
 ) -> ResponseSchemaModel[GetCaptchaDetail]:
     code = ''.join(str(secrets.randbelow(10)) for _ in range(4))
+    sms_result: SmsSendDetail | None = None
 
     if email == "testk11@jiqid.com":  # 测试用
         code = '1234'
 
     if phone:
-        background_tasks.add_task(sms_client.send_code, phone, code)
+        sms_result = SmsSendDetail(**(await sms_client.send_code(phone, code)))
     elif email:
         content = {'code': code, 'expired': int(settings.LOGIN_CAPTCHA_EXPIRE_SECONDS / 60)}
         background_tasks.add_task(send_email, db, email, '验证码', content, 'captcha.html')
@@ -84,6 +85,7 @@ async def k11_get_captcha(
         is_enabled=settings.LOGIN_CAPTCHA_ENABLED,
         expire_seconds=settings.LOGIN_CAPTCHA_EXPIRE_SECONDS,
         uuid=captcha_uuid,
+        sms=sms_result,
     )
 
     return response_base.success(data=data)
