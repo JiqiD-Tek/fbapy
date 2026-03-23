@@ -15,6 +15,7 @@ from backend.app.admin.model import User
 from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
 from backend.app.iot.schema.user import GetUserInfoDetail
 from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
+from backend.common.context import ctx
 from backend.common.exception import errors
 from backend.core.conf import settings
 from backend.database.db import async_db_session
@@ -59,7 +60,7 @@ def jwt_decode(token: str) -> TokenPayload:
     except (JWTError, Exception):
         raise errors.TokenError(msg='Token 无效')
     return TokenPayload(
-        id=int(user_id),
+        user_id=int(user_id),
         session_uuid=session_uuid,
         expire_time=timezone.from_datetime(timezone.to_utc(expire)),
     )
@@ -130,12 +131,12 @@ async def create_refresh_token(session_uuid: str, user_id: int, *, multi_login: 
 
 
 async def create_new_token(
-    refresh_token: str,
-    session_uuid: str,
-    user_id: int,
-    *,
-    multi_login: bool,
-    **kwargs,
+        refresh_token: str,
+        session_uuid: str,
+        user_id: int,
+        *,
+        multi_login: bool,
+        **kwargs,
 ) -> NewToken:
     """
     生成新的 token
@@ -206,7 +207,7 @@ async def get_current_user(db: AsyncSession, pk: int) -> User:
         raise errors.TokenError(msg='Token 无效')
     if not user.status:
         raise errors.AuthorizationError(msg='用户已被锁定，请联系系统管理员')
-    if user.dept_id:
+    if user.dept and user.dept_id:
         if not user.dept.status:
             raise errors.AuthorizationError(msg='用户所属部门已被锁定，请联系系统管理员')
         if user.dept.del_flag:
@@ -295,22 +296,22 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetU
     """
 
     token_payload = jwt_decode(token)
-    user_id = token_payload.id
+    ctx.user_id = token_payload.user_id
     session_uuid = token_payload.session_uuid
-    redis_token = await redis_client.get(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}:{token_payload.session_uuid}')
+    redis_token = await redis_client.get(f'{settings.TOKEN_REDIS_PREFIX}:{ctx.user_id}:{token_payload.session_uuid}')
     if not redis_token:
         raise errors.TokenError(msg='Token 已过期')
 
     if token != redis_token:
         raise errors.TokenError(msg='Token 已失效')
 
-    extra_info = await redis_client.get(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}:{session_uuid}')
+    extra_info = await redis_client.get(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{ctx.user_id}:{session_uuid}')
     extra_info = json.loads(extra_info)
 
     if extra_info.get('iot') is True:
-        user = await get_iot_user(user_id)  # 非管理员
+        user = await get_iot_user(ctx.user_id)  # 非管理员
     else:
-        user = await get_jwt_user(user_id)  # 管理员
+        user = await get_jwt_user(ctx.user_id)  # 管理员
 
     return user
 

@@ -63,7 +63,7 @@ class NewToken:
 
 @dataclasses.dataclass
 class TokenPayload:
-    id: int
+    user_id: int
     session_uuid: str
     expire_time: datetime
 
