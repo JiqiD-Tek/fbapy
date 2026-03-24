@@ -1,6 +1,4 @@
-﻿from __future__ import annotations
-
-import re
+from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -10,15 +8,13 @@ import httpx
 
 from openai import AsyncAzureOpenAI
 
-from backend.app.led.prompt import (
+from backend.app.iot.service.led.domain import SemanticDesign, build_spec_from_design
+from backend.app.iot.service.led.prompt import (
     build_code_prompt,
     build_design_prompt,
-    build_fast_generation_prompt,
     parse_code_response,
     parse_design_response,
-    parse_fast_generation_response,
 )
-from backend.app.led.schema.domain import SemanticDesign, build_spec_from_design
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
@@ -50,23 +46,9 @@ class FunctionGenerationResult:
 
 
 @dataclass(frozen=True)
-class GenerationResult:
-    design: SemanticDesign
-    function_code: str
-
-
-@dataclass(frozen=True)
-class FastGenerationResult:
-    design: SemanticDesign
-    function_code: str
-    mode: str
-
-
-@dataclass(frozen=True)
 class TwoStageGenerationRuntime:
     client: AsyncAzureOpenAI
     model: str
-    store_response: bool = False
 
     async def generate_design(self, description: str) -> SemanticDesignResult:
         stage = await self._run_stage(
@@ -74,9 +56,7 @@ class TwoStageGenerationRuntime:
             prompt=build_design_prompt(description),
             schema=DESIGN_RESPONSE_SCHEMA,
         )
-        return SemanticDesignResult(
-            design=parse_design_response(stage.response_text),
-        )
+        return SemanticDesignResult(design=parse_design_response(stage.response_text))
 
     async def generate_code(self, design: SemanticDesign) -> FunctionGenerationResult:
         stage = await self._run_stage(
@@ -86,58 +66,11 @@ class TwoStageGenerationRuntime:
         )
         function_code = parse_code_response(stage.response_text)
         build_spec_from_design(design, function_code)
-        return FunctionGenerationResult(
-            function_code=function_code,
-        )
+        return FunctionGenerationResult(function_code=function_code)
 
-    async def generate(self, description: str) -> GenerationResult:
+    async def generate(self, description: str) -> FunctionGenerationResult:
         design_result = await self.generate_design(description)
-        function_result = await self.generate_code(design_result.design)
-        return GenerationResult(
-            design=design_result.design,
-            function_code=function_result.function_code,
-        )
-
-    async def generate_fast(
-        self,
-        description: str,
-        *,
-        fallback_to_two_stage: bool = True,
-    ) -> FastGenerationResult:
-        normalized_description = str(description or '').strip()
-        if not normalized_description:
-            raise ValueError('description must not be empty')
-
-        if fallback_to_two_stage and _should_fallback_to_two_stage(normalized_description):
-            fallback_result = await self.generate(normalized_description)
-            return FastGenerationResult(
-                design=fallback_result.design,
-                function_code=fallback_result.function_code,
-                mode='two_stage_fallback',
-            )
-
-        try:
-            stage = await self._run_stage(
-                stage_name='FAST',
-                prompt=build_fast_generation_prompt(normalized_description),
-                schema=FAST_RESPONSE_SCHEMA,
-            )
-            design, function_code = parse_fast_generation_response(stage.response_text)
-            build_spec_from_design(design, function_code)
-            return FastGenerationResult(
-                design=design,
-                function_code=function_code,
-                mode='single_pass',
-            )
-        except ValueError:
-            if not fallback_to_two_stage:
-                raise
-            fallback_result = await self.generate(normalized_description)
-            return FastGenerationResult(
-                design=fallback_result.design,
-                function_code=fallback_result.function_code,
-                mode='two_stage_fallback',
-            )
+        return await self.generate_code(design_result.design)
 
     async def _run_stage(
         self,
@@ -158,14 +91,13 @@ class TwoStageGenerationRuntime:
                         'schema': schema.schema,
                     }
                 },
-                store=self.store_response,
+                store=False,
             )
         except Exception as exc:
             log.error(f'LED {stage_name} request failed: {exc}')
             raise errors.GatewayError(msg=f'Azure OpenAI request failed: {exc}') from exc
 
-        response_text = _extract_response_text(response)
-        return GenerationStageResult(response_text=response_text)
+        return GenerationStageResult(response_text=_extract_response_text(response))
 
 
 class LedService:
@@ -173,12 +105,8 @@ class LedService:
         self,
         *,
         description: str,
-        model: str | None = None,
-        store_response: bool = False,
     ) -> dict[str, Any]:
         return await self._run(
-            model=model,
-            store_response=store_response,
             action=lambda runtime: self._generate_semantic_design(runtime, description=description),
         )
 
@@ -186,12 +114,8 @@ class LedService:
         self,
         *,
         design: SemanticDesign,
-        model: str | None = None,
-        store_response: bool = False,
     ) -> dict[str, Any]:
         return await self._run(
-            model=model,
-            store_response=store_response,
             action=lambda runtime: self._generate_function_code(runtime, design=design),
         )
 
@@ -199,40 +123,14 @@ class LedService:
         self,
         *,
         description: str,
-        model: str | None = None,
-        store_response: bool = False,
     ) -> dict[str, Any]:
         return await self._run(
-            model=model,
-            store_response=store_response,
-            action=lambda runtime: self._generate_led_animation(runtime, description=description),
-        )
-
-    async def generate_animation_fast(
-        self,
-        *,
-        description: str,
-        model: str | None = None,
-        store_response: bool = False,
-        fallback_to_two_stage: bool = True,
-    ) -> dict[str, Any]:
-        return await self._run(
-            model=model,
-            store_response=store_response,
-            action=lambda runtime: self._generate_led_animation_fast(
-                runtime,
-                description=description,
-                fallback_to_two_stage=fallback_to_two_stage,
-            ),
+            action=lambda runtime: self._generate_animation(runtime, description=description),
         )
 
     @staticmethod
-    def _build_runtime(*, model: str | None, store_response: bool) -> TwoStageGenerationRuntime:
-        resolved_model = (
-            str(model or '').strip()
-            or str(settings.AZURE_OPENAI_MODEL or '').strip()
-            or DEFAULT_AZURE_OPENAI_MODEL
-        )
+    def _build_runtime() -> TwoStageGenerationRuntime:
+        model_name = str(settings.AZURE_OPENAI_MODEL or '').strip() or DEFAULT_AZURE_OPENAI_MODEL
         endpoint = str(settings.AZURE_OPENAI_ENDPOINT or '').strip()
         api_key = settings.AZURE_OPENAI_SUBSCRIPTION_KEY.get_secret_value().strip()
         api_version = str(settings.AZURE_OPENAI_API_VERSION or '').strip() or DEFAULT_AZURE_OPENAI_API_VERSION
@@ -254,8 +152,7 @@ class LedService:
         )
         return TwoStageGenerationRuntime(
             client=client,
-            model=resolved_model,
-            store_response=store_response,
+            model=model_name,
         )
 
     @staticmethod
@@ -265,9 +162,7 @@ class LedService:
         description: str,
     ) -> dict[str, Any]:
         result = await runtime.generate_design(description)
-        return {
-            'semantic_design': result.design.to_dict(),
-        }
+        return result.design.to_dict()
 
     @staticmethod
     async def _generate_function_code(
@@ -276,47 +171,23 @@ class LedService:
         design: SemanticDesign,
     ) -> dict[str, Any]:
         result = await runtime.generate_code(design)
-        return {
-            'function_code': result.function_code,
-        }
+        return {'function_code': result.function_code}
 
     @staticmethod
-    async def _generate_led_animation(
+    async def _generate_animation(
         runtime: TwoStageGenerationRuntime,
         *,
         description: str,
     ) -> dict[str, Any]:
         result = await runtime.generate(description)
-        return {
-            'semantic_design': result.design.to_dict(),
-            'function_code': result.function_code,
-        }
-
-    @staticmethod
-    async def _generate_led_animation_fast(
-        runtime: TwoStageGenerationRuntime,
-        *,
-        description: str,
-        fallback_to_two_stage: bool,
-    ) -> dict[str, Any]:
-        result = await runtime.generate_fast(
-            description,
-            fallback_to_two_stage=fallback_to_two_stage,
-        )
-        return {
-            'mode': result.mode,
-            'semantic_design': result.design.to_dict(),
-            'function_code': result.function_code,
-        }
+        return {'function_code': result.function_code}
 
     async def _run(
         self,
         *,
-        model: str | None,
-        store_response: bool,
         action: Callable[[TwoStageGenerationRuntime], Awaitable[dict[str, Any]]],
     ) -> dict[str, Any]:
-        runtime = self._build_runtime(model=model, store_response=store_response)
+        runtime = self._build_runtime()
         try:
             return await action(runtime)
         except (errors.RequestError, errors.ServerError, errors.GatewayError):
@@ -373,6 +244,38 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
                 'required': ['low', 'medium', 'high'],
                 'additionalProperties': False,
             },
+            'audio_feature_mapping': {
+                'type': 'object',
+                'properties': {
+                    'energy': {
+                        'type': 'array',
+                        'minItems': 2,
+                        'items': {'type': 'string', 'minLength': 1},
+                    },
+                    'bass': {
+                        'type': 'array',
+                        'minItems': 2,
+                        'items': {'type': 'string', 'minLength': 1},
+                    },
+                    'mid': {
+                        'type': 'array',
+                        'minItems': 2,
+                        'items': {'type': 'string', 'minLength': 1},
+                    },
+                    'high': {
+                        'type': 'array',
+                        'minItems': 2,
+                        'items': {'type': 'string', 'minLength': 1},
+                    },
+                    'onset': {
+                        'type': 'array',
+                        'minItems': 2,
+                        'items': {'type': 'string', 'minLength': 1},
+                    },
+                },
+                'required': ['energy', 'bass', 'mid', 'high', 'onset'],
+                'additionalProperties': False,
+            },
             'avoid_list': {
                 'type': 'array',
                 'minItems': 2,
@@ -393,6 +296,7 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
             'composition',
             'motion_rules',
             'energy_mapping',
+            'audio_feature_mapping',
             'avoid_list',
             'implementation_hints',
         ],
@@ -412,36 +316,6 @@ CODE_RESPONSE_SCHEMA = StructuredOutputSchema(
         'additionalProperties': False,
     },
 )
-
-
-FAST_RESPONSE_SCHEMA = StructuredOutputSchema(
-    name='led_animation_fast_generation',
-    schema={
-        'type': 'object',
-        'properties': {
-            'semantic_design': DESIGN_RESPONSE_SCHEMA.schema,
-            'function_code': {'type': 'string', 'minLength': 1},
-        },
-        'required': ['semantic_design', 'function_code'],
-        'additionalProperties': False,
-    },
-)
-def _should_fallback_to_two_stage(description: str) -> bool:
-    text = str(description or '').strip()
-    if not text:
-        return False
-
-    cjk_units = re.findall(r'[\u3400-\u9fff]', text)
-    if cjk_units:
-        compact = re.sub(
-            r"[\s,.;:!?\u3001\u3002\uff01\uff1f\uff1b\uff1a\\()\uff08\uff09\"'\u2018\u2019\u201c\u201d-]+",
-            '',
-            text,
-        )
-        return len(compact) <= 8
-
-    words = re.findall(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)?", text)
-    return len(words) <= 3 and len(text) <= 24
 
 
 def _response_get(response: Any, name: str) -> Any:
@@ -487,19 +361,20 @@ def _extract_output_text_part(part: Any) -> str:
     if isinstance(text, dict):
         return str(text.get('value') or '').strip()
     return str(getattr(text, 'value', '') or '').strip()
+
+
 async def _close_client(client: AsyncAzureOpenAI) -> None:
     try:
         await client.close()
     except Exception as exc:
         log.error(f'LED client close failed: {exc}')
 
+
 led_service: LedService = LedService()
 
 
 __all__ = [
-    'FastGenerationResult',
     'FunctionGenerationResult',
-    'GenerationResult',
     'LedService',
     'SemanticDesignResult',
     'StructuredOutputSchema',

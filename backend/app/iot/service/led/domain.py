@@ -13,8 +13,32 @@ EXPECTED_PIXEL_COUNT = EXPECTED_WIDTH * EXPECTED_HEIGHT
 STANDARD_COORDINATE_ORDER = 'row-major'
 STANDARD_LANGUAGE = 'javascript'
 STANDARD_FUNCTION_NAME = 'renderFrame'
-STANDARD_SIGNATURE = 'function renderFrame(energy)'
+STANDARD_SIGNATURE = 'function renderFrame(audio)'
 STANDARD_PIXEL_ORDER = 'frame[row][column]'
+STANDARD_INPUT_NAME = 'audio'
+STANDARD_AUDIO_FEATURE_GUIDANCE = [
+    (
+        'energy',
+        'overall openness, primary motion span, background density, and global intensity staging',
+    ),
+    (
+        'bass',
+        'heavy displacement, bottom impact, breathing push, and low-end directional drive',
+    ),
+    (
+        'mid',
+        'internal layering, contour reshaping, and core structure variation',
+    ),
+    (
+        'high',
+        'edge shimmer, highlight flicker, fine particles, and crisp detail accents',
+    ),
+    (
+        'onset',
+        'transient trigger pulses, short flashes, rhythmic hits, and event accents',
+    ),
+]
+STANDARD_AUDIO_FEATURE_NAMES = [name for name, _ in STANDARD_AUDIO_FEATURE_GUIDANCE]
 
 
 @dataclass(frozen=True)
@@ -52,7 +76,7 @@ class BoardSpec:
 
 
 @dataclass(frozen=True)
-class InputParameterSpec:
+class InputFeatureSpec:
     name: str
     type: str
     minimum: float
@@ -60,17 +84,20 @@ class InputParameterSpec:
     description: str
 
     @classmethod
-    def standard_energy(cls) -> 'InputParameterSpec':
-        return cls(
-            name='energy',
-            type='number',
-            minimum=0.0,
-            maximum=1.0,
-            description='normalized music energy',
-        )
+    def standard_audio_features(cls) -> list['InputFeatureSpec']:
+        return [
+            cls(
+                name=name,
+                type='number',
+                minimum=0.0,
+                maximum=1.0,
+                description=description,
+            )
+            for name, description in STANDARD_AUDIO_FEATURE_GUIDANCE
+        ]
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> 'InputParameterSpec':
+    def from_dict(cls, data: dict[str, Any]) -> 'InputFeatureSpec':
         return cls(
             name=_clean_string(data.get('name')),
             type=_clean_string(data.get('type')),
@@ -88,6 +115,73 @@ class InputParameterSpec:
             'description': self.description,
         }
 
+    def validate(self) -> None:
+        _require_non_empty('input_feature.name', self.name)
+        if self.type not in {'number', 'float'}:
+            raise ValueError("input_feature.type must be 'number' or 'float'")
+        if self.minimum > 0.0:
+            raise ValueError('input_feature.minimum must be <= 0.0')
+        if self.maximum < 1.0:
+            raise ValueError('input_feature.maximum must be >= 1.0')
+        _require_non_empty('input_feature.description', self.description)
+
+
+@dataclass(frozen=True)
+class InputParameterSpec:
+    name: str
+    type: str
+    description: str
+    features: list[InputFeatureSpec]
+
+    @classmethod
+    def standard_audio(cls) -> 'InputParameterSpec':
+        return cls(
+            name=STANDARD_INPUT_NAME,
+            type='object',
+            description='normalized audio feature bundle with distinct reactive roles',
+            features=InputFeatureSpec.standard_audio_features(),
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'InputParameterSpec':
+        features = data.get('features')
+        if not isinstance(features, list):
+            raise ValueError('timing.input_parameter.features must be an array')
+        return cls(
+            name=_clean_string(data.get('name')),
+            type=_clean_string(data.get('type')),
+            description=_clean_string(data.get('description')),
+            features=[InputFeatureSpec.from_dict(item) for item in features],
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'name': self.name,
+            'type': self.type,
+            'description': self.description,
+            'features': [feature.to_dict() for feature in self.features],
+        }
+
+    def validate(self) -> None:
+        _require_exact('timing.input_parameter.name', self.name, STANDARD_INPUT_NAME)
+        _require_exact('timing.input_parameter.type', self.type, 'object')
+        _require_non_empty('timing.input_parameter.description', self.description)
+        if len(self.features) != len(STANDARD_AUDIO_FEATURE_NAMES):
+            raise ValueError(
+                'timing.input_parameter.features must contain exactly {0} items'.format(
+                    len(STANDARD_AUDIO_FEATURE_NAMES)
+                )
+            )
+        actual_feature_names = [feature.name for feature in self.features]
+        if actual_feature_names != STANDARD_AUDIO_FEATURE_NAMES:
+            raise ValueError(
+                'timing.input_parameter.features must be ordered as {0!r}'.format(
+                    STANDARD_AUDIO_FEATURE_NAMES
+                )
+            )
+        for feature in self.features:
+            feature.validate()
+
 
 @dataclass(frozen=True)
 class TimingSpec:
@@ -98,7 +192,7 @@ class TimingSpec:
     def standard(cls) -> 'TimingSpec':
         return cls(
             frame_interval_ms=EXPECTED_INTERVAL_MS,
-            input_parameter=InputParameterSpec.standard_energy(),
+            input_parameter=InputParameterSpec.standard_audio(),
         )
 
     @classmethod
@@ -191,6 +285,50 @@ class EnergyStageMapping:
 
 
 @dataclass(frozen=True)
+class AudioFeatureRoleMapping:
+    energy: list[str]
+    bass: list[str]
+    mid: list[str]
+    high: list[str]
+    onset: list[str]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> 'AudioFeatureRoleMapping':
+        return cls(
+            energy=_string_list('audio_feature_mapping.energy', data.get('energy', [])),
+            bass=_string_list('audio_feature_mapping.bass', data.get('bass', [])),
+            mid=_string_list('audio_feature_mapping.mid', data.get('mid', [])),
+            high=_string_list('audio_feature_mapping.high', data.get('high', [])),
+            onset=_string_list('audio_feature_mapping.onset', data.get('onset', [])),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'energy': list(self.energy),
+            'bass': list(self.bass),
+            'mid': list(self.mid),
+            'high': list(self.high),
+            'onset': list(self.onset),
+        }
+
+    def to_spec_lines(self) -> list[str]:
+        return [
+            'Audio energy: {0}'.format('; '.join(self.energy)),
+            'Audio bass: {0}'.format('; '.join(self.bass)),
+            'Audio mid: {0}'.format('; '.join(self.mid)),
+            'Audio high: {0}'.format('; '.join(self.high)),
+            'Audio onset: {0}'.format('; '.join(self.onset)),
+        ]
+
+    def validate(self) -> None:
+        _require_string_items('audio_feature_mapping.energy', self.energy, minimum=2)
+        _require_string_items('audio_feature_mapping.bass', self.bass, minimum=2)
+        _require_string_items('audio_feature_mapping.mid', self.mid, minimum=2)
+        _require_string_items('audio_feature_mapping.high', self.high, minimum=2)
+        _require_string_items('audio_feature_mapping.onset', self.onset, minimum=2)
+
+
+@dataclass(frozen=True)
 class SemanticDesign:
     name: str
     user_request: str
@@ -200,6 +338,7 @@ class SemanticDesign:
     composition: list[str]
     motion_rules: list[str]
     energy_mapping: EnergyStageMapping
+    audio_feature_mapping: AudioFeatureRoleMapping
     avoid_list: list[str]
     implementation_hints: list[str]
 
@@ -209,8 +348,11 @@ class SemanticDesign:
             raise ValueError('semantic design payload must be an object')
 
         energy_mapping = data.get('energy_mapping')
+        audio_feature_mapping = data.get('audio_feature_mapping')
         if not isinstance(energy_mapping, dict):
             raise ValueError('energy_mapping must be an object')
+        if not isinstance(audio_feature_mapping, dict):
+            raise ValueError('audio_feature_mapping must be an object')
 
         design = cls(
             name=_clean_string(data.get('name')) or 'led-animation',
@@ -221,6 +363,7 @@ class SemanticDesign:
             composition=_string_list('composition', data.get('composition', [])),
             motion_rules=_string_list('motion_rules', data.get('motion_rules', [])),
             energy_mapping=EnergyStageMapping.from_dict(energy_mapping),
+            audio_feature_mapping=AudioFeatureRoleMapping.from_dict(audio_feature_mapping),
             avoid_list=_string_list('avoid_list', data.get('avoid_list', [])),
             implementation_hints=_string_list('implementation_hints', data.get('implementation_hints', [])),
         )
@@ -237,6 +380,7 @@ class SemanticDesign:
             'composition': list(self.composition),
             'motion_rules': list(self.motion_rules),
             'energy_mapping': self.energy_mapping.to_dict(),
+            'audio_feature_mapping': self.audio_feature_mapping.to_dict(),
             'avoid_list': list(self.avoid_list),
             'implementation_hints': list(self.implementation_hints),
         }
@@ -264,6 +408,7 @@ class SemanticDesign:
         _require_string_items('composition', self.composition, minimum=2)
         _require_string_items('motion_rules', self.motion_rules, minimum=3)
         self.energy_mapping.validate()
+        self.audio_feature_mapping.validate()
         _require_string_items('avoid_list', self.avoid_list, minimum=2)
         _require_string_items('implementation_hints', self.implementation_hints, minimum=3)
 
@@ -277,6 +422,7 @@ class LedAnimationSpec:
     timing: TimingSpec
     visual_notes: list[str]
     energy_mapping: list[str]
+    audio_feature_mapping: list[str]
     implementation_notes: list[str]
     output_contract: OutputContractSpec
     function_code: str
@@ -304,6 +450,7 @@ class LedAnimationSpec:
             timing=TimingSpec.from_dict(timing),
             visual_notes=_string_list('visual_notes', data.get('visual_notes', [])),
             energy_mapping=_string_list('energy_mapping', data.get('energy_mapping', [])),
+            audio_feature_mapping=_string_list('audio_feature_mapping', data.get('audio_feature_mapping', [])),
             implementation_notes=_string_list('implementation_notes', data.get('implementation_notes', [])),
             output_contract=OutputContractSpec.from_dict(output_contract),
             function_code=_clean_string(data.get('function_code')),
@@ -320,6 +467,7 @@ class LedAnimationSpec:
             'timing': self.timing.to_dict(),
             'visual_notes': list(self.visual_notes),
             'energy_mapping': list(self.energy_mapping),
+            'audio_feature_mapping': list(self.audio_feature_mapping),
             'implementation_notes': list(self.implementation_notes),
             'output_contract': self.output_contract.to_dict(),
             'function_code': self.function_code,
@@ -334,30 +482,27 @@ class LedAnimationSpec:
         _require_exact('board.pixel_count', self.board.pixel_count, EXPECTED_PIXEL_COUNT)
         _require_exact('board.coordinate_order', self.board.coordinate_order, STANDARD_COORDINATE_ORDER)
         _require_exact('timing.frame_interval_ms', self.timing.frame_interval_ms, EXPECTED_INTERVAL_MS)
-        _require_exact('timing.input_parameter.name', self.timing.input_parameter.name, 'energy')
-        if self.timing.input_parameter.type not in {'number', 'float'}:
-            raise ValueError("timing.input_parameter.type must be 'number' or 'float'")
-        if self.timing.input_parameter.minimum > 0.0:
-            raise ValueError('timing.input_parameter.minimum must be <= 0.0')
-        if self.timing.input_parameter.maximum < 1.0:
-            raise ValueError('timing.input_parameter.maximum must be >= 1.0')
+        self.timing.input_parameter.validate()
         _require_string_items('visual_notes', self.visual_notes, minimum=1)
         _require_string_items('energy_mapping', self.energy_mapping, minimum=1)
+        _require_string_items('audio_feature_mapping', self.audio_feature_mapping, minimum=5)
         _require_string_items('implementation_notes', self.implementation_notes, minimum=1)
         _require_exact('output_contract.language', self.output_contract.language.lower(), STANDARD_LANGUAGE)
         _require_exact('output_contract.function_name', self.output_contract.function_name, STANDARD_FUNCTION_NAME)
-        if STANDARD_FUNCTION_NAME not in self.output_contract.signature:
-            raise ValueError('output_contract.signature must reference renderFrame')
-        if 'energy' not in self.output_contract.signature:
-            raise ValueError('output_contract.signature must reference energy')
+        _require_exact('output_contract.signature', self.output_contract.signature, STANDARD_SIGNATURE)
         _require_exact('output_contract.pixel_order', self.output_contract.pixel_order, STANDARD_PIXEL_ORDER)
         if '[r, g, b]' not in self.output_contract.return_type:
             raise ValueError('output_contract.return_type must describe [r, g, b] pixels')
         _require_non_empty('function_code', self.function_code)
         if STANDARD_FUNCTION_NAME not in self.function_code:
             raise ValueError('function_code must contain renderFrame')
-        if 'energy' not in self.function_code:
-            raise ValueError('function_code must contain energy')
+        if STANDARD_INPUT_NAME not in self.function_code:
+            raise ValueError('function_code must contain audio')
+        for feature_name in STANDARD_AUDIO_FEATURE_NAMES:
+            if feature_name not in self.function_code:
+                raise ValueError(
+                    'function_code must reference audio feature {0!r}'.format(feature_name)
+                )
 
 
 def build_spec_from_design(design: SemanticDesign, function_code: str) -> LedAnimationSpec:
@@ -369,12 +514,20 @@ def build_spec_from_design(design: SemanticDesign, function_code: str) -> LedAni
         timing=TimingSpec.standard(),
         visual_notes=design.build_visual_notes(),
         energy_mapping=design.energy_mapping.to_spec_lines(),
+        audio_feature_mapping=design.audio_feature_mapping.to_spec_lines(),
         implementation_notes=design.build_implementation_notes(),
         output_contract=OutputContractSpec.standard_render_frame(),
         function_code=_clean_string(function_code),
     )
     spec.validate()
     return spec
+
+
+def build_audio_feature_guidance_lines(prefix: str = '- ') -> list[str]:
+    return [
+        '{0}{1}: {2}'.format(prefix, feature_name, description)
+        for feature_name, description in STANDARD_AUDIO_FEATURE_GUIDANCE
+    ]
 
 
 def _clean_string(value: Any) -> str:
@@ -409,17 +562,22 @@ def _require_string_items(name: str, items: Sequence[str], *, minimum: int) -> N
 
 
 __all__ = [
+    'STANDARD_AUDIO_FEATURE_GUIDANCE',
+    'AudioFeatureRoleMapping',
     'BoardSpec',
     'EXPECTED_HEIGHT',
     'EXPECTED_INTERVAL_MS',
     'EXPECTED_PIXEL_COUNT',
     'EXPECTED_WIDTH',
     'EnergyStageMapping',
+    'InputFeatureSpec',
     'InputParameterSpec',
     'LedAnimationSpec',
     'OutputContractSpec',
     'SemanticDesign',
+    'STANDARD_AUDIO_FEATURE_NAMES',
     'STANDARD_FUNCTION_NAME',
     'TimingSpec',
+    'build_audio_feature_guidance_lines',
     'build_spec_from_design',
 ]
