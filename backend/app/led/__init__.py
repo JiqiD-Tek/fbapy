@@ -1,0 +1,1 @@
+"""Led effect generation module."""
