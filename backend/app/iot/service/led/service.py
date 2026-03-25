@@ -5,10 +5,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-
 from openai import AsyncAzureOpenAI
 
-from backend.app.iot.service.led.domain import SemanticDesign, build_spec_from_design
+from backend.app.iot.service.led.domain import SemanticDesign, validate_function_code
 from backend.app.iot.service.led.prompt import (
     build_code_prompt,
     build_design_prompt,
@@ -19,9 +18,10 @@ from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
 
-
 DEFAULT_AZURE_OPENAI_MODEL = 'gpt-5.4'
 DEFAULT_AZURE_OPENAI_API_VERSION = '2025-03-01-preview'
+HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=180.0, write=30.0, pool=30.0)
+HTTP_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=20, keepalive_expiry=120.0)
 
 
 @dataclass(frozen=True)
@@ -31,17 +31,9 @@ class StructuredOutputSchema:
 
 
 @dataclass(frozen=True)
-class GenerationStageResult:
-    response_text: str
-
-
-@dataclass(frozen=True)
-class SemanticDesignResult:
-    design: SemanticDesign
-
-
-@dataclass(frozen=True)
-class FunctionGenerationResult:
+class GenerationResult:
+    model: str
+    semantic_design: SemanticDesign
     function_code: str
 
 
@@ -50,35 +42,38 @@ class TwoStageGenerationRuntime:
     client: AsyncAzureOpenAI
     model: str
 
-    async def generate_design(self, description: str) -> SemanticDesignResult:
-        stage = await self._run_stage(
+    async def generate_design(self, description: str) -> SemanticDesign:
+        response_text = await self._run_stage(
             stage_name='DESIGN',
             prompt=build_design_prompt(description),
             schema=DESIGN_RESPONSE_SCHEMA,
         )
-        return SemanticDesignResult(design=parse_design_response(stage.response_text))
+        return parse_design_response(response_text)
 
-    async def generate_code(self, design: SemanticDesign) -> FunctionGenerationResult:
-        stage = await self._run_stage(
+    async def generate_code(self, design: SemanticDesign) -> str:
+        response_text = await self._run_stage(
             stage_name='CODE',
             prompt=build_code_prompt(design),
             schema=CODE_RESPONSE_SCHEMA,
         )
-        function_code = parse_code_response(stage.response_text)
-        build_spec_from_design(design, function_code)
-        return FunctionGenerationResult(function_code=function_code)
+        return validate_function_code(parse_code_response(response_text))
 
-    async def generate(self, description: str) -> FunctionGenerationResult:
-        design_result = await self.generate_design(description)
-        return await self.generate_code(design_result.design)
+    async def generate(self, description: str) -> GenerationResult:
+        design = await self.generate_design(description)
+        function_code = await self.generate_code(design)
+        return GenerationResult(
+            model=self.model,
+            semantic_design=design,
+            function_code=function_code,
+        )
 
     async def _run_stage(
-        self,
-        *,
-        stage_name: str,
-        prompt: str,
-        schema: StructuredOutputSchema,
-    ) -> GenerationStageResult:
+            self,
+            *,
+            stage_name: str,
+            prompt: str,
+            schema: StructuredOutputSchema,
+    ) -> str:
         try:
             response = await self.client.responses.create(
                 model=self.model,
@@ -97,96 +92,43 @@ class TwoStageGenerationRuntime:
             log.error(f'LED {stage_name} request failed: {exc}')
             raise errors.GatewayError(msg=f'Azure OpenAI request failed: {exc}') from exc
 
-        return GenerationStageResult(response_text=_extract_response_text(response))
+        return _extract_response_text(response)
 
 
 class LedService:
     async def generate_semantic_design(
-        self,
-        *,
-        description: str,
+            self,
+            *,
+            description: str,
     ) -> dict[str, Any]:
-        return await self._run(
-            action=lambda runtime: self._generate_semantic_design(runtime, description=description),
-        )
+        design = await self._run(action=lambda runtime: runtime.generate_design(description))
+        return design.to_dict()
 
     async def generate_function_from_design(
-        self,
-        *,
-        design: SemanticDesign,
+            self,
+            *,
+            design: SemanticDesign,
     ) -> dict[str, Any]:
-        return await self._run(
-            action=lambda runtime: self._generate_function_code(runtime, design=design),
-        )
+        function_code = await self._run(action=lambda runtime: runtime.generate_code(design))
+        return {'function_code': function_code}
 
     async def generate_animation(
-        self,
-        *,
-        description: str,
+            self,
+            *,
+            description: str,
     ) -> dict[str, Any]:
-        return await self._run(
-            action=lambda runtime: self._generate_animation(runtime, description=description),
-        )
-
-    @staticmethod
-    def _build_runtime() -> TwoStageGenerationRuntime:
-        model_name = str(settings.AZURE_OPENAI_MODEL or '').strip() or DEFAULT_AZURE_OPENAI_MODEL
-        endpoint = str(settings.AZURE_OPENAI_ENDPOINT or '').strip()
-        api_key = settings.AZURE_OPENAI_SUBSCRIPTION_KEY.get_secret_value().strip()
-        api_version = str(settings.AZURE_OPENAI_API_VERSION or '').strip() or DEFAULT_AZURE_OPENAI_API_VERSION
-
-        if not endpoint:
-            raise errors.ServerError(msg='AZURE_OPENAI_ENDPOINT is not configured')
-        if not api_key:
-            raise errors.ServerError(msg='AZURE_OPENAI_SUBSCRIPTION_KEY is not configured')
-
-        client = AsyncAzureOpenAI(
-            api_version=api_version,
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            http_client=httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=15.0, read=180.0, write=30.0, pool=30.0),
-                follow_redirects=True,
-                limits=httpx.Limits(max_connections=20, max_keepalive_connections=20, keepalive_expiry=120.0),
-            ),
-        )
-        return TwoStageGenerationRuntime(
-            client=client,
-            model=model_name,
-        )
-
-    @staticmethod
-    async def _generate_semantic_design(
-        runtime: TwoStageGenerationRuntime,
-        *,
-        description: str,
-    ) -> dict[str, Any]:
-        result = await runtime.generate_design(description)
-        return result.design.to_dict()
-
-    @staticmethod
-    async def _generate_function_code(
-        runtime: TwoStageGenerationRuntime,
-        *,
-        design: SemanticDesign,
-    ) -> dict[str, Any]:
-        result = await runtime.generate_code(design)
-        return {'function_code': result.function_code}
-
-    @staticmethod
-    async def _generate_animation(
-        runtime: TwoStageGenerationRuntime,
-        *,
-        description: str,
-    ) -> dict[str, Any]:
-        result = await runtime.generate(description)
-        return {'function_code': result.function_code}
+        result = await self._run(action=lambda runtime: runtime.generate(description))
+        return {
+            'model': result.model,
+            'semantic_design': result.semantic_design.to_dict(),
+            'function_code': result.function_code,
+        }
 
     async def _run(
-        self,
-        *,
-        action: Callable[[TwoStageGenerationRuntime], Awaitable[dict[str, Any]]],
-    ) -> dict[str, Any]:
+            self,
+            *,
+            action: Callable[[TwoStageGenerationRuntime], Awaitable[Any]],
+    ) -> Any:
         runtime = self._build_runtime()
         try:
             return await action(runtime)
@@ -197,6 +139,47 @@ class LedService:
         finally:
             await _close_client(runtime.client)
 
+    @staticmethod
+    def _build_runtime() -> TwoStageGenerationRuntime:
+        model_name = str(settings.AZURE_OPENAI_MODEL or '').strip() or DEFAULT_AZURE_OPENAI_MODEL
+        endpoint = str(settings.AZURE_OPENAI_ENDPOINT or '').strip()
+        subscription_key = settings.AZURE_OPENAI_SUBSCRIPTION_KEY.get_secret_value().strip()
+        api_version = str(settings.AZURE_OPENAI_API_VERSION or '').strip() or DEFAULT_AZURE_OPENAI_API_VERSION
+
+        if not endpoint:
+            raise errors.ServerError(msg='AZURE_OPENAI_ENDPOINT is not configured')
+        if not subscription_key:
+            raise errors.ServerError(msg='AZURE_OPENAI_SUBSCRIPTION_KEY is not configured')
+
+        client = AsyncAzureOpenAI(
+            api_version=api_version,
+            azure_endpoint=endpoint,
+            api_key=subscription_key,
+            http_client=httpx.AsyncClient(
+                timeout=HTTP_TIMEOUT,
+                follow_redirects=True,
+                limits=HTTP_LIMITS,
+            ),
+        )
+        return TwoStageGenerationRuntime(client=client, model=model_name)
+
+
+def _string_array_schema(*, min_items: int) -> dict[str, Any]:
+    return {
+        'type': 'array',
+        'minItems': min_items,
+        'items': {'type': 'string', 'minLength': 1},
+    }
+
+
+def _mapping_array_schema(*, keys: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        'type': 'object',
+        'properties': {key: _string_array_schema(min_items=2) for key in keys},
+        'required': list(keys),
+        'additionalProperties': False,
+    }
+
 
 DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
     name='led_animation_semantic_design',
@@ -204,92 +187,24 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
         'type': 'object',
         'properties': {
             'name': {'type': 'string', 'minLength': 1},
-            'user_request': {'type': 'string', 'minLength': 1},
+            'raw_user_request': {'type': 'string', 'minLength': 1},
+            'expanded_request': {'type': 'string', 'minLength': 1},
             'summary': {'type': 'string', 'minLength': 1},
             'subject': {'type': 'string', 'minLength': 1},
-            'color_palette': {
-                'type': 'array',
-                'minItems': 2,
-                'items': {'type': 'string', 'minLength': 1},
-            },
-            'composition': {
-                'type': 'array',
-                'minItems': 2,
-                'items': {'type': 'string', 'minLength': 1},
-            },
-            'motion_rules': {
-                'type': 'array',
-                'minItems': 3,
-                'items': {'type': 'string', 'minLength': 1},
-            },
-            'energy_mapping': {
-                'type': 'object',
-                'properties': {
-                    'low': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'medium': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'high': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                },
-                'required': ['low', 'medium', 'high'],
-                'additionalProperties': False,
-            },
-            'audio_feature_mapping': {
-                'type': 'object',
-                'properties': {
-                    'energy': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'bass': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'mid': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'high': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                    'onset': {
-                        'type': 'array',
-                        'minItems': 2,
-                        'items': {'type': 'string', 'minLength': 1},
-                    },
-                },
-                'required': ['energy', 'bass', 'mid', 'high', 'onset'],
-                'additionalProperties': False,
-            },
-            'avoid_list': {
-                'type': 'array',
-                'minItems': 2,
-                'items': {'type': 'string', 'minLength': 1},
-            },
-            'implementation_hints': {
-                'type': 'array',
-                'minItems': 3,
-                'items': {'type': 'string', 'minLength': 1},
-            },
+            'color_palette': _string_array_schema(min_items=2),
+            'composition': _string_array_schema(min_items=2),
+            'motion_rules': _string_array_schema(min_items=3),
+            'energy_mapping': _mapping_array_schema(keys=('low', 'medium', 'high')),
+            'audio_feature_mapping': _mapping_array_schema(
+                keys=('energy', 'bass', 'mid', 'high', 'onset')
+            ),
+            'avoid_list': _string_array_schema(min_items=2),
+            'implementation_hints': _string_array_schema(min_items=3),
         },
         'required': [
             'name',
-            'user_request',
+            'raw_user_request',
+            'expanded_request',
             'summary',
             'subject',
             'color_palette',
@@ -303,7 +218,6 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
         'additionalProperties': False,
     },
 )
-
 
 CODE_RESPONSE_SCHEMA = StructuredOutputSchema(
     name='led_animation_function_code',
@@ -370,13 +284,6 @@ async def _close_client(client: AsyncAzureOpenAI) -> None:
         log.error(f'LED client close failed: {exc}')
 
 
-led_service: LedService = LedService()
+led_service = LedService()
 
-
-__all__ = [
-    'FunctionGenerationResult',
-    'LedService',
-    'SemanticDesignResult',
-    'StructuredOutputSchema',
-    'led_service',
-]
+__all__ = ['LedService', 'led_service']

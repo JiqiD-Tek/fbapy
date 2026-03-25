@@ -36,6 +36,7 @@ class CustomErrorCode(CustomCodeBase):
     DEVICE_ILLEGAL = (40003, 'error.device.illegal')  # 非法 设备
     DEVICE_QUOTA_NOT_ENOUGH = (40004, 'error.device.quota.not.enough')  # 配额不足
     PHONE_ERROR = (40005, 'error.phone.error')  # 手机格式错误
+    XIMALAYA_INVOKE_ERROR = (40006, 'error.ximalaya.invoke.error')  # 喜马拉雅调用异常
 
 
 @dataclasses.dataclass

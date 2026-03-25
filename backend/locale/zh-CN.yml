@@ -3,6 +3,9 @@ error:
     error: 验证码错误
     invalid: 验证码无效，请重新获取
     expired: 验证码已过期，请重新获取
+  ximalaya:
+    invoke:
+      error: 喜马拉雅调用异常
   language_not_found: 当前语言包未初始化或不存在
 pydantic:
   # 自定义验证错误信息，参考：

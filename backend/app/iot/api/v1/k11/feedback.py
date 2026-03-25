@@ -15,8 +15,8 @@ from backend.app.iot.schema.feedback import (
     GetFeedbackDetail,
     UpdateFeedbackParam,
 )
+from backend.app.iot.service.device.messaging import MessagingService
 from backend.app.iot.service.feedback_service import feedback_service
-from backend.app.iot.service.messaging_service import MessagingService
 from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base

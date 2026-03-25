@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : messaging_service.py
+@File    : messaging.py
 @Author  : guhua@jiqid.com
 @Date    : 2026/01/12 20:25
 """
@@ -15,16 +15,15 @@ from backend.utils.timezone import timezone
 
 class MessagingService:
     """
-    k11 设备消息服务类
+    设备消息服务类
     封装设备消息上行/下行逻辑
     业务化方法命名，便于扩展其他功能
     """
 
-    MODEL = 'k11'
-
-    def __init__(self, mqtt_client: MQTTBroker, did: str) -> None:
+    def __init__(self, mqtt_client: MQTTBroker, did: str, model: str = 'k11') -> None:
         self.client = mqtt_client
         self.did = did
+        self.model = model
 
     # ---------------- 公共方法 ----------------
     @staticmethod
@@ -60,12 +59,12 @@ class MessagingService:
         payload = {
             'feedback_id': feedback_id,
         }
-        topic = f'{self.MODEL}/{self.did}/down/control'
+        topic = f'{self.model}/{self.did}/down/control'
         msg = self._build_message(payload, msg_type='command', service='feedback')
         return await self._publish(topic, msg)
 
     async def send_play_music(
-        self, action: str, value: str, song: str, artist: str, playlist: str, platform: str
+            self, action: str, value: str, song: str, artist: str, playlist: str, platform: str
     ) -> str:
         """下发点播音乐指令"""
         payload = {
@@ -77,7 +76,7 @@ class MessagingService:
             'platform': platform,  # 播放平台
         }
 
-        topic = f'{self.MODEL}/{self.did}/down/control'
+        topic = f'{self.model}/{self.did}/down/control'
         msg = self._build_message(payload, msg_type='command', service='player')
         return await self._publish(topic, msg)
 
@@ -89,7 +88,7 @@ class MessagingService:
             'value': value,
         }
 
-        topic = f'{self.MODEL}/{self.did}/down/control'
+        topic = f'{self.model}/{self.did}/down/control'
         msg = self._build_message(payload, msg_type='command', service='system')
         return await self._publish(topic, msg)
 
@@ -101,6 +100,6 @@ class MessagingService:
             'message': message,
         }
 
-        topic = f'{self.MODEL}/{self.did}/down/control'
+        topic = f'{self.model}/{self.did}/down/control'
         msg = self._build_message(payload, msg_type='command', service='alarm')
         return await self._publish(topic, msg)

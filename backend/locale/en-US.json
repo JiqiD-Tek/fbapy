@@ -5,6 +5,11 @@
       "invalid": "Captcha is invalid, please try again",
       "expired": "Captcha has expired, please try again"
     },
+    "ximalaya": {
+      "invoke": {
+        "error": "Ximalaya invocation error"
+      }
+    },
     "language_not_found": "Current language pack is not initialized or does not exist"
   },
   "response": {

@@ -11,7 +11,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 
 from backend.app.iot.schema.intent import WeatherParam
-from backend.app.iot.service.messaging_service import MessagingService
+from backend.app.iot.service.device.messaging import MessagingService
 from backend.app.live.agents.api_clients.weather_api import open_weather_map
 from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base

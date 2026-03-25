@@ -17,19 +17,39 @@ DESIGN_SYSTEM_PROMPT = """You are the semantic designer for a music-reactive LED
 
 Your job in stage one is not to write code. Convert a short user request into a stable, concrete, implementation-ready semantic design JSON for stage two.
 
+Interpret the raw request as a bundle of visual directives:
+- nouns and named entities define the subject or scene anchor
+- adjectives define material, style, mood, lighting, and edge quality
+- verbs define motion grammar and energy behavior
+- explicit colors define palette priority
+- spatial words define framing, camera angle, and composition
+- negative phrases define avoid_list and simplification boundaries
+
 Design priorities:
-1. Keep the requested subject recognizable at first glance.
-2. Define subject, palette, composition, and motion before describing low / medium / high energy mapping.
-3. Treat audio.energy as the global envelope, then map bass / mid / high / onset to clearly different specialized visual jobs.
-4. Do not collapse a concrete subject into generic particles, waves, breathing lights, or abstract noise.
-5. Make colors specific. Name the key colors and explain where they belong.
-6. Make composition specific. Explain where the subject sits and how the background supports it.
-7. Make motion specific. Explain which structures move and which must remain stable.
-8. Energy mapping must change structure, emphasis, or rhythm, not only brightness.
-9. Avoid-list items must be concrete and directly relevant to failure cases.
-10. Human-readable fields should use the same language as the user's request.
-11. If a feature should stay subtle, state what it preserves, accents, or triggers instead of leaving it vague.
-12. If the user request is short, infer only the minimum extra detail needed for a stable and recognizable result.
+1. Preserve the user's core intent and visible style cues; do not replace them with generic LED cliches.
+2. Keep the requested subject or dominant motif recognizable at first glance.
+3. If the request already specifies style, material, lighting, pacing, or framing, keep those choices and build around them.
+4. Translate atmospheric or stylistic words into concrete visual rules: shape language, edge hardness, density, depth, highlight behavior, and motion character.
+5. Define subject, palette, composition, and motion before describing low / medium / high energy mapping.
+6. Treat audio.energy as the global envelope, then map bass / mid / high / onset to clearly different specialized visual jobs.
+7. Do not collapse a concrete subject into generic particles, waves, breathing lights, or abstract noise.
+8. Make colors specific. Name the key colors, where they belong, and what visual role they serve.
+9. Make composition specific. Explain where the main subject sits, what occupies foreground / midground / background, and how supporting elements stay subordinate.
+10. Make motion specific. Explain which structures move, which must remain stable, how motion propagates, and what kind of rhythm or easing it has.
+11. Energy mapping must change structure, emphasis, rhythm, density, or spacing, not only brightness.
+12. Avoid-list items must be concrete and directly relevant to likely failure cases for this request.
+13. For a 29x16 board, simplify aggressively: prefer one dominant subject and only the minimum supporting details required for recognition.
+14. Choose the most iconic low-resolution-friendly view, pose, crop, or framing for the subject.
+15. Define the subject in terms of 2 to 4 silhouette anchors or structural zones that must stay readable.
+16. Secondary elements and background must stay subordinate; if they compete with the main subject, shrink or omit them.
+17. Motion should deform existing structure, not smear the subject into one soft blob.
+18. If the user asks for an abstract look instead of a concrete subject, still define one dominant motif, clear layering, and a repeatable motion grammar.
+19. raw_user_request must preserve the exact user input text with no rewriting or translation.
+20. expanded_request must be an English, code-generation-ready description that adds only the minimum extra detail needed for a stable, expressive, and recognizable result.
+21. Keep summary, subject, palette, composition, motion rules, mappings, implementation hints, and avoid-list consistent with expanded_request.
+22. If a feature should stay subtle, state what it preserves, accents, or triggers instead of leaving it vague.
+23. If the user request is short, infer only the minimum extra detail needed for a stable and recognizable result.
+24. When the user includes strong stylistic wording, preserve its visual personality through concrete rendering decisions rather than repeating the style label abstractly.
 
 Return JSON only.
 """
@@ -47,11 +67,19 @@ Hard constraints:
 5. Every input feature and RGB channel must be clamped to valid range.
 6. Internal animation state is allowed, but do not add new public parameters.
 7. Do not use randomness, current time, network access, third-party packages, or host-specific APIs.
-8. Preserve the semantic design's subject, palette, composition, motion rules, energy mapping, audio feature mapping, and avoid-list.
+8. Preserve the semantic design's subject, palette, composition, motion rules, energy mapping, audio feature mapping, implementation hints, and avoid-list.
 9. Do not degrade a concrete subject into an abstract full-screen effect.
 10. Keep at least one stable subject layer and one audio-reactive motion layer.
 11. Treat onset like a fast transient trigger and energy like a slower envelope; they should not behave the same way.
-12. Return JSON only.
+12. For concrete subjects, build 2 to 4 stable structural regions or silhouette anchors before adding reactive detail.
+13. Use explicit layered shapes, masks, contours, segmented geometry, palette ramps, or depth planes when needed; do not rely on one broad blob plus generic noise.
+14. Translate style and material cues into concrete rendering behavior: shape language, edge softness or sharpness, density, highlight placement, texture illusion, trail behavior, and motion rhythm.
+15. Translate composition cues into real pixel-space organization: foreground, main subject, supporting detail, and background should not all behave the same way.
+16. Keep secondary props, scenery, sparkles, and background details clearly subordinate to the main subject.
+17. If a support detail harms first-glance readability, reduce or omit it rather than weakening the main subject.
+18. Avoid generic fallback aesthetics such as full-screen equalized pulsing, uniform glow blankets, or decorative noise that does not support the requested look.
+19. Prefer readable, deterministic helper functions and explicit geometry over opaque cleverness.
+20. Return JSON only.
 """
 
 
@@ -98,6 +126,13 @@ def build_code_prompt(
 
 {design_json}
 
+Primary semantic source for code generation:
+- Use semantic_design.expanded_request as the main normalized intent.
+- Treat semantic_design.raw_user_request as traceability only; never reduce the design back to the short raw input.
+- Keep the generated code aligned with semantic_design.summary, subject, color_palette, composition, motion_rules, energy_mapping, audio_feature_mapping, implementation_hints, and avoid_list.
+- Realize preserved style, material, and mood cues through geometry, layering, palette distribution, highlight behavior, and motion character instead of generic decorative overlays.
+- When readability conflicts with supporting details, preserve the dominant subject first and simplify the rest.
+
 Generate strict JSON with exactly one field:
 - function_code
 
@@ -112,9 +147,15 @@ Requirements for function_code:
 7. It should smooth long-envelope features and treat onset as a fast trigger or accent signal.
 8. It must not collapse bass, mid, high, and onset into simple aliases of energy or of each other.
 9. It must honor the semantic design's avoid_list.
-10. It must keep the subject readable before adding secondary lighting or background motion.
-11. It must avoid full-screen synchronous flashing.
-12. It should be portable plain JavaScript suitable for repeated host calls every {frame_interval_ms}ms.
+10. It should realize the subject as 2 to 4 stable structural regions or silhouette anchors rather than one undifferentiated mass.
+11. For concrete subjects, it should prefer explicit layered or segmented geometry over broad blob fields with generic wave distortion.
+12. It should convert style and material cues into concrete pixel behavior such as edge treatment, fill density, depth separation, highlight placement, trail persistence, and motion rhythm.
+13. It must keep the subject readable before adding secondary lighting or background motion.
+14. It must keep supporting details subordinate and may simplify or omit them if needed for recognizability.
+15. It should separate foreground, subject core, accents, and background so they do not all pulse identically.
+16. It must avoid full-screen synchronous flashing.
+17. It should favor deterministic helper functions, explicit masks, and readable structure over opaque tricks.
+18. It should be portable plain JavaScript suitable for repeated host calls every {frame_interval_ms}ms.
 
 Return JSON only, for example:
 {{
@@ -152,6 +193,13 @@ def _build_design_user_prompt(
     return """User request:
 {description}
 
+Important request binding rules:
+- raw_user_request must exactly equal the user request above, character-for-character.
+- expanded_request must be a richer English description that stage two can use directly for code generation.
+- expanded_request should make subject, palette, composition, motion, stability, and key avoid constraints explicit without changing the user's core intent.
+- expanded_request should choose an iconic low-resolution-friendly view and keep only the most recognition-critical supporting details.
+- expanded_request should explicitly preserve useful user-provided style cues such as material, lighting, atmosphere, texture, pacing, framing, and motion verbs.
+
 Target board:
 - width: {width}
 - height: {height}
@@ -171,9 +219,15 @@ Audio feature mapping requirements:
 {audio_feature_guidance}
 
 Quality bar:
+- Mine the user wording for subject nouns, style adjectives, material cues, camera or framing words, motion verbs, palette words, and negative constraints.
+- Convert vague atmosphere words into explicit palette, contrast, edge quality, layering, and motion rules.
+- If the user names a visual style, express it through shape language, lighting, texture illusion, and movement rather than merely repeating the style name.
 - Design for a low-resolution board; silhouettes and anchors matter.
 - Keep the subject specific when the user asks for a concrete thing.
 - Add only the minimum missing detail required for a stable design.
+- Prefer one dominant subject over a crowded scene unless the request explicitly asks for multiple equal subjects.
+- State the key silhouette anchors or structural regions that must remain readable.
+- Keep secondary props, support structures, sparkles, and background texture on a clearly smaller pixel budget than the main subject.
 - Avoid unrelated decorative elements.
 
 Return JSON only.""".format(
@@ -189,7 +243,8 @@ Return JSON only.""".format(
 
 def _semantic_design_field_list() -> str:
     return """- name
-- user_request
+- raw_user_request
+- expanded_request
 - summary
 - subject
 - color_palette
@@ -203,16 +258,17 @@ def _semantic_design_field_list() -> str:
 
 def _semantic_design_field_requirements() -> str:
     return """1. name: short ASCII slug suitable for filenames.
-2. user_request: preserve the original user request meaning.
-3. summary: one sentence summarizing subject, palette, and overall motion.
-4. subject: the key recognizable visual anchor.
-5. color_palette: at least 2 items, each describing color + region + purpose.
-6. composition: at least 2 items describing layout and visual hierarchy.
-7. motion_rules: at least 3 items covering stable structure, reactive structure, and restrained background behavior.
-8. energy_mapping: object with low / medium / high arrays, each with at least 2 items describing structural or rhythmic change.
-9. audio_feature_mapping: object with energy / bass / mid / high / onset arrays, each with at least 2 items describing feature-specific structural targets, accents, or trigger behaviors.
-10. avoid_list: at least 2 concrete mistakes to avoid.
-11. implementation_hints: at least 3 concrete hints that help code generation stay faithful."""
+2. raw_user_request: copy the exact original user input text verbatim with no translation or rewriting.
+3. expanded_request: write a richer English request for stage-two code generation, making subject, palette, composition, motion, stable structure, reactive accents, major avoid constraints, and important style cues explicit while staying faithful to the raw request. It should preserve user-specified material, lighting, atmosphere, framing, or pacing when present, choose an iconic low-resolution-friendly view, describe 2 to 4 key silhouette anchors or structural regions, and keep supporting details minimal.
+4. summary: one sentence summarizing subject, palette, and overall motion.
+5. subject: the key recognizable visual anchor plus the minimal silhouette parts, style-defining shape traits, or dominant motif that must remain readable on a 29x16 board.
+6. color_palette: at least 2 items, each describing color + region + purpose, including style-relevant lighting or material accents when applicable.
+7. composition: at least 2 items describing layout, dominant subject placement, framing or depth cues when relevant, and how secondary elements stay subordinate.
+8. motion_rules: at least 3 items covering stable structure, reactive structure, motion character, and explicit deformation limits that preserve recognizability.
+9. energy_mapping: object with low / medium / high arrays, each with at least 2 items describing structural or rhythmic change.
+10. audio_feature_mapping: object with energy / bass / mid / high / onset arrays, each with at least 2 items describing feature-specific structural targets, accents, textural roles, or trigger behaviors.
+11. avoid_list: at least 2 concrete mistakes to avoid.
+12. implementation_hints: at least 3 concrete hints that help code generation stay faithful, including geometry strategy, layering, palette distribution, motion mechanics, or silhouette-preserving simplification when needed."""
 
 
 def _audio_feature_guidance_block() -> str:

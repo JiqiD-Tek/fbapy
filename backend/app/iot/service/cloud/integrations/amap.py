@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : jiqid_dev
-@File    : amap_client.py
+@File    : amap.py
 @Author  : guhua@jiqid.com
 @Date    : 2025/06/23 15:30
 """
@@ -10,7 +10,7 @@ import asyncio
 
 from cachetools import TTLCache
 
-from backend.app.iot.service.api_clients import city_mapping
+from backend.app.iot.service.cloud.integrations import city_mapping
 from backend.common.http_client import HTTPClient
 from backend.common.log import log
 

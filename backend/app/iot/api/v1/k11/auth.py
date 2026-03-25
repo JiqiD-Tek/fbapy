@@ -30,8 +30,8 @@ from backend.app.iot.schema.token import (
 )
 from backend.app.iot.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceParam, MQTTAuthParam
 from backend.app.iot.service.auth_service import auth_service
+from backend.app.iot.service.cloud.storage import storage_service
 from backend.app.iot.service.device_service import device_service
-from backend.app.iot.service.storage_service import storage_service
 from backend.common.ali_sms import sms_client
 from backend.common.ali_sts import sts_client
 from backend.common.context import ctx
@@ -39,7 +39,7 @@ from backend.common.exception import errors
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth, verify_device_credentials
-from backend.common.security.jwt import DependsJwtAuth, jwt_encode
+from backend.common.security.jwt import jwt_encode
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
