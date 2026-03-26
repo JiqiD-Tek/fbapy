@@ -174,7 +174,8 @@ async def coze_token(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[CozeToken]:
-    quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    quota = 600
 
     config = {
         'client_type': 'jwt',
@@ -206,7 +207,8 @@ async def livekit_token(
         obj: LivekitDeviceParam,  # 业务字段（room/name/metadata）
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[LivekitToken]:
-    quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    quota = 600
 
     token = (
         api
@@ -237,7 +239,8 @@ async def fba_token(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[FbaToken]:
-    quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    quota = 600
 
     payload = {'mac': device.mac, 'did': device.did, 'ttl': quota}
     token = jwt_encode(payload=payload)
@@ -254,6 +257,7 @@ async def end_usage(
         db: CurrentSessionTransaction,
         device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseModel:
-    quota = await device_service.end_usage(db=db, did=device.did)
+    # quota = await device_service.end_usage(db=db, did=device.did)
+    quota = 600
 
     return response_base.success(data=quota)

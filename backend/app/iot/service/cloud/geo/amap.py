@@ -10,7 +10,7 @@ import asyncio
 
 from cachetools import TTLCache
 
-from backend.app.iot.service.cloud.integrations import city_mapping
+from backend.app.iot.service.cloud.geo import city_mapping
 from backend.common.http_client import HTTPClient
 from backend.common.log import log
 

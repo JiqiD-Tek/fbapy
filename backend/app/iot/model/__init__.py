@@ -7,6 +7,8 @@
 """
 
 from backend.app.iot.model.app import App as App
+from backend.app.iot.model.cloud.album import CloudAlbum as CloudAlbum
+from backend.app.iot.model.cloud.song import CloudSong as CloudSong
 from backend.app.iot.model.device.device import Device as Device
 from backend.app.iot.model.device.device_recharge import DeviceRecharge as DeviceRecharge
 from backend.app.iot.model.device.device_usage import DeviceUsage as DeviceUsage

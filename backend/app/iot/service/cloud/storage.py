@@ -14,7 +14,9 @@ from backend.utils.timezone import timezone
 
 class StorageService:
     CDN_HOST = 'https://media.jiqid.com'
-    PRODUCT = 'k11'
+
+    def __init__(self, product: str = 'k11'):
+        self.product = product
 
     @staticmethod
     def _today() -> str:
@@ -28,7 +30,7 @@ class StorageService:
 
     def create_object_name(self, did: str, ext: str = 'jpg') -> str:
         filename = f'{self._today()}_{self._uuid()}.{ext}'
-        key = f'{self.PRODUCT}/{ext}/{did}/{filename}'
+        key = f'{self.product}/{ext}/{did}/{filename}'
         return key
 
     def get_object_url(self, object_name: str) -> str:
