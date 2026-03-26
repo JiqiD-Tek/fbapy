@@ -29,8 +29,8 @@ class CRUDApp(CRUDPlus[App]):
     async def get_all(self, db: AsyncSession) -> Sequence[App]:
         return await self.select_models(db)
 
-    async def create(self, db: AsyncSession, obj: CreateAppParam) -> None:
-        await self.create_model(db, obj)
+    async def create(self, db: AsyncSession, obj: CreateAppParam) -> App:
+        return await self.create_model(db, obj)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         return await self.update_model(db, pk, obj)

@@ -124,7 +124,7 @@ class AuthService:
                 os=ctx.os,
                 browser=ctx.browser,
                 device=ctx.device,
-                iot=True,
+                terminal=True,
             )
             refresh_token_data = await create_refresh_token(
                 access_token_data.session_uuid,
@@ -181,7 +181,7 @@ class AuthService:
 
         token_payload = jwt_decode(refresh_token)
 
-        user = await user_dao.get(db, token_payload.id)
+        user = await user_dao.get(db, token_payload.user_id)
         if not user:
             raise errors.NotFoundError(msg='用户不存在')
 
@@ -198,7 +198,7 @@ class AuthService:
             os=ctx.os,
             browser=ctx.browser,
             device_type=ctx.device,
-            iot=True,
+            terminal=True,
         )
         data = GetNewToken(
             access_token=new_token.new_access_token,
@@ -220,7 +220,7 @@ class AuthService:
         try:
             token = get_token(request)
             token_payload = jwt_decode(token)
-            user_id = token_payload.id
+            user_id = token_payload.user_id
             session_uuid = token_payload.session_uuid
         except errors.TokenError:
             return

@@ -243,14 +243,14 @@ async def get_jwt_user(user_id: int) -> GetUserInfoWithRelationDetail:
     return user
 
 
-async def get_iot_user(user_id: int) -> GetUserInfoDetail:
+async def get_terminal_user(user_id: int) -> GetUserInfoDetail:
     """
     获取 JWT 用户
 
     :param user_id:
     :return:
     """
-    cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:iot:{user_id}')
+    cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user_id}')
     if not cache_user:
         async with async_db_session() as db:
             from backend.app.cloud.crud.crud_user import user_dao
@@ -261,7 +261,7 @@ async def get_iot_user(user_id: int) -> GetUserInfoDetail:
 
             user = GetUserInfoDetail.model_validate(current_user)
             await redis_client.setex(
-                f'{settings.JWT_USER_REDIS_PREFIX}:iot:{user_id}',
+                f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user_id}',
                 settings.TOKEN_EXPIRE_SECONDS,
                 user.model_dump_json(),
             )
@@ -308,8 +308,8 @@ async def jwt_authentication(token: str) -> GetUserInfoWithRelationDetail | GetU
     extra_info = await redis_client.get(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{ctx.user_id}:{session_uuid}')
     extra_info = json.loads(extra_info)
 
-    if extra_info.get('iot') is True:
-        user = await get_iot_user(ctx.user_id)  # 非管理员
+    if extra_info.get('terminal') is True:
+        user = await get_terminal_user(ctx.user_id)  # 非管理员
     else:
         user = await get_jwt_user(ctx.user_id)  # 管理员
 

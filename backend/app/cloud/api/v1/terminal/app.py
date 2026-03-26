@@ -10,11 +10,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.app import CreateAppParam, DeleteAppParam, GetAppDetail, UpdateAppParam
+from backend.app.cloud.schema.app import CreateAppParam, GetAppDetail, UpdateAppParam
 from backend.app.cloud.service.app_service import app_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceAuth
+from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
@@ -27,13 +27,12 @@ router = APIRouter()
 @router.get(
     '/{pk}',
     summary='获取应用详情',
-    dependencies=[DependsDeviceAuth],
-    # dependencies=[DependsJwtAuth],
+    dependencies=[DependsDeviceOrJwtAuth],
 )
 async def get_app(
     db: CurrentSession, pk: Annotated[int, Path(description='应用 ID')]
 ) -> ResponseSchemaModel[GetAppDetail]:
-    data = app_service.get(db=db, pk=pk)
+    data = await app_service.get(db=db, pk=pk)
     return response_base.success(data=data)
 
 
@@ -43,11 +42,7 @@ async def get_app(
 @router.get(
     '',
     summary='分页获取应用列表',
-    dependencies=[
-        DependsDeviceAuth,
-        # DependsJwtAuth,
-        DependsPagination
-    ],
+    dependencies=[DependsDeviceOrJwtAuth, DependsPagination],
 )
 async def get_app_paginated(
     db: CurrentSession,
@@ -65,7 +60,7 @@ async def get_app_paginated(
 @router.post(
     '',
     summary='创建应用',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def create_app(
     db: CurrentSessionTransaction,
@@ -81,7 +76,7 @@ async def create_app(
 @router.put(
     '/{pk}',
     summary='更新应用',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def update_app(
     db: CurrentSessionTransaction,
@@ -100,7 +95,7 @@ async def update_app(
 @router.delete(
     '/{pk}',
     summary='删除应用',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def delete_app(
     db: CurrentSessionTransaction,

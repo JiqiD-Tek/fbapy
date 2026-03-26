@@ -31,7 +31,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
-@router.get('/albums/{pk}', summary='获取专辑详情')
+@router.get('/albums/{pk}', summary='获取专辑详情', dependencies=[DependsJwtAuth])
 async def get_album(
     db: CurrentSession,
     pk: Annotated[int, Path(description='专辑 ID')],
@@ -40,7 +40,7 @@ async def get_album(
     return response_base.success(data=data)
 
 
-@router.get('/albums', summary='分页获取专辑列表', dependencies=[DependsPagination])
+@router.get('/albums', summary='分页获取专辑列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_album_paginated(
     db: CurrentSession,
     title: Annotated[str | None, Query(description='专辑标题')] = None,
@@ -88,7 +88,7 @@ async def delete_album(
     return response_base.fail()
 
 
-@router.get('/songs/{pk}', summary='获取歌曲详情')
+@router.get('/songs/{pk}', summary='获取歌曲详情', dependencies=[DependsJwtAuth])
 async def get_song(
     db: CurrentSession,
     pk: Annotated[int, Path(description='歌曲 ID')],
@@ -97,7 +97,7 @@ async def get_song(
     return response_base.success(data=data)
 
 
-@router.get('/songs', summary='分页获取歌曲列表', dependencies=[DependsPagination])
+@router.get('/songs', summary='分页获取歌曲列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_song_paginated(
     db: CurrentSession,
     title: Annotated[str | None, Query(description='歌曲标题')] = None,

@@ -7,7 +7,8 @@ from typing import Annotated
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from fastapi import Cookie, Depends
+from fastapi import Cookie, Depends, Request
+from starlette.authentication import UnauthenticatedUser
 
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.common.exception import errors
@@ -238,7 +239,26 @@ async def device_auth_verify(
     return device
 
 
+async def device_or_jwt_auth_verify(
+        request: Request,
+        mac: Annotated[str | None, Cookie(description='MAC 地址')] = None,
+        did: Annotated[str | None, Cookie(description='设备did')] = None,
+        sn: Annotated[str | None, Cookie(description='设备序列号')] = None,
+        model: Annotated[str | None, Cookie(description='设备型号')] = None,
+) -> object:
+    """
+    JWT 或设备认证二选一
+
+    已通过 JWT 中间件认证的请求直接放行，否则必须通过设备认证。
+    """
+    if not isinstance(request.user, UnauthenticatedUser):
+        return request.user
+
+    return await device_auth_verify(mac=mac, did=did, sn=sn, model=model)
+
+
 DependsDeviceAuth = Depends(device_auth_verify)
+DependsDeviceOrJwtAuth = Depends(device_or_jwt_auth_verify)
 
 
 # ------------------ 测试 ------------------

@@ -15,7 +15,6 @@ from backend.app.cloud.crud.crud_app import app_dao
 from backend.app.cloud.model import App
 from backend.app.cloud.schema.app import (
     CreateAppParam,
-    DeleteAppParam,
     UpdateAppParam,
 )
 from backend.common.exception import errors
@@ -56,9 +55,9 @@ class AppService:
         return await paging_data(db, app_select)
 
     @staticmethod
-    async def create(*, db: AsyncSession, obj: CreateAppParam) -> None:
+    async def create(*, db: AsyncSession, obj: CreateAppParam) -> App:
         """创建应用"""
-        await app_dao.create(db, obj)
+        return await app_dao.create(db, obj)
 
     @staticmethod
     async def update(*, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:

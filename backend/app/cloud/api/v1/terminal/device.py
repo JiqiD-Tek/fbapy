@@ -17,7 +17,6 @@ from backend.app.cloud.schema.device.device import (
 from backend.app.cloud.service.device_service import device_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
@@ -30,12 +29,12 @@ router = APIRouter()
 @router.get(
     '/{pk}',
     summary='获取设备详情',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def get_device(
     db: CurrentSession, pk: Annotated[int, Path(description='设备 ID')]
 ) -> ResponseSchemaModel[GetDeviceDetail]:
-    data = device_service.get(db=db, pk=pk)
+    data = await device_service.get(db=db, pk=pk)
     return response_base.success(data=data)
 
 
@@ -45,7 +44,7 @@ async def get_device(
 @router.get(
     '',
     summary='分页获取设备列表',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth, DependsPagination],
+    dependencies=[DependsJwtAuth, DependsPagination],
 )
 async def get_device_paginated(
     db: CurrentSession,
@@ -70,7 +69,7 @@ async def get_device_paginated(
 @router.put(
     '/{pk}',
     summary='更新设备',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def update_device(
     db: CurrentSessionTransaction,
@@ -89,7 +88,7 @@ async def update_device(
 @router.delete(
     '/{pk}',
     summary='删除设备',
-    dependencies=[DependsDeviceAuth, DependsJwtAuth],
+    dependencies=[DependsJwtAuth],
 )
 async def delete_device(
     db: CurrentSessionTransaction, pk: Annotated[int, Path(description='设备 ID')]
