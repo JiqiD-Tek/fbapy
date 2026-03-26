@@ -1,4 +1,4 @@
-# -*- coding: UTF-8 -*-
+﻿# -*- coding: UTF-8 -*-
 import base64
 import hashlib
 import uuid
@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from fastapi import Cookie, Depends
 
-from backend.app.iot.schema.user import DeviceAuthParam
+from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.response.response_code import CustomErrorCode

@@ -1,4 +1,4 @@
-# -*- coding: UTF-8 -*-
+﻿# -*- coding: UTF-8 -*-
 """
 设备鉴权 Cookie 测试脚本
 
@@ -38,9 +38,9 @@ def _print_result(title: str, response: httpx.Response) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='测试 k11 设备鉴权 Cookie 传参')
+    parser = argparse.ArgumentParser(description='测试 terminal 设备鉴权 Cookie 传参')
     parser.add_argument('--base-url', default='http://localhost:8001', help='服务地址')
-    parser.add_argument('--path', default='/api/v1/iot/k11/auth/coze_token', help='测试接口路径')
+    parser.add_argument('--path', default='/api/v1/terminal/auth/coze_token', help='测试接口路径')
     parser.add_argument('--method', default='POST', choices=['GET', 'POST'], help='请求方法')
     parser.add_argument('--mac', default='3E:96:10:BA:61:2F', help='设备 MAC')
     parser.add_argument('--did', default='D98BB367386B5B18A815EC31F74B43A6', help='设备 DID，不传则自动派生')

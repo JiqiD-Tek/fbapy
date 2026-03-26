@@ -1,4 +1,4 @@
-import json
+﻿import json
 import uuid
 
 from datetime import timedelta
@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.admin.model import User
 from backend.app.admin.schema.user import GetUserInfoWithRelationDetail
-from backend.app.iot.schema.user import GetUserInfoDetail
+from backend.app.cloud.schema.user import GetUserInfoDetail
 from backend.common._dataclasses import AccessToken, NewToken, RefreshToken, TokenPayload
 from backend.common.context import ctx
 from backend.common.exception import errors
@@ -253,7 +253,7 @@ async def get_iot_user(user_id: int) -> GetUserInfoDetail:
     cache_user = await redis_client.get(f'{settings.JWT_USER_REDIS_PREFIX}:iot:{user_id}')
     if not cache_user:
         async with async_db_session() as db:
-            from backend.app.iot.crud.crud_user import user_dao
+            from backend.app.cloud.crud.crud_user import user_dao
 
             current_user = await user_dao.get(db, user_id)
             if not current_user:
