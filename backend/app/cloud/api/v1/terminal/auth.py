@@ -39,6 +39,7 @@ from backend.common.exception import errors
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth, verify_device_credentials
+from backend.common.security.jwt import DependsSuperUser
 from backend.common.security.jwt import jwt_encode
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
@@ -134,7 +135,7 @@ async def mqtt_login(
     return {'result': 'allow', 'is_superuser': False}
 
 
-@router.post('/sts_token', summary='阿里云STS', dependencies=[DependsDeviceAuth])
+@router.post('/sts_token', summary='阿里云STS', dependencies=[DependsSuperUser])
 async def sts_token(
         request: Request,
 ) -> ResponseSchemaModel[StsToken]:
