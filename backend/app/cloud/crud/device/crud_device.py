@@ -14,6 +14,7 @@ class CRUDDevice(CRUDPlus[Device]):
 
     async def get_select(self, did: str | None, sn: str | None, mac: str | None, model: str | None) -> Select:
         filters = {}
+        whereclause = []
 
         if did is not None:
             filters['did'] = did
@@ -22,15 +23,15 @@ class CRUDDevice(CRUDPlus[Device]):
         if mac is not None:
             filters['mac'] = mac
         if model is not None:
-            filters['model'] = model
+            whereclause.append(Device.model == model)
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', None, *whereclause, **filters)
 
     async def get_by_did(self, db: AsyncSession, did: str) -> Device | None:
         return await self.select_model_by_column(db, did=did)
 
     async def get_by_model(self, db: AsyncSession, model: str) -> Sequence[Device]:
-        return await self.select_models(db, model=model)
+        return await self.select_models(db, Device.model == model)
 
     async def get_all(self, db: AsyncSession) -> Sequence[Device]:
         return await self.select_models(db)
@@ -48,7 +49,7 @@ class CRUDDevice(CRUDPlus[Device]):
         return await self.update_model(db, pk, {'firmware': firmware_version})
 
     async def get_device_count_by_model(self, db: AsyncSession, model: str) -> int:
-        return await self.count(db, model=model)
+        return await self.count(db, Device.model == model)
 
     async def get_device_count_by_user(self, db: AsyncSession, user_id: int) -> int:
         return await self.count(db, user_id=user_id)
