@@ -339,6 +339,12 @@ class Settings(BaseSettings):
     OSS_BUCKET: str = ''
     OSS_REGION: str = ''
 
+    # Ximalaya
+    XIMALAYA_APP_KEY: str = ''
+    XIMALAYA_APP_SECRET: SecretStr = ''
+    XIMALAYA_SN: str = ''
+    XIMALAYA_DEVICE_ID: str = ''
+
     # livekit
     LIVEKIT_URL: str = ''
     LIVEKIT_API_KEY: str = ''

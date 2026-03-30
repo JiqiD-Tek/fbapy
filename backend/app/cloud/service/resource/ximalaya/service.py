@@ -15,10 +15,12 @@ import httpx
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.response.response_code import CustomErrorCode
+from backend.core.conf import settings
 
 from .client import XimalayaOpenAPIClient
 from .endpoints import ENDPOINTS
 from .exceptions import XimalayaAPIError
+from .models import XimalayaClientConfig
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable
@@ -35,14 +37,39 @@ if TYPE_CHECKING:
         XimalayaTrackPlayInfoParam,
     )
 
-    from .models import XimalayaClientConfig
-
 
 XimalayaResponse = dict[str, Any] | list[Any]
 
 
 class XimalayaService:
     """小雅开放平台服务封装。"""
+
+    @staticmethod
+    def _resolve_client_config() -> XimalayaClientConfig:
+        env_app_key = settings.XIMALAYA_APP_KEY or None
+        env_app_secret = settings.XIMALAYA_APP_SECRET.get_secret_value() or None
+        env_sn = settings.XIMALAYA_SN or None
+        env_device_id = settings.XIMALAYA_DEVICE_ID or None
+
+        missing_fields: list[str] = []
+        if not env_app_key:
+            missing_fields.append('app_key')
+        if not env_app_secret:
+            missing_fields.append('app_secret')
+        if not env_sn:
+            missing_fields.append('sn')
+        if not (env_device_id or env_sn):
+            missing_fields.append('device_id')
+
+        if missing_fields:
+            raise errors.RequestError(msg=f'喜马拉雅服务端配置缺少 {", ".join(missing_fields)}，请在 .env 中配置')
+
+        return XimalayaClientConfig(
+            app_key=env_app_key,
+            app_secret=env_app_secret,
+            sn=env_sn,
+            device_id=env_device_id or env_sn,
+        )
 
     @staticmethod
     def list_endpoints(group: str | None = None) -> list[dict[str, str]]:
@@ -151,93 +178,120 @@ class XimalayaService:
         finally:
             await client.close()
 
-    async def invoke_endpoint(self, obj: XimalayaEndpointInvokeParam) -> XimalayaResponse:
+    async def invoke_endpoint(
+        self,
+        obj: XimalayaEndpointInvokeParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 obj.endpoint_key,
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.params,
-                **obj.build_request_options(),
             )
         )
 
-    async def invoke_path(self, obj: XimalayaPathInvokeParam) -> XimalayaResponse:
+    async def invoke_path(
+        self,
+        obj: XimalayaPathInvokeParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_path(
                 method=obj.method,
                 path=obj.path,
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.params,
-                **obj.build_request_options(),
             )
         )
 
-    async def list_categories(self, obj: XimalayaListCategoriesParam) -> XimalayaResponse:
+    async def list_categories(
+        self,
+        obj: XimalayaListCategoriesParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_categories',
-                config=obj.config.to_client_config(),
-                **obj.build_request_options(),
+                config=config,
             )
         )
 
-    async def list_tags(self, obj: XimalayaListTagsParam) -> XimalayaResponse:
+    async def list_tags(
+        self,
+        obj: XimalayaListTagsParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_tags',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_business_params(),
-                **obj.build_request_options(),
             )
         )
 
-    async def list_albums(self, obj: XimalayaListAlbumsParam) -> XimalayaResponse:
+    async def list_albums(
+        self,
+        obj: XimalayaListAlbumsParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_albums',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_business_params(),
-                **obj.build_request_options(),
             )
         )
 
-    async def browse_album(self, obj: XimalayaBrowseAlbumParam) -> XimalayaResponse:
+    async def browse_album(
+        self,
+        obj: XimalayaBrowseAlbumParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.browse_album',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_business_params(),
-                **obj.build_request_options(),
             )
         )
 
-    async def search_albums(self, obj: XimalayaSearchAlbumsParam) -> XimalayaResponse:
+    async def search_albums(
+        self,
+        obj: XimalayaSearchAlbumsParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'search.search_albums',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_business_params(),
-                **obj.build_request_options(),
             )
         )
 
-    async def search_tracks(self, obj: XimalayaSearchTracksParam) -> XimalayaResponse:
+    async def search_tracks(
+        self,
+        obj: XimalayaSearchTracksParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'search.search_tracks',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_business_params(),
-                **obj.build_request_options(),
             )
         )
 
-    async def batch_get_track_play_info(self, obj: XimalayaTrackPlayInfoParam) -> XimalayaResponse:
+    async def batch_get_track_play_info(
+        self,
+        obj: XimalayaTrackPlayInfoParam,
+    ) -> XimalayaResponse:
+        config = self._resolve_client_config()
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.batch_get_track_play_info',
-                config=obj.config.to_client_config(),
+                config=config,
                 params=obj.build_ids_param(),
-                **obj.build_request_options(),
             )
         )
 

@@ -8,51 +8,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal, Any
 
-from pydantic import Field, SecretStr
+from pydantic import Field
 
-from backend.app.cloud.service.resource.ximalaya.models import DEFAULT_BASE_URL, XimalayaClientConfig
 from backend.common.schema import SchemaBase
 
 
-class XimalayaConfigParam(SchemaBase):
-    """小雅开放平台调用配置。"""
-
-    app_key: str = Field(description='开放平台 app_key')
-    app_secret: SecretStr = Field(description='开放平台 app_secret')
-    sn: str = Field(description='产品 sn')
-    device_id: str = Field(description='设备唯一标识')
-    client_os_type: int = Field(3, description='客户端系统类型，默认 Web/API 接入')
-    device_id_type: str = Field('UUID', description='设备 ID 类型')
-    version: str | None = Field(None, description='版本号')
-    base_url: str = Field(DEFAULT_BASE_URL, description='开放平台基础地址')
-
-    def to_client_config(self) -> XimalayaClientConfig:
-        return XimalayaClientConfig(
-            app_key=self.app_key,
-            app_secret=self.app_secret.get_secret_value(),
-            sn=self.sn,
-            device_id=self.device_id,
-            client_os_type=self.client_os_type,
-            device_id_type=self.device_id_type,
-            version=self.version,
-            base_url=self.base_url,
-        )
-
-
 class XimalayaRequestBase(SchemaBase):
-    """小雅接口请求公共参数。"""
-
-    config: XimalayaConfigParam = Field(description='开放平台调用配置')
-    nonce: str | None = Field(None, description='可选，自定义随机串')
-    timestamp: int | None = Field(None, description='可选，自定义毫秒时间戳')
-
-    def build_request_options(self) -> dict[str, Any]:
-        return {'nonce': self.nonce, 'timestamp': self.timestamp}
+    """小雅接口请求公共参数。服务端统一负责生成签名相关参数。"""
 
     def build_business_params(self, *, exclude: set[str] | None = None) -> dict[str, Any]:
-        excluded = {'config', 'nonce', 'timestamp'}
+        excluded = set()
         if exclude:
             excluded |= exclude
         return self.model_dump(exclude_none=True, exclude=excluded)
