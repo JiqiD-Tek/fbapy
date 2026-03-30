@@ -184,7 +184,7 @@ class Settings(BaseSettings):
     REQUEST_LIMITER_REDIS_PREFIX: str = 'fba:limiter'
 
     # 时间配置
-    DATETIME_TIMEZONE: str = 'UTC'  # 如：Asia/Shanghai、UTC
+    DATETIME_TIMEZONE: str = 'Asia/Shanghai'  # 如：Asia/Shanghai、UTC
     DATETIME_FORMAT: str = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     # 文件上传
