@@ -343,7 +343,6 @@ class Settings(BaseSettings):
     XIMALAYA_APP_KEY: str = ''
     XIMALAYA_APP_SECRET: SecretStr = ''
     XIMALAYA_SN: str = ''
-    XIMALAYA_DEVICE_ID: str = ''
 
     # livekit
     LIVEKIT_URL: str = ''

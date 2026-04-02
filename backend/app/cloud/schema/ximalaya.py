@@ -16,13 +16,8 @@ from backend.common.schema import SchemaBase
 
 
 class XimalayaRequestBase(SchemaBase):
-    """小雅接口请求公共参数。服务端统一负责生成签名相关参数。"""
-
-    def build_business_params(self, *, exclude: set[str] | None = None) -> dict[str, Any]:
-        excluded = set()
-        if exclude:
-            excluded |= exclude
-        return self.model_dump(exclude_none=True, exclude=excluded)
+    """小雅接口请求公共参数。"""
+    device_id: str = Field(description='设备唯一标识，用于服务端生成签名')
 
 
 class XimalayaEndpointInvokeParam(XimalayaRequestBase):

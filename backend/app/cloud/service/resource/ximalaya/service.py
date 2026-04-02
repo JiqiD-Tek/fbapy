@@ -45,30 +45,30 @@ class XimalayaService:
     """小雅开放平台服务封装。"""
 
     @staticmethod
-    def _resolve_client_config() -> XimalayaClientConfig:
+    def _resolve_client_config(*, device_id: str) -> XimalayaClientConfig:
         env_app_key = settings.XIMALAYA_APP_KEY or None
         env_app_secret = settings.XIMALAYA_APP_SECRET.get_secret_value() or None
         env_sn = settings.XIMALAYA_SN or None
-        env_device_id = settings.XIMALAYA_DEVICE_ID or None
 
-        missing_fields: list[str] = []
+        config_missing_fields: list[str] = []
         if not env_app_key:
-            missing_fields.append('app_key')
+            config_missing_fields.append('app_key')
         if not env_app_secret:
-            missing_fields.append('app_secret')
+            config_missing_fields.append('app_secret')
         if not env_sn:
-            missing_fields.append('sn')
-        if not (env_device_id or env_sn):
-            missing_fields.append('device_id')
+            config_missing_fields.append('sn')
 
-        if missing_fields:
-            raise errors.RequestError(msg=f'喜马拉雅服务端配置缺少 {", ".join(missing_fields)}，请在 .env 中配置')
+        if config_missing_fields:
+            raise errors.RequestError(msg=f'喜马拉雅服务端配置缺少 {", ".join(config_missing_fields)}，请在 .env 中配置')
+
+        if not device_id:
+            raise errors.RequestError(msg='喜马拉雅请求缺少 device_id，请在请求中传入')
 
         return XimalayaClientConfig(
             app_key=env_app_key,
             app_secret=env_app_secret,
             sn=env_sn,
-            device_id=env_device_id or env_sn,
+            device_id=device_id,
         )
 
     @staticmethod
@@ -182,7 +182,7 @@ class XimalayaService:
         self,
         obj: XimalayaEndpointInvokeParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 obj.endpoint_key,
@@ -195,7 +195,7 @@ class XimalayaService:
         self,
         obj: XimalayaPathInvokeParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_path(
                 method=obj.method,
@@ -209,7 +209,7 @@ class XimalayaService:
         self,
         obj: XimalayaListCategoriesParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_categories',
@@ -221,12 +221,12 @@ class XimalayaService:
         self,
         obj: XimalayaListTagsParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_tags',
                 config=config,
-                params=obj.build_business_params(),
+                params=obj.model_dump(exclude_none=True, exclude={'device_id'}),
             )
         )
 
@@ -234,12 +234,12 @@ class XimalayaService:
         self,
         obj: XimalayaListAlbumsParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.list_albums',
                 config=config,
-                params=obj.build_business_params(),
+                params=obj.model_dump(exclude_none=True, exclude={'device_id'}),
             )
         )
 
@@ -247,12 +247,12 @@ class XimalayaService:
         self,
         obj: XimalayaBrowseAlbumParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.browse_album',
                 config=config,
-                params=obj.build_business_params(),
+                params=obj.model_dump(exclude_none=True, exclude={'device_id'}),
             )
         )
 
@@ -260,12 +260,12 @@ class XimalayaService:
         self,
         obj: XimalayaSearchAlbumsParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'search.search_albums',
                 config=config,
-                params=obj.build_business_params(),
+                params=obj.model_dump(exclude_none=True, exclude={'device_id'}),
             )
         )
 
@@ -273,12 +273,12 @@ class XimalayaService:
         self,
         obj: XimalayaSearchTracksParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'search.search_tracks',
                 config=config,
-                params=obj.build_business_params(),
+                params=obj.model_dump(exclude_none=True, exclude={'device_id'}),
             )
         )
 
@@ -286,7 +286,7 @@ class XimalayaService:
         self,
         obj: XimalayaTrackPlayInfoParam,
     ) -> XimalayaResponse:
-        config = self._resolve_client_config()
+        config = self._resolve_client_config(device_id=obj.device_id)
         return await self._run_request(
             self._request_endpoint(
                 'on_demand.batch_get_track_play_info',
