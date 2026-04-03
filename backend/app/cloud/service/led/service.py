@@ -1,13 +1,23 @@
 ﻿from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import httpx
 from openai import AsyncAzureOpenAI
 
-from backend.app.cloud.service.led.domain import SemanticDesign, validate_function_code
+from backend.app.cloud.service.led.domain import (
+    ALLOWED_COMPLEXITY_LEVELS,
+    LedAnimationSpec,
+    SUPPORTED_RENDER_STRATEGIES,
+    SUPPORTED_SUBJECT_FAMILIES,
+    SUPPORTED_SYMMETRY_MODES,
+    SUPPORTED_TOPOLOGIES,
+    SemanticDesign,
+    build_spec_from_design,
+    validate_function_code,
+)
 from backend.app.cloud.service.led.prompt import (
     build_code_prompt,
     build_design_prompt,
@@ -35,6 +45,7 @@ class GenerationResult:
     model: str
     semantic_design: SemanticDesign
     function_code: str
+    animation_spec: LedAnimationSpec
 
 
 @dataclass(frozen=True)
@@ -48,7 +59,7 @@ class TwoStageGenerationRuntime:
             prompt=build_design_prompt(description),
             schema=DESIGN_RESPONSE_SCHEMA,
         )
-        return parse_design_response(response_text)
+        return _bind_raw_user_request(parse_design_response(response_text), description)
 
     async def generate_code(self, design: SemanticDesign) -> str:
         response_text = await self._run_stage(
@@ -65,6 +76,7 @@ class TwoStageGenerationRuntime:
             model=self.model,
             semantic_design=design,
             function_code=function_code,
+            animation_spec=build_spec_from_design(design, function_code),
         )
 
     async def _run_stage(
@@ -122,6 +134,7 @@ class LedService:
             'model': result.model,
             'semantic_design': result.semantic_design.to_dict(),
             'function_code': result.function_code,
+            'animation_spec': result.animation_spec.to_dict(),
         }
 
     async def _run(
@@ -181,6 +194,40 @@ def _mapping_array_schema(*, keys: tuple[str, ...]) -> dict[str, Any]:
     }
 
 
+def _enum_schema(*, values: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        'type': 'string',
+        'enum': list(values),
+    }
+
+
+def _layout_constraints_schema() -> dict[str, Any]:
+    return {
+        'type': 'object',
+        'properties': {
+            'subject_min_pixels': {'type': 'integer', 'minimum': 1},
+            'subject_max_pixels': {'type': 'integer', 'minimum': 1},
+            'supporting_max_pixels': {'type': 'integer', 'minimum': 0},
+            'background_max_pixels': {'type': 'integer', 'minimum': 0},
+            'bright_max_pixels': {'type': 'integer', 'minimum': 1},
+            'max_centroid_shift': {'type': 'integer', 'minimum': 0},
+            'stable_regions': _string_array_schema(min_items=2),
+            'reactive_regions': _string_array_schema(min_items=1),
+        },
+        'required': [
+            'subject_min_pixels',
+            'subject_max_pixels',
+            'supporting_max_pixels',
+            'background_max_pixels',
+            'bright_max_pixels',
+            'max_centroid_shift',
+            'stable_regions',
+            'reactive_regions',
+        ],
+        'additionalProperties': False,
+    }
+
+
 DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
     name='led_animation_semantic_design',
     schema={
@@ -190,6 +237,18 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
             'raw_user_request': {'type': 'string', 'minLength': 1},
             'expanded_request': {'type': 'string', 'minLength': 1},
             'summary': {'type': 'string', 'minLength': 1},
+            'subject_family': _enum_schema(values=SUPPORTED_SUBJECT_FAMILIES),
+            'topology': _enum_schema(values=SUPPORTED_TOPOLOGIES),
+            'render_strategy': _enum_schema(values=SUPPORTED_RENDER_STRATEGIES),
+            'symmetry_mode': _enum_schema(values=SUPPORTED_SYMMETRY_MODES),
+            'canonical_view': {'type': 'string', 'minLength': 1},
+            'shape_anchors': {
+                'type': 'array',
+                'minItems': 2,
+                'maxItems': 4,
+                'items': {'type': 'string', 'minLength': 1},
+            },
+            'complexity': _enum_schema(values=ALLOWED_COMPLEXITY_LEVELS),
             'subject': {'type': 'string', 'minLength': 1},
             'color_palette': _string_array_schema(min_items=2),
             'composition': _string_array_schema(min_items=2),
@@ -198,6 +257,7 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
             'audio_feature_mapping': _mapping_array_schema(
                 keys=('energy', 'bass', 'mid', 'high', 'onset')
             ),
+            'layout_constraints': _layout_constraints_schema(),
             'avoid_list': _string_array_schema(min_items=2),
             'implementation_hints': _string_array_schema(min_items=3),
         },
@@ -206,12 +266,20 @@ DESIGN_RESPONSE_SCHEMA = StructuredOutputSchema(
             'raw_user_request',
             'expanded_request',
             'summary',
+            'subject_family',
+            'topology',
+            'render_strategy',
+            'symmetry_mode',
+            'canonical_view',
+            'shape_anchors',
+            'complexity',
             'subject',
             'color_palette',
             'composition',
             'motion_rules',
             'energy_mapping',
             'audio_feature_mapping',
+            'layout_constraints',
             'avoid_list',
             'implementation_hints',
         ],
@@ -275,6 +343,15 @@ def _extract_output_text_part(part: Any) -> str:
     if isinstance(text, dict):
         return str(text.get('value') or '').strip()
     return str(getattr(text, 'value', '') or '').strip()
+
+
+def _bind_raw_user_request(design: SemanticDesign, raw_user_request: str) -> SemanticDesign:
+    normalized_raw_user_request = str(raw_user_request or '').strip()
+    if not normalized_raw_user_request:
+        raise ValueError('raw_user_request must not be empty')
+    bound_design = replace(design, raw_user_request=normalized_raw_user_request)
+    bound_design.validate()
+    return bound_design
 
 
 async def _close_client(client: AsyncAzureOpenAI) -> None:
