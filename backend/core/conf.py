@@ -346,6 +346,8 @@ class Settings(BaseSettings):
     MINI_REQUEST_TIMEOUT_SECONDS: float = 10.0
     MINI_ACCESS_TOKEN_REDIS_PREFIX: str = 'fba:mini:access_token'
     MINI_ACCESS_TOKEN_EXPIRE_BUFFER_SECONDS: int = 300
+    MINI_PROVISION_TOKEN_REDIS_PREFIX: str = 'fba:mini:provision'
+    MINI_PROVISION_TOKEN_EXPIRE_SECONDS: int = 300
 
     # Ximalaya
     XIMALAYA_APP_KEY: str = ''

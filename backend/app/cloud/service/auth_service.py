@@ -1,4 +1,7 @@
-﻿from fastapi import Request, Response
+﻿from fastapi import Request
+import secrets
+
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
@@ -6,19 +9,24 @@ from backend.app.admin.service.login_log_service import login_log_service
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.device.crud_device import device_dao
 from backend.app.cloud.model import Device
+from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.model.user import User
 from backend.app.cloud.schema.device.device import CreateDeviceParam
-from backend.app.cloud.schema.token import GetLoginToken, GetNewToken
+from backend.app.cloud.schema.token import (
+    GetLoginToken,
+    GetNewToken,
+    MiniProvisionPayload,
+    MiniProvisionStatusDetail,
+    MiniProvisionTokenDetail,
+)
 from backend.app.cloud.schema.user import (
     AuthLoginParam,
     CreateUserParam,
     DeviceAuthParam,
-    MiniProgramCodeDetail,
-    MiniProgramCodeParam,
     MiniProgramLoginParam,
+    MiniProgramProfileParam,
     UserDeviceParam,
 )
-from backend.app.cloud.service.device_service import MAX_ALLOW_QUOTA
 from backend.app.cloud.service.user_service import user_service
 from backend.common.mini_service import mini_service
 from backend.common.context import ctx
@@ -93,7 +101,7 @@ class AuthService:
     def _extract_mini_unionid(payload: dict) -> str:
         unionid = str(payload.get('unionid') or '').strip()
         if not unionid:
-            raise errors.RequestError(msg='当前小程序登录响应未返回 unionid，请确认已绑定微信开放平台')
+            raise errors.GatewayError(msg='当前小程序登录响应未返回 unionid', data=payload)
         return unionid
 
     @staticmethod
@@ -108,45 +116,215 @@ class AuthService:
 
         return phone_number
 
-    @classmethod
-    async def get_mini_program_code_detail(
-            cls,
-            *,
-            db: AsyncSession,
-            obj: MiniProgramCodeParam,
-    ) -> MiniProgramCodeDetail:
-        session_payload = await mini_service.code_to_session(obj.code)
-        openid = cls._extract_mini_openid(session_payload)
-        unionid = cls._extract_mini_unionid(session_payload)
-        is_registered = await user_dao.get_by_unionid(db, unionid) is not None
-        return MiniProgramCodeDetail(openid=openid, unionid=unionid, is_registered=is_registered)
+    @staticmethod
+    def _normalize_provision_token(token: str) -> str:
+        normalized = str(token or '').strip()
+        if not normalized:
+            raise errors.RequestError(msg='token 不能为空')
+        return normalized
 
     @classmethod
-    async def _bind_mini_program_phone_if_needed(
+    def _mini_provision_token_key(cls, token: str) -> str:
+        return f'{settings.MINI_PROVISION_TOKEN_REDIS_PREFIX}:{cls._normalize_provision_token(token)}'
+
+    @staticmethod
+    def _build_mini_provision_payload(*, token: str, user: User) -> MiniProvisionPayload:
+        return MiniProvisionPayload(
+            token=token,
+            user_id=user.id,
+            status='pending',
+            msg='等待设备绑定',
+            bound=False,
+            device_id=None,
+            device_did=None,
+            device_sn=None,
+        )
+
+    @classmethod
+    async def _load_mini_provision_payload(cls, token: str) -> tuple[str, str, MiniProvisionPayload]:
+        normalized_token = cls._normalize_provision_token(token)
+        key = cls._mini_provision_token_key(normalized_token)
+        payload_raw = await redis_client.get(key)
+        if not payload_raw:
+            raise errors.NotFoundError(msg='配网 token 不存在或已过期')
+
+        try:
+            payload = MiniProvisionPayload.model_validate_json(payload_raw)
+        except Exception as exc:
+            raise errors.ServerError(msg='配网 token 数据损坏') from exc
+
+        return normalized_token, key, payload
+
+    @classmethod
+    async def _save_mini_provision_payload(
+            cls,
+            *,
+            key: str,
+            payload: MiniProvisionPayload,
+            expire_seconds: int | None = None,
+    ) -> int:
+        ttl = expire_seconds if expire_seconds is not None else await redis_client.ttl(key)
+        if ttl is None or ttl <= 0:
+            ttl = settings.MINI_PROVISION_TOKEN_EXPIRE_SECONDS
+
+        await redis_client.set(key, payload.model_dump_json(), ex=ttl)
+        return ttl
+
+    @classmethod
+    async def create_mini_provision_token(
             cls,
             *,
             db: AsyncSession,
-            user: User,
-            phone_code: str | None,
-            nickname: str | None,
-            avatar: str | None,
+            user_id: int,
+    ) -> MiniProvisionTokenDetail:
+        user = await user_dao.get(db, user_id)
+        if user is None:
+            raise errors.NotFoundError(msg='用户不存在')
+
+        token = secrets.token_urlsafe(24)
+        payload = cls._build_mini_provision_payload(token=token, user=user)
+        await redis_client.set(
+            cls._mini_provision_token_key(token),
+            payload.model_dump_json(),
+            ex=settings.MINI_PROVISION_TOKEN_EXPIRE_SECONDS,
+        )
+
+        return payload.to_token_detail(settings.MINI_PROVISION_TOKEN_EXPIRE_SECONDS)
+
+    @classmethod
+    async def get_mini_provision_status(
+            cls,
+            *,
+            user_id: int,
+            token: str,
+    ) -> MiniProvisionStatusDetail:
+        _, key, payload = await cls._load_mini_provision_payload(token)
+        payload_user_id = payload.user_id
+        if payload_user_id != user_id:
+            raise errors.ForbiddenError(msg='无权查看该配网 token')
+
+        ttl = await redis_client.ttl(key)
+        if ttl is None or ttl < 0:
+            ttl = 0
+
+        return payload.to_status_detail(ttl)
+
+    @classmethod
+    async def bind_device_by_mini_provision_token(
+            cls,
+            *,
+            db: AsyncSession,
+            device: DeviceAuthParam,
+            token: str,
+    ) -> MiniProvisionStatusDetail:
+        _, key, payload = await cls._load_mini_provision_payload(token)
+
+        try:
+            payload_device_did = str(payload.device_did or '').strip()
+            if payload.status == 'success':
+                if payload_device_did and payload_device_did != device.did:
+                    raise errors.RequestError(msg='该配网 token 已被其他设备使用')
+                ttl = await redis_client.ttl(key)
+                if ttl is None or ttl < 0:
+                    ttl = 0
+                return payload.to_status_detail(ttl)
+            if payload.status == 'failed':
+                raise errors.RequestError(msg=payload.msg or '配网绑定失败')
+
+            if payload.user_id <= 0:
+                raise errors.ServerError(msg='配网 token 缺少用户信息')
+
+            if await user_dao.get(db, payload.user_id) is None:
+                raise errors.NotFoundError(msg='配网用户不存在')
+
+            device_model = await cls._register_device(db, device)
+            result = await db.execute(select(user_device.c.user_id).where(user_device.c.device_id == device_model.id))
+            bound_user_ids = set(result.scalars().all())
+
+            if bound_user_ids - {payload.user_id}:
+                await db.execute(
+                    delete(user_device).where(
+                        user_device.c.device_id == device_model.id,
+                        user_device.c.user_id != payload.user_id,
+                    )
+                )
+
+            if payload.user_id in bound_user_ids:
+                msg = '设备已绑定当前用户'
+            else:
+                await user_service.bind_device(
+                    db=db,
+                    obj=UserDeviceParam(user_id=payload.user_id, device_id=device_model.id),
+                )
+                msg = '设备绑定成功'
+
+            payload.status = 'success'
+            payload.msg = msg
+            payload.bound = True
+            payload.device_id = device_model.id
+            payload.device_did = device_model.did
+            payload.device_sn = device_model.sn
+            ttl = await cls._save_mini_provision_payload(key=key, payload=payload)
+            return payload.to_status_detail(ttl)
+        except (errors.RequestError, errors.CustomError, errors.ConflictError, errors.GatewayError,
+                errors.NotFoundError) as exc:
+            if payload.status != 'success':
+                payload.status = 'failed'
+                payload.msg = exc.msg
+                payload.bound = False
+                await cls._save_mini_provision_payload(key=key, payload=payload)
+            raise
+
+    @classmethod
+    async def _get_or_create_mini_program_user(
+            cls,
+            *,
+            db: AsyncSession,
+            code: str,
     ) -> User:
+        session_payload = await mini_service.code_to_session(code)
+        cls._extract_mini_openid(session_payload)
+        unionid = cls._extract_mini_unionid(session_payload)
+        user = await user_dao.get_by_unionid(db, unionid)
+        if user is not None:
+            return user
+
+        user_param = CreateUserParam.model_construct(
+            unionid=unionid,
+            username='',
+        )
+        return await user_dao.create(db, user_param)
+
+    @classmethod
+    async def update_mini_program_profile(
+            cls,
+            *,
+            db: AsyncSession,
+            user_id: int,
+            obj: MiniProgramProfileParam,
+    ) -> User:
+        user = await user_dao.get(db, user_id)
+        if user is None:
+            raise errors.NotFoundError(msg='用户不存在')
+
+        if not any([obj.phone_code, obj.nickname, obj.avatar]):
+            raise errors.RequestError(msg='请至少提交一项小程序用户信息')
+
         updates: dict[str, str] = {}
 
-        if nickname and not user.nickname:
-            updates['nickname'] = nickname
-        if avatar and not user.avatar:
-            updates['avatar'] = avatar
-
-        if phone_code and not user.phone:
-            phone_payload = await mini_service.get_user_phone_number(phone_code)
+        if obj.phone_code:
+            phone_payload = await mini_service.get_user_phone_number(obj.phone_code)
             phone = cls._extract_mini_phone_number(phone_payload)
-
             existing_phone_user = await user_dao.get_by_phone(db, phone)
             if existing_phone_user is not None and existing_phone_user.id != user.id:
                 raise errors.ConflictError(msg='该手机号已绑定其他用户')
+            if user.phone != phone:
+                updates['phone'] = phone
 
-            updates['phone'] = phone
+        if obj.nickname is not None and user.nickname != obj.nickname:
+            updates['nickname'] = obj.nickname
+        if obj.avatar is not None and user.avatar != obj.avatar:
+            updates['avatar'] = obj.avatar
 
         if updates:
             await user_dao.update_model(db, user.id, updates)
@@ -154,62 +332,6 @@ class AuthService:
             await db.refresh(user)
 
         return user
-
-    @classmethod
-    async def _register_mini_program_user(
-            cls,
-            *,
-            db: AsyncSession,
-            unionid: str,
-            phone_code: str | None,
-            nickname: str | None,
-            avatar: str | None,
-    ) -> User:
-        user = await user_dao.get_by_unionid(db, unionid)
-        if user is not None:
-            return await cls._bind_mini_program_phone_if_needed(
-                db=db,
-                user=user,
-                phone_code=phone_code,
-                nickname=nickname,
-                avatar=avatar,
-            )
-
-        if not phone_code:
-            raise errors.RequestError(msg='小程序用户未注册，请先授权手机号完成注册')
-
-        phone_payload = await mini_service.get_user_phone_number(phone_code)
-        phone = cls._extract_mini_phone_number(phone_payload)
-        phone_user = await user_dao.get_by_phone(db, phone)
-
-        if phone_user is not None:
-            existing_unionid = str(phone_user.unionid or '').strip()
-            if existing_unionid and existing_unionid != unionid:
-                raise errors.ConflictError(msg='该手机号已绑定其他微信账号')
-
-            updates: dict[str, str] = {}
-            if not existing_unionid:
-                updates['unionid'] = unionid
-            if nickname and not phone_user.nickname:
-                updates['nickname'] = nickname
-            if avatar and not phone_user.avatar:
-                updates['avatar'] = avatar
-
-            if updates:
-                await user_dao.update_model(db, phone_user.id, updates)
-                await db.flush()
-                await db.refresh(phone_user)
-
-            return phone_user
-
-        user_param = CreateUserParam.model_construct(
-            unionid=unionid,
-            phone=phone,
-            username='',
-            nickname=nickname,
-            avatar=avatar,
-        )
-        return await user_dao.create(db, user_param)
 
     @classmethod
     async def _register_device(cls, db: AsyncSession, device: DeviceAuthParam) -> Device:
@@ -267,12 +389,6 @@ class AuthService:
     ) -> GetLoginToken:
         """
         用户登录
-
-        :param db: 数据库会话
-        :param auth: 登录参数
-        :param device: 设备信息
-        :param background_tasks: 后台任务
-        :return:
         """
         user = None
         try:
@@ -325,13 +441,7 @@ class AuthService:
     ) -> GetLoginToken:
         user = None
         try:
-            user = await self._register_mini_program_user(
-                db=db,
-                unionid=obj.unionid,
-                phone_code=obj.phone_code,
-                nickname=obj.nickname,
-                avatar=obj.avatar,
-            )
+            user = await self._get_or_create_mini_program_user(db=db, code=obj.code)
             data = await self._issue_login_token(db=db, user=user)
         except (errors.RequestError, errors.CustomError, errors.ConflictError, errors.GatewayError) as e:
             log.error(f'小程序登录错误: {e}')

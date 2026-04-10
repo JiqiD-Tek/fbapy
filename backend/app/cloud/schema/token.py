@@ -26,6 +26,61 @@ class GetLoginToken(AccessTokenBase):
     user: GetUserInfoDetail = Field(description='用户信息')
 
 
+class MiniProvisionTokenDetail(SchemaBase):
+    """小程序配网 token 详情"""
+
+    token: str = Field(description='配网 token')
+    expire_seconds: int = Field(description='过期时间（秒）')
+    status: str = Field(description='配网状态')
+    msg: str = Field(description='状态说明')
+
+
+class MiniProvisionStatusDetail(SchemaBase):
+    """小程序配网绑定结果"""
+
+    token: str = Field(description='配网 token')
+    status: str = Field(description='配网状态')
+    msg: str = Field(description='状态说明')
+    bound: bool = Field(description='是否已完成绑定')
+    expire_seconds: int = Field(description='剩余过期时间（秒）')
+    device_id: int | None = Field(None, description='设备 ID')
+    device_did: str | None = Field(None, description='设备 DID')
+    device_sn: str | None = Field(None, description='设备序列号')
+
+
+class MiniProvisionPayload(SchemaBase):
+    """小程序配网 token 缓存数据"""
+
+    token: str = Field(description='配网 token')
+    user_id: int = Field(description='用户 ID')
+    status: str = Field('pending', description='配网状态')
+    msg: str = Field('', description='状态说明')
+    bound: bool = Field(False, description='是否已完成绑定')
+    device_id: int | None = Field(None, description='设备 ID')
+    device_did: str | None = Field(None, description='设备 DID')
+    device_sn: str | None = Field(None, description='设备序列号')
+
+    def to_token_detail(self, expire_seconds: int) -> MiniProvisionTokenDetail:
+        return MiniProvisionTokenDetail(
+            token=self.token,
+            expire_seconds=max(expire_seconds, 0),
+            status=self.status,
+            msg=self.msg,
+        )
+
+    def to_status_detail(self, expire_seconds: int) -> MiniProvisionStatusDetail:
+        return MiniProvisionStatusDetail(
+            token=self.token,
+            status=self.status,
+            msg=self.msg,
+            bound=self.bound,
+            expire_seconds=max(expire_seconds, 0),
+            device_id=self.device_id,
+            device_did=self.device_did,
+            device_sn=self.device_sn,
+        )
+
+
 class CurrentLocation(SchemaBase):
     """获取登录令牌"""
 
@@ -58,6 +113,12 @@ class FbaToken(SchemaBase):
 
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
+
+
+class MiniProvisionBindParam(SchemaBase):
+    """设备通过配网 token 绑定参数"""
+
+    token: str = Field(description='小程序配网 token')
 
 
 class StsToken(SchemaBase):

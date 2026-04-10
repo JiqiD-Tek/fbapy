@@ -25,21 +25,22 @@ from backend.app.cloud.schema.token import (
     GetLoginToken,
     GetNewToken,
     LivekitToken,
+    MiniProvisionStatusDetail,
+    MiniProvisionTokenDetail,
     OSSToken,
     StsToken,
 )
 from backend.app.cloud.schema.user import (
     AuthLoginParam,
     DeviceAuthParam,
+    GetUserInfoDetail,
     LivekitDeviceParam,
-    MiniProgramCodeDetail,
-    MiniProgramCodeParam,
     MiniProgramLoginParam,
+    MiniProgramProfileParam,
     MQTTAuthParam,
 )
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.resource.storage import storage_service
-from backend.app.cloud.service.device_service import device_service
 from backend.common.ali_sms import sms_client
 from backend.common.ali_sts import sts_client
 from backend.common.context import ctx
@@ -47,7 +48,7 @@ from backend.common.exception import errors
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth, verify_device_credentials
-from backend.common.security.jwt import DependsSuperUser
+from backend.common.security.jwt import DependsJwtAuth, DependsSuperUser
 from backend.common.security.jwt import jwt_encode
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
@@ -115,24 +116,11 @@ async def k11_login(
 
 
 @router.post(
-    '/mini/code',
-    summary='获取小程序登录 code 信息',
-    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
-)
-async def k11_mini_code(
-        db: CurrentSession,
-        obj: MiniProgramCodeParam,
-) -> ResponseSchemaModel[MiniProgramCodeDetail]:
-    data = await auth_service.get_mini_program_code_detail(db=db, obj=obj)
-    return response_base.success(data=data)
-
-
-@router.post(
     '/mini/login',
-    summary='小程序登录注册',
+    summary='小程序轻量登录注册',
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
-async def k11_mini_login(
+async def mini_login(
         db: CurrentSessionTransaction,
         obj: MiniProgramLoginParam,
         background_tasks: BackgroundTasks,
@@ -141,6 +129,56 @@ async def k11_mini_login(
         db=db,
         obj=obj,
         background_tasks=background_tasks,
+    )
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/mini/profile',
+    summary='补充小程序用户信息',
+    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+)
+async def mini_profile(
+        request: Request,
+        db: CurrentSessionTransaction,
+        obj: MiniProgramProfileParam,
+) -> ResponseSchemaModel[GetUserInfoDetail]:
+    data = await auth_service.update_mini_program_profile(
+        db=db,
+        user_id=request.user.id,
+        obj=obj,
+    )
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/mini/provision/token',
+    summary='创建小程序配网 token',
+    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+)
+async def create_mini_provision_token(
+        request: Request,
+        db: CurrentSession,
+) -> ResponseSchemaModel[MiniProvisionTokenDetail]:
+    data = await auth_service.create_mini_provision_token(
+        db=db,
+        user_id=request.user.id,
+    )
+    return response_base.success(data=data)
+
+
+@router.get(
+    '/mini/provision/{token}',
+    summary='查询小程序配网结果',
+    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(30, Duration.MINUTE)))],
+)
+async def get_mini_provision_status(
+        request: Request,
+        token: Annotated[str, Path(description='配网 token')],
+) -> ResponseSchemaModel[MiniProvisionStatusDetail]:
+    data = await auth_service.get_mini_provision_status(
+        user_id=request.user.id,
+        token=token,
     )
     return response_base.success(data=data)
 

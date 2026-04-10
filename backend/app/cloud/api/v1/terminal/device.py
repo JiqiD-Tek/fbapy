@@ -14,13 +14,37 @@ from backend.app.cloud.schema.device.device import (
     GetDeviceDetail,
     UpdateDeviceParam,
 )
+from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
+from backend.app.cloud.schema.user import DeviceAuthParam
+from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.device_service import device_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+# =============================
+# 设备通过配网 token 绑定用户
+# =============================
+@router.post(
+    '/bind/token',
+    summary='设备通过配网 token 绑定用户',
+)
+async def bind_device_by_token(
+    db: CurrentSessionTransaction,
+    obj: MiniProvisionBindParam,
+    device: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[MiniProvisionStatusDetail]:
+    data = await auth_service.bind_device_by_mini_provision_token(
+        db=db,
+        device=device,
+        token=obj.token,
+    )
+    return response_base.success(data=data)
 
 
 # =============================

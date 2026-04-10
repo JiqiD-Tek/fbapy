@@ -27,24 +27,15 @@ class AuthLoginParam(AuthSchemaBase):
     captcha: str | None = Field(None, description='验证码')
 
 
-class MiniProgramCodeParam(SchemaBase):
-    """小程序登录 code 参数"""
+class MiniProgramLoginParam(SchemaBase):
+    """小程序登录注册参数"""
 
     code: str = Field(description='wx.login 返回的 code')
 
 
-class MiniProgramCodeDetail(SchemaBase):
-    """小程序登录 code 详情"""
+class MiniProgramProfileParam(SchemaBase):
+    """小程序用户信息补充参数"""
 
-    openid: str = Field(description='微信 OpenID')
-    unionid: str = Field(description='微信 UnionID')
-    is_registered: bool = Field(description='是否已注册')
-
-
-class MiniProgramLoginParam(SchemaBase):
-    """小程序登录注册参数"""
-
-    unionid: str = Field(description='微信 UnionID')
     phone_code: str | None = Field(None, description='wx.getPhoneNumber 返回的 code')
     nickname: str | None = Field(None, description='昵称')
     avatar: str | None = Field(None, description='头像')
