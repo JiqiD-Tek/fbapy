@@ -28,7 +28,15 @@ from backend.app.cloud.schema.token import (
     OSSToken,
     StsToken,
 )
-from backend.app.cloud.schema.user import AuthLoginParam, DeviceAuthParam, LivekitDeviceParam, MQTTAuthParam
+from backend.app.cloud.schema.user import (
+    AuthLoginParam,
+    DeviceAuthParam,
+    LivekitDeviceParam,
+    MiniProgramCodeDetail,
+    MiniProgramCodeParam,
+    MiniProgramLoginParam,
+    MQTTAuthParam,
+)
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.resource.storage import storage_service
 from backend.app.cloud.service.device_service import device_service
@@ -48,7 +56,6 @@ from backend.plugin.email.utils.send import send_email
 from backend.utils.limiter import RateLimiter
 
 router = APIRouter()
-mqtt_router = APIRouter()
 
 
 @router.get(
@@ -107,6 +114,37 @@ async def k11_login(
     return response_base.success(data=data)
 
 
+@router.post(
+    '/mini/code',
+    summary='获取小程序登录 code 信息',
+    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+)
+async def k11_mini_code(
+        db: CurrentSession,
+        obj: MiniProgramCodeParam,
+) -> ResponseSchemaModel[MiniProgramCodeDetail]:
+    data = await auth_service.get_mini_program_code_detail(db=db, obj=obj)
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/mini/login',
+    summary='小程序登录注册',
+    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+)
+async def k11_mini_login(
+        db: CurrentSessionTransaction,
+        obj: MiniProgramLoginParam,
+        background_tasks: BackgroundTasks,
+) -> ResponseSchemaModel[GetLoginToken]:
+    data = await auth_service.mini_program_login(
+        db=db,
+        obj=obj,
+        background_tasks=background_tasks,
+    )
+    return response_base.success(data=data)
+
+
 @router.post('/refresh', summary='刷新 token', dependencies=[DependsDeviceAuth])
 async def k11_refresh_token(
         db: CurrentSession,
@@ -122,7 +160,7 @@ async def k11_logout(request: Request) -> ResponseModel:
     return response_base.success()
 
 
-@mqtt_router.post('/mqtt_login', summary='mqtt登录')
+@router.post('/mqtt_login', summary='mqtt登录')
 async def mqtt_login(
         request: Request,
         auth: MQTTAuthParam,

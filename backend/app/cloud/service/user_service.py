@@ -19,6 +19,7 @@ class UserService:
     async def get_list(
         *,
         db: AsyncSession,
+        unionid: str | None = None,
         username: str | None = None,
         nickname: str | None = None,
         phone: str | None = None,
@@ -26,6 +27,7 @@ class UserService:
     ) -> dict[str, Any]:
         """分页获取用户列表"""
         user_select = await user_dao.get_select(
+            unionid=unionid,
             username=username,
             nickname=nickname,
             phone=phone,

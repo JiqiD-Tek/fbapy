@@ -339,6 +339,14 @@ class Settings(BaseSettings):
     OSS_BUCKET: str = ''
     OSS_REGION: str = ''
 
+    # WeChat Mini Program
+    MINI_APPID: str = ''
+    MINI_SECRET: SecretStr = ''
+    MINI_HOST: str = 'https://api.weixin.qq.com'
+    MINI_REQUEST_TIMEOUT_SECONDS: float = 10.0
+    MINI_ACCESS_TOKEN_REDIS_PREFIX: str = 'fba:mini:access_token'
+    MINI_ACCESS_TOKEN_EXPIRE_BUFFER_SECONDS: int = 300
+
     # Ximalaya
     XIMALAYA_APP_KEY: str = ''
     XIMALAYA_APP_SECRET: SecretStr = ''

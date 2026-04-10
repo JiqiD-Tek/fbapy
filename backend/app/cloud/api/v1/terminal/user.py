@@ -25,6 +25,7 @@ async def get_k10_user(request: Request) -> ResponseSchemaModel[GetUserInfoDetai
 @router.get('', summary='分页获取用户列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_terminal_users_paginated(
     db: CurrentSession,
+    unionid: Annotated[str | None, Query(description='微信 UnionID')] = None,
     username: Annotated[str | None, Query(description='用户名')] = None,
     nickname: Annotated[str | None, Query(description='昵称')] = None,
     phone: Annotated[str | None, Query(description='手机号')] = None,
@@ -32,6 +33,7 @@ async def get_terminal_users_paginated(
 ) -> ResponseSchemaModel[PageData[GetUserInfoDetail]]:
     page_data = await user_service.get_list(
         db=db,
+        unionid=unionid,
         username=username,
         nickname=nickname,
         phone=phone,

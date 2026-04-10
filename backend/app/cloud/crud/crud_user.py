@@ -18,6 +18,7 @@ class CRUDUser(CRUDPlus[User]):
 
     async def get_select(
         self,
+        unionid: str | None,
         username: str | None,
         nickname: str | None,
         phone: str | None,
@@ -25,6 +26,8 @@ class CRUDUser(CRUDPlus[User]):
     ) -> Select:
         filters = {}
 
+        if unionid is not None:
+            filters['unionid'] = unionid
         if username is not None:
             filters['username__like'] = f'%{username}%'
         if nickname is not None:
@@ -38,6 +41,10 @@ class CRUDUser(CRUDPlus[User]):
 
     async def get_by_name(self, db: AsyncSession, name: str) -> User | None:
         return await self.select_model_by_column(db, username=name)
+
+    async def get_by_unionid(self, db: AsyncSession, unionid: str) -> User | None:
+        """通过微信 UnionID 获取用户。"""
+        return await self.select_model_by_column(db, unionid=unionid)
 
     async def get_all(self, db: AsyncSession) -> Sequence[User]:
         return await self.select_models(db)

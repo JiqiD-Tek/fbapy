@@ -9,9 +9,18 @@ from backend.app.cloud.model import Device
 from backend.app.cloud.model.user import User
 from backend.app.cloud.schema.device.device import CreateDeviceParam
 from backend.app.cloud.schema.token import GetLoginToken, GetNewToken
-from backend.app.cloud.schema.user import AuthLoginParam, CreateUserParam, UserDeviceParam, DeviceAuthParam
+from backend.app.cloud.schema.user import (
+    AuthLoginParam,
+    CreateUserParam,
+    DeviceAuthParam,
+    MiniProgramCodeDetail,
+    MiniProgramCodeParam,
+    MiniProgramLoginParam,
+    UserDeviceParam,
+)
 from backend.app.cloud.service.device_service import MAX_ALLOW_QUOTA
 from backend.app.cloud.service.user_service import user_service
+from backend.common.mini_service import mini_service
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType
 from backend.common.exception import errors
@@ -34,6 +43,173 @@ from backend.utils.timezone import timezone
 
 class AuthService:
     """认证服务类"""
+
+    @staticmethod
+    def _build_login_log_username(user: User | None) -> str:
+        if user is None:
+            return ''
+        return user.username or user.phone or user.email or user.unionid or user.uuid
+
+    @staticmethod
+    async def _issue_login_token(*, db: AsyncSession, user: User) -> GetLoginToken:
+        await user_dao.update_login_time(db, user.id)
+        await db.refresh(user)
+
+        access_token_data = await create_access_token(
+            user.id,
+            multi_login=True,
+            username=user.username,
+            nickname=user.nickname,
+            last_login_time=timezone.to_str(user.last_login_time),
+            ip=ctx.ip,
+            os=ctx.os,
+            browser=ctx.browser,
+            device=ctx.device,
+            terminal=True,
+        )
+        refresh_token_data = await create_refresh_token(
+            access_token_data.session_uuid,
+            user.id,
+            multi_login=True,
+        )
+
+        return GetLoginToken(
+            access_token=access_token_data.access_token,
+            access_token_expire_time=access_token_data.access_token_expire_time,
+            refresh_token=refresh_token_data.refresh_token,
+            refresh_token_expire_time=refresh_token_data.refresh_token_expire_time,
+            session_uuid=access_token_data.session_uuid,
+            user=user,  # type: ignore[arg-type]
+        )
+
+    @staticmethod
+    def _extract_mini_openid(payload: dict) -> str:
+        openid = str(payload.get('openid') or '').strip()
+        if not openid:
+            raise errors.GatewayError(msg='微信小程序登录响应缺少 openid', data=payload)
+        return openid
+
+    @staticmethod
+    def _extract_mini_unionid(payload: dict) -> str:
+        unionid = str(payload.get('unionid') or '').strip()
+        if not unionid:
+            raise errors.RequestError(msg='当前小程序登录响应未返回 unionid，请确认已绑定微信开放平台')
+        return unionid
+
+    @staticmethod
+    def _extract_mini_phone_number(payload: dict) -> str:
+        phone_info = payload.get('phone_info')
+        if not isinstance(phone_info, dict):
+            raise errors.GatewayError(msg='微信小程序手机号响应缺少 phone_info', data=payload)
+
+        phone_number = str(phone_info.get('purePhoneNumber') or phone_info.get('phoneNumber') or '').strip()
+        if not phone_number:
+            raise errors.GatewayError(msg='微信小程序手机号响应缺少手机号', data=payload)
+
+        return phone_number
+
+    @classmethod
+    async def get_mini_program_code_detail(
+            cls,
+            *,
+            db: AsyncSession,
+            obj: MiniProgramCodeParam,
+    ) -> MiniProgramCodeDetail:
+        session_payload = await mini_service.code_to_session(obj.code)
+        openid = cls._extract_mini_openid(session_payload)
+        unionid = cls._extract_mini_unionid(session_payload)
+        is_registered = await user_dao.get_by_unionid(db, unionid) is not None
+        return MiniProgramCodeDetail(openid=openid, unionid=unionid, is_registered=is_registered)
+
+    @classmethod
+    async def _bind_mini_program_phone_if_needed(
+            cls,
+            *,
+            db: AsyncSession,
+            user: User,
+            phone_code: str | None,
+            nickname: str | None,
+            avatar: str | None,
+    ) -> User:
+        updates: dict[str, str] = {}
+
+        if nickname and not user.nickname:
+            updates['nickname'] = nickname
+        if avatar and not user.avatar:
+            updates['avatar'] = avatar
+
+        if phone_code and not user.phone:
+            phone_payload = await mini_service.get_user_phone_number(phone_code)
+            phone = cls._extract_mini_phone_number(phone_payload)
+
+            existing_phone_user = await user_dao.get_by_phone(db, phone)
+            if existing_phone_user is not None and existing_phone_user.id != user.id:
+                raise errors.ConflictError(msg='该手机号已绑定其他用户')
+
+            updates['phone'] = phone
+
+        if updates:
+            await user_dao.update_model(db, user.id, updates)
+            await db.flush()
+            await db.refresh(user)
+
+        return user
+
+    @classmethod
+    async def _register_mini_program_user(
+            cls,
+            *,
+            db: AsyncSession,
+            unionid: str,
+            phone_code: str | None,
+            nickname: str | None,
+            avatar: str | None,
+    ) -> User:
+        user = await user_dao.get_by_unionid(db, unionid)
+        if user is not None:
+            return await cls._bind_mini_program_phone_if_needed(
+                db=db,
+                user=user,
+                phone_code=phone_code,
+                nickname=nickname,
+                avatar=avatar,
+            )
+
+        if not phone_code:
+            raise errors.RequestError(msg='小程序用户未注册，请先授权手机号完成注册')
+
+        phone_payload = await mini_service.get_user_phone_number(phone_code)
+        phone = cls._extract_mini_phone_number(phone_payload)
+        phone_user = await user_dao.get_by_phone(db, phone)
+
+        if phone_user is not None:
+            existing_unionid = str(phone_user.unionid or '').strip()
+            if existing_unionid and existing_unionid != unionid:
+                raise errors.ConflictError(msg='该手机号已绑定其他微信账号')
+
+            updates: dict[str, str] = {}
+            if not existing_unionid:
+                updates['unionid'] = unionid
+            if nickname and not phone_user.nickname:
+                updates['nickname'] = nickname
+            if avatar and not phone_user.avatar:
+                updates['avatar'] = avatar
+
+            if updates:
+                await user_dao.update_model(db, phone_user.id, updates)
+                await db.flush()
+                await db.refresh(phone_user)
+
+            return phone_user
+
+        user_param = CreateUserParam.model_construct(
+            unionid=unionid,
+            phone=phone,
+            username='',
+            nickname=nickname,
+            avatar=avatar,
+        )
+        return await user_dao.create(db, user_param)
 
     @classmethod
     async def _register_device(cls, db: AsyncSession, device: DeviceAuthParam) -> Device:
@@ -111,26 +287,7 @@ class AuthService:
                 await redis_client.delete(f'{settings.LOGIN_CAPTCHA_REDIS_PREFIX}:{auth.uuid}')
 
             user = await self._register(db, auth, device)
-            await user_dao.update_login_time(db, user.id)
-            await db.refresh(user)
-            access_token_data = await create_access_token(
-                user.id,
-                multi_login=True,
-                # extra info
-                username=user.username,
-                nickname=user.nickname,
-                last_login_time=timezone.to_str(user.last_login_time),
-                ip=ctx.ip,
-                os=ctx.os,
-                browser=ctx.browser,
-                device=ctx.device,
-                terminal=True,
-            )
-            refresh_token_data = await create_refresh_token(
-                access_token_data.session_uuid,
-                user.id,
-                multi_login=True,
-            )
+            data = await self._issue_login_token(db=db, user=user)
         except errors.NotFoundError as e:
             log.error('登陆错误: 用户不存在')
             raise errors.NotFoundError(msg=e.msg)
@@ -139,7 +296,7 @@ class AuthService:
             task = BackgroundTask(
                 login_log_service.create,
                 user_uuid=user.uuid if user else uuid4_str(),
-                username=user.username if user else '',
+                username=self._build_login_log_username(user),
                 login_time=timezone.now(),
                 status=LoginLogStatusType.fail.value,
                 msg=e.msg,
@@ -152,18 +309,52 @@ class AuthService:
             background_tasks.add_task(
                 login_log_service.create,
                 user_uuid=user.uuid,
-                username=user.username,
+                username=self._build_login_log_username(user),
                 login_time=timezone.now(),
                 status=LoginLogStatusType.success.value,
                 msg=t('success.login.success'),
             )
-            data = GetLoginToken(
-                access_token=access_token_data.access_token,
-                access_token_expire_time=access_token_data.access_token_expire_time,
-                refresh_token=refresh_token_data.refresh_token,
-                refresh_token_expire_time=refresh_token_data.refresh_token_expire_time,
-                session_uuid=access_token_data.session_uuid,
-                user=user,  # type: ignore
+            return data
+
+    async def mini_program_login(
+            self,
+            *,
+            db: AsyncSession,
+            obj: MiniProgramLoginParam,
+            background_tasks: BackgroundTasks,
+    ) -> GetLoginToken:
+        user = None
+        try:
+            user = await self._register_mini_program_user(
+                db=db,
+                unionid=obj.unionid,
+                phone_code=obj.phone_code,
+                nickname=obj.nickname,
+                avatar=obj.avatar,
+            )
+            data = await self._issue_login_token(db=db, user=user)
+        except (errors.RequestError, errors.CustomError, errors.ConflictError, errors.GatewayError) as e:
+            log.error(f'小程序登录错误: {e}')
+            task = BackgroundTask(
+                login_log_service.create,
+                user_uuid=user.uuid if user else uuid4_str(),
+                username=self._build_login_log_username(user),
+                login_time=timezone.now(),
+                status=LoginLogStatusType.fail.value,
+                msg=e.msg,
+            )
+            raise errors.RequestError(code=e.code, msg=e.msg, background=task)
+        except Exception as e:
+            log.error(f'小程序登录错误: {e}')
+            raise
+        else:
+            background_tasks.add_task(
+                login_log_service.create,
+                user_uuid=user.uuid,
+                username=self._build_login_log_username(user),
+                login_time=timezone.now(),
+                status=LoginLogStatusType.success.value,
+                msg=t('success.login.success'),
             )
             return data
 

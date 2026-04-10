@@ -221,7 +221,7 @@ services:
       - fba-network
 
   fba_server:
-    image: fba_server:latest
+    image: fba_server:${IMAGE_VERSION:-latest}
     container_name: fba_server
     restart: always
     cpus: 1.0
