@@ -31,7 +31,7 @@ FROM python:3.13-slim AS base_server
 
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates supervisor \
+    && apt-get install -y --no-install-recommends curl ca-certificates supervisor ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY deploy/uv/uv-x86_64-unknown-linux-gnu.tar.gz /tmp/uv.tar.gz

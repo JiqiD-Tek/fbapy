@@ -398,10 +398,24 @@ class Settings(BaseSettings):
     BYTES_ASR_CLUSTER: str = ''
 
     BYTES_TTS_URL: str = ''
-    BYTES_TTS_APPID: str = ''
-    BYTES_TTS_TOKEN: str = ''
     BYTES_TTS_CLUSTER: str = ''
     BYTES_TTS_VOICE_TYPE: str = ''
+    BYTES_TTS_APPID: str = ''
+    BYTES_TTS_TOKEN: str = ''
+    BYTES_TTS_LONG_RESOURCE_ID: str = 'seed-icl-2.0'
+    BYTES_TTS_LONG_QUERY_RESOURCE_ID: str = ''
+    BYTES_TTS_LONG_SUBMIT_URL: str = 'https://openspeech.bytedance.com/api/v3/tts/submit'
+    BYTES_TTS_LONG_QUERY_URL: str = 'https://openspeech.bytedance.com/api/v3/tts/query'
+    BYTES_TTS_LONG_TIMEOUT_SECONDS: float = 60.0
+    BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS: float = 2.0
+    BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS: float = 300.0
+    BYTES_OPENAPI_ACCESS_KEY: str = ''
+    BYTES_OPENAPI_SECRET_KEY: SecretStr = ''
+    BYTES_OPENAPI_HOST: str = ''
+    BYTES_OPENAPI_REGION: str = 'cn-north-1'
+    BYTES_OPENAPI_SERVICE: str = 'speech_saas_prod'
+    BYTES_OPENAPI_VERSION: str = '2025-05-21'
+    BYTES_OPENAPI_TIMEOUT_SECONDS: float = 10.0
 
     # 音声复刻
     BYTES_ICL_CLUSTER: str = ''

@@ -7,7 +7,7 @@ aiofiles==24.1.0
     #   livekit
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.3
+aiohttp==3.13.5
     # via
     #   alibabacloud-tea
     #   darabonba-core
@@ -19,13 +19,13 @@ aiosmtplib==5.1.0
     # via fastapi-best-architecture
 alembic==1.18.4
     # via fastapi-best-architecture
-alibabacloud-credentials==1.0.7
+alibabacloud-credentials==1.0.8
     # via
     #   alibabacloud-gateway-spi
     #   alibabacloud-tea-openapi
 alibabacloud-credentials-api==1.0.0
     # via alibabacloud-credentials
-alibabacloud-dysmsapi20170525==4.5.0
+alibabacloud-dysmsapi20170525==4.5.1
     # via fastapi-best-architecture
 alibabacloud-dysmsapi20180501==1.0.10
     # via fastapi-best-architecture
@@ -35,7 +35,7 @@ alibabacloud-gateway-spi==0.0.3
     # via alibabacloud-tea-openapi
 alibabacloud-openapi-util==0.2.4
     # via alibabacloud-dysmsapi20180501
-alibabacloud-oss-v2==1.2.4
+alibabacloud-oss-v2==1.2.5
     # via fastapi-best-architecture
 alibabacloud-sts20150401==1.2.0
     # via fastapi-best-architecture
@@ -44,7 +44,7 @@ alibabacloud-tea==0.4.3
     #   alibabacloud-credentials
     #   alibabacloud-tea-util
     #   darabonba-core
-alibabacloud-tea-openapi==0.4.3
+alibabacloud-tea-openapi==0.4.4
     # via
     #   alibabacloud-dysmsapi20170525
     #   alibabacloud-dysmsapi20180501
@@ -68,7 +68,7 @@ annotated-doc==0.0.4
     #   typer
 annotated-types==0.7.0
     # via pydantic
-anyio==4.12.1
+anyio==4.13.0
     # via
     #   httpx
     #   openai
@@ -90,15 +90,15 @@ asyncmy==0.2.11
     # via fastapi-best-architecture
 asyncpg==0.31.0
     # via fastapi-best-architecture
-attrs==25.4.0
+attrs==26.1.0
     # via aiohttp
-authlib==1.6.7
+authlib==1.6.9
     # via
     #   cozepy
     #   fastapi-best-architecture
-azure-cognitiveservices-speech==1.48.1
+azure-cognitiveservices-speech==1.49.0
     # via fastapi-best-architecture
-azure-core==1.38.1
+azure-core==1.39.0
     # via azure-cognitiveservices-speech
 bcrypt==5.0.0
     # via fastapi-best-architecture
@@ -106,17 +106,13 @@ bidict==0.23.1
     # via python-socketio
 billiard==4.2.4
     # via celery
-brotli==1.2.0 ; platform_python_implementation == 'CPython'
-    # via httpx
-brotlicffi==1.2.0.0 ; platform_python_implementation != 'CPython'
-    # via httpx
 cachebox==5.2.2
     # via fastapi-best-architecture
-cachetools==7.0.1
+cachetools==7.0.5
     # via fastapi-best-architecture
 cappa==0.31.0
     # via fastapi-best-architecture
-celery==5.6.2
+celery==5.6.3
     # via
     #   celery-aio-pool
     #   fastapi-best-architecture
@@ -128,14 +124,14 @@ certifi==2026.2.25
     #   httpcore
     #   httpx
     #   requests
-cffi==2.0.0
+    #   volcengine-python-sdk
+cffi==2.0.0 ; platform_python_implementation != 'PyPy'
     # via
-    #   brotlicffi
     #   cryptography
     #   gevent
-charset-normalizer==3.4.4
+charset-normalizer==3.4.7
     # via requests
-click==8.3.1
+click==8.3.2
     # via
     #   celery
     #   click-didyoumean
@@ -165,7 +161,7 @@ crcmod==1.7
     # via oss2
 crcmod-plus==2.3.1
     # via alibabacloud-oss-v2
-cryptography==44.0.3
+cryptography==45.0.7
     # via
     #   alibabacloud-openapi-util
     #   alibabacloud-tea-openapi
@@ -179,7 +175,7 @@ darabonba-core==1.0.5
     #   alibabacloud-tea-openapi
 dataclasses-json==0.6.7
     # via langchain-community
-ddgs==9.10.0
+ddgs==9.13.0
     # via fastapi-best-architecture
 distro==1.9.0
     # via
@@ -187,9 +183,11 @@ distro==1.9.0
     #   openai
 dnspython==2.8.0
     # via email-validator
+docstring-parser==0.17.0
+    # via fastapi-best-architecture
 dulwich==1.1.0
     # via fastapi-best-architecture
-ecdsa==0.19.1
+ecdsa==0.19.2
     # via python-jose
 email-validator==2.3.0
     # via fastapi
@@ -200,17 +198,15 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
     #   anyio
     #   celery
     #   pytest
-fake-useragent==2.2.0
-    # via ddgs
 fast-captcha==0.3.2
     # via fastapi-best-architecture
-fastapi==0.135.1
+fastapi==0.135.3
     # via
     #   fastapi-best-architecture
     #   fastapi-pagination
 fastapi-cli==0.0.24
     # via fastapi
-fastapi-pagination==0.15.10
+fastapi-pagination==0.15.12
     # via fastapi-best-architecture
 flower==2.0.1
     # via fastapi-best-architecture
@@ -218,17 +214,17 @@ frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-gevent==25.9.1
+gevent==26.4.0
     # via fastapi-best-architecture
-googleapis-common-protos==1.73.0
+googleapis-common-protos==1.74.0
     # via opentelemetry-exporter-otlp-proto-grpc
-granian==2.7.2
+granian==2.7.3
     # via fastapi-best-architecture
-greenlet==3.3.2
+greenlet==3.4.0
     # via
     #   gevent
     #   sqlalchemy
-grpcio==1.78.0
+grpcio==1.80.0
     # via opentelemetry-exporter-otlp-proto-grpc
 h11==0.16.0
     # via
@@ -237,7 +233,7 @@ h11==0.16.0
     #   wsproto
 h2==4.3.0
     # via httpx
-hiredis==3.3.0
+hiredis==3.3.1
     # via redis
 hpack==4.1.0
     # via h2
@@ -248,7 +244,6 @@ httptools==0.7.1
 httpx==0.28.1
     # via
     #   cozepy
-    #   ddgs
     #   fastapi
     #   fastapi-best-architecture
     #   langsmith
@@ -284,35 +279,35 @@ jmespath==0.10.0
     # via aliyun-python-sdk-core
 jsonpatch==1.33
     # via langchain-core
-jsonpointer==3.0.0
+jsonpointer==3.1.1
     # via jsonpatch
 kombu==5.6.2
     # via celery
-langchain-classic==1.0.1
+langchain-classic==1.0.3
     # via langchain-community
 langchain-community==0.4.1
     # via fastapi-best-architecture
-langchain-core==1.2.11
+langchain-core==1.2.28
     # via
     #   langchain-classic
     #   langchain-community
     #   langchain-text-splitters
-langchain-text-splitters==1.1.0
+langchain-text-splitters==1.1.1
     # via langchain-classic
-langsmith==0.7.1
+langsmith==0.7.30
     # via
     #   langchain-classic
     #   langchain-community
     #   langchain-core
-livekit==1.0.25
+livekit==1.1.5
     # via fastapi-best-architecture
 livekit-api==1.1.0
     # via fastapi-best-architecture
-livekit-protocol==1.1.2
+livekit-protocol==1.1.5
     # via livekit-api
 loguru==0.7.3
     # via fastapi-best-architecture
-lxml==6.0.2
+lxml==6.0.3
     # via ddgs
 mako==1.3.10
     # via alembic
@@ -326,9 +321,27 @@ marshmallow==3.26.2
     # via dataclasses-json
 mdurl==0.1.2
     # via markdown-it-py
-msgspec==0.20.0
+msgspec==0.21.0
     # via fastapi-best-architecture
-opentelemetry-api==1.40.0
+multidict==6.7.1
+    # via
+    #   aiohttp
+    #   yarl
+mypy-extensions==1.1.0
+    # via typing-inspect
+numpy==2.2.6 ; python_full_version < '3.11'
+    # via
+    #   langchain-community
+    #   livekit
+numpy==2.4.4 ; python_full_version >= '3.11'
+    # via
+    #   langchain-community
+    #   livekit
+openai==2.31.0
+    # via fastapi-best-architecture
+openpyxl==3.1.5
+    # via fastapi-best-architecture
+opentelemetry-api==1.41.0
     # via
     #   opentelemetry-exporter-otlp-proto-grpc
     #   opentelemetry-instrumentation
@@ -342,11 +355,11 @@ opentelemetry-api==1.40.0
     #   opentelemetry-instrumentation-sqlalchemy
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
-opentelemetry-exporter-otlp-proto-common==1.40.0
+opentelemetry-exporter-otlp-proto-common==1.41.0
     # via opentelemetry-exporter-otlp-proto-grpc
-opentelemetry-exporter-otlp-proto-grpc==1.40.0
+opentelemetry-exporter-otlp-proto-grpc==1.41.0
     # via fastapi-best-architecture
-opentelemetry-instrumentation==0.61b0
+opentelemetry-instrumentation==0.62b0
     # via
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-asyncio
@@ -356,31 +369,31 @@ opentelemetry-instrumentation==0.61b0
     #   opentelemetry-instrumentation-logging
     #   opentelemetry-instrumentation-redis
     #   opentelemetry-instrumentation-sqlalchemy
-opentelemetry-instrumentation-asgi==0.61b0
+opentelemetry-instrumentation-asgi==0.62b0
     # via opentelemetry-instrumentation-fastapi
-opentelemetry-instrumentation-asyncio==0.61b0
+opentelemetry-instrumentation-asyncio==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-celery==0.61b0
+opentelemetry-instrumentation-celery==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-fastapi==0.61b0
+opentelemetry-instrumentation-fastapi==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-httpx==0.61b0
+opentelemetry-instrumentation-httpx==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-logging==0.61b0
+opentelemetry-instrumentation-logging==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-redis==0.61b0
+opentelemetry-instrumentation-redis==0.62b0
     # via fastapi-best-architecture
-opentelemetry-instrumentation-sqlalchemy==0.61b0
+opentelemetry-instrumentation-sqlalchemy==0.62b0
     # via fastapi-best-architecture
-opentelemetry-proto==1.40.0
+opentelemetry-proto==1.41.0
     # via
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-grpc
-opentelemetry-sdk==1.40.0
+opentelemetry-sdk==1.41.0
     # via
     #   fastapi-best-architecture
     #   opentelemetry-exporter-otlp-proto-grpc
-opentelemetry-semantic-conventions==0.61b0
+opentelemetry-semantic-conventions==0.62b0
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asgi
@@ -391,12 +404,12 @@ opentelemetry-semantic-conventions==0.61b0
     #   opentelemetry-instrumentation-redis
     #   opentelemetry-instrumentation-sqlalchemy
     #   opentelemetry-sdk
-opentelemetry-util-http==0.61b0
+opentelemetry-util-http==0.62b0
     # via
     #   opentelemetry-instrumentation-asgi
     #   opentelemetry-instrumentation-fastapi
     #   opentelemetry-instrumentation-httpx
-orjson==3.11.7 ; platform_python_implementation != 'PyPy'
+orjson==3.11.8 ; platform_python_implementation != 'PyPy'
     # via langsmith
 oss2==2.19.1
     # via fastapi-best-architecture
@@ -411,12 +424,14 @@ packaging==26.0
     #   pytest
 paho-mqtt==2.1.0
     # via fastapi-best-architecture
-pillow==12.1.1
+pillow==12.2.0
     # via fast-captcha
 pluggy==1.6.0
     # via pytest
-prek==0.3.4
-prometheus-client==0.24.1
+prek==0.3.8
+primp==1.2.2
+    # via ddgs
+prometheus-client==0.25.0
     # via
     #   fastapi-best-architecture
     #   flower
@@ -426,7 +441,7 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-protobuf==6.33.5
+protobuf==6.33.6
     # via
     #   googleapis-common-protos
     #   livekit
@@ -441,11 +456,11 @@ psycopg-binary==3.2.10 ; implementation_name != 'pypy'
     # via psycopg
 pwdlib==0.3.0
     # via fastapi-best-architecture
-pyasn1==0.6.2
+pyasn1==0.6.3
     # via
     #   python-jose
     #   rsa
-pycparser==3.0 ; implementation_name != 'PyPy'
+pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
 pycryptodome==3.23.0
     # via
@@ -466,28 +481,30 @@ pydantic==2.12.5
     #   sqlalchemy-crud-plus
 pydantic-core==2.41.5
     # via pydantic
-pydantic-extra-types==2.11.0
+pydantic-extra-types==2.11.2
     # via fastapi
 pydantic-settings==2.13.1
     # via
     #   fastapi
     #   fastapi-best-architecture
     #   langchain-community
-pygments==2.19.2
+pygments==2.20.0
     # via
     #   pytest
     #   rich
-pyjwt==2.11.0
+pyjwt==2.12.1
     # via livekit-api
 pymysql==1.1.2
     # via fastapi-best-architecture
-pyrate-limiter==4.0.2
+pyrate-limiter==4.1.0
     # via fastapi-best-architecture
-pytest==9.0.2
+pytest==9.0.3
     # via pytest-sugar
 pytest-sugar==1.1.1
 python-dateutil==2.9.0.post0
-    # via celery
+    # via
+    #   celery
+    #   volcengine-python-sdk
 python-dotenv==1.2.2
     # via
     #   pydantic-settings
@@ -496,16 +513,33 @@ python-engineio==4.13.1
     # via python-socketio
 python-jose==3.5.0
     # via fastapi-best-architecture
-python-multipart==0.0.22
+python-multipart==0.0.24
     # via fastapi
 python-socketio==5.16.1
     # via fastapi-best-architecture
 pytz==2026.1.post1
     # via flower
 pyyaml==6.0.3
-    # via uvicorn
-redis==7.3.0
+    # via
+    #   langchain-classic
+    #   langchain-community
+    #   langchain-core
+    #   uvicorn
+redis==7.4.0
     # via fastapi-best-architecture
+requests==2.33.1
+    # via
+    #   alibabacloud-oss-v2
+    #   alibabacloud-tea
+    #   azure-core
+    #   darabonba-core
+    #   langchain-classic
+    #   langchain-community
+    #   langsmith
+    #   oss2
+    #   requests-toolbelt
+requests-toolbelt==1.0.0
+    # via langsmith
 rich==14.3.3
     # via
     #   cappa
@@ -526,7 +560,10 @@ six==1.17.0
     #   ecdsa
     #   oss2
     #   python-dateutil
-sqlalchemy==2.0.48
+    #   volcengine-python-sdk
+sniffio==1.3.1
+    # via openai
+sqlalchemy==2.0.49
     # via
     #   alembic
     #   fastapi-best-architecture
@@ -537,7 +574,7 @@ sqlalchemy-crud-plus==1.13.1
     # via fastapi-best-architecture
 sqlparse==0.5.5
     # via fastapi-best-architecture
-starlette==0.52.1
+starlette==1.0.0
     # via
     #   fastapi
     #   starlette-context
@@ -549,12 +586,12 @@ tenacity==9.1.4
     #   langchain-core
 termcolor==3.3.0
     # via pytest-sugar
-tomli==2.4.0 ; python_full_version < '3.11'
+tomli==2.4.1 ; python_full_version < '3.11'
     # via
     #   alembic
     #   fastapi-cli
     #   pytest
-tornado==6.5.4
+tornado==6.5.5
     # via flower
 tqdm==4.67.3
     # via openai
@@ -562,7 +599,7 @@ type-lens==0.2.6
     # via cappa
 typer==0.24.1
     # via fastapi-cli
-types-protobuf==6.32.1.20251210
+types-protobuf==7.34.1.20260408
     # via
     #   livekit
     #   livekit-api
@@ -592,6 +629,7 @@ typing-extensions==4.15.0
     #   pydantic
     #   pydantic-core
     #   pydantic-extra-types
+    #   pyjwt
     #   rich-toolkit
     #   sqlalchemy
     #   starlette
@@ -606,7 +644,7 @@ typing-inspection==0.4.2
     #   fastapi
     #   pydantic
     #   pydantic-settings
-tzdata==2025.3
+tzdata==2026.1
     # via
     #   kombu
     #   psycopg
@@ -615,7 +653,7 @@ tzlocal==5.3.1
     # via
     #   apscheduler
     #   celery
-ua-parser==1.0.1
+ua-parser==1.0.2
     # via user-agents
 ua-parser-builtins==202603
     # via ua-parser
@@ -623,9 +661,14 @@ urllib3==2.6.3
     # via
     #   dulwich
     #   requests
+    #   volcengine-python-sdk
 user-agents==2.2.0
     # via fastapi-best-architecture
-uvicorn==0.41.0
+uuid-utils==0.14.1
+    # via
+    #   langchain-core
+    #   langsmith
+uvicorn==0.44.0
     # via
     #   fastapi
     #   fastapi-cli
@@ -636,6 +679,8 @@ vine==5.1.0
     #   amqp
     #   celery
     #   kombu
+volcengine-python-sdk==5.0.23
+    # via fastapi-best-architecture
 watchfiles==1.1.1
     # via uvicorn
 wcwidth==0.6.0
@@ -646,7 +691,7 @@ websockets==14.2
     #   uvicorn
 win32-setctime==1.2.0 ; sys_platform == 'win32'
     # via loguru
-wrapt==1.17.3
+wrapt==2.1.2
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-asyncio
@@ -657,7 +702,7 @@ wsproto==1.3.2
     # via simple-websocket
 xxhash==3.6.0
     # via langsmith
-yarl==1.22.0
+yarl==1.23.0
     # via aiohttp
 zipp==3.23.0
     # via importlib-metadata
