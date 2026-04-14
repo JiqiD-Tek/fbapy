@@ -184,6 +184,7 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     download_url: str | None = Field(None, description='Mixed audio download URL')
     source_audio_url: str | None = Field(None, description='Original Huoshan audio URL')
     sentences: list[dict[str, Any]] = Field(default_factory=list, description='Sentence timestamp info')
+    error_message: str | None = Field(None, description='Task error message')
 
 
 class HuoshanVoiceOrderResponse(HuoshanSchemaBase):

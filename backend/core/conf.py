@@ -408,7 +408,7 @@ class Settings(BaseSettings):
     BYTES_TTS_LONG_QUERY_URL: str = 'https://openspeech.bytedance.com/api/v3/tts/query'
     BYTES_TTS_LONG_TIMEOUT_SECONDS: float = 60.0
     BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS: float = 2.0
-    BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS: float = 300.0
+    BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS: float = 900.0
     BYTES_OPENAPI_ACCESS_KEY: str = ''
     BYTES_OPENAPI_SECRET_KEY: SecretStr = ''
     BYTES_OPENAPI_HOST: str = ''
