@@ -103,6 +103,17 @@ class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
     speaker: str = Field(description='Voice clone speaker ID')
     bgm_song_id: int = Field(gt=0, description='Background music song ID')
+    speech_rate: int = Field(0, description='Speech rate')
+
+
+class HuoshanStoryGenerateParam(HuoshanSchemaBase):
+    topic: str = Field(min_length=1, max_length=200, description='Story topic')
+
+
+class HuoshanStoryGenerateResult(HuoshanSchemaBase):
+    topic: str = Field(description='Story topic')
+    story_content: str = Field(description='Generated story content')
+    model: str = Field(description='Model name')
 
 
 class HuoshanOpenAPIErrorDetail(HuoshanSchemaBase):

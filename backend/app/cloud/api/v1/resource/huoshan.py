@@ -9,6 +9,8 @@
 from fastapi import APIRouter, Path
 
 from backend.app.cloud.schema.huoshan import (
+    HuoshanStoryGenerateParam,
+    HuoshanStoryGenerateResult,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
     HuoshanVoiceListParam,
@@ -61,6 +63,19 @@ async def renew_huoshan_voices(
     obj: HuoshanVoiceRenewParam,
 ) -> ResponseSchemaModel[HuoshanVoiceRenewResponse]:
     data = await huoshan_voice_service.renew_voices(obj)
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/stories/generate',
+    summary='Generate a story by topic with Huoshan large model',
+    dependencies=[DependsJwtAuth],
+    response_model_by_alias=False,
+)
+async def generate_huoshan_story(
+    obj: HuoshanStoryGenerateParam,
+) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
+    data = await huoshan_voice_service.generate_story_content(obj)
     return response_base.success(data=data)
 
 

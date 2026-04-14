@@ -16,7 +16,12 @@ from tempfile import TemporaryDirectory
 from time import monotonic
 from typing import TYPE_CHECKING
 
+import httpx
+from openai import AsyncOpenAI
+
 from backend.app.cloud.schema.huoshan import (
+    HuoshanStoryGenerateParam,
+    HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
@@ -46,6 +51,9 @@ if TYPE_CHECKING:
 
     from backend.app.cloud.model import CloudSong
 
+DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-pro-260215'
+DOUBAO_HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=30.0)
+DOUBAO_HTTP_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=20, keepalive_expiry=120.0)
 STORY_AUDIO_FORMAT = 'mp3'
 STORY_TASK_STATUS_PENDING = 0
 STORY_TASK_STATUS_PROCESSING = 1
@@ -122,6 +130,55 @@ class HuoshanVoiceService:
         return HuoshanLongTextTTSClient(cls._resolve_story_client_config())
 
     @staticmethod
+    def _resolve_story_generation_model() -> str:
+        return DEFAULT_DOUBAO_STORY_MODEL
+
+    @staticmethod
+    def _story_generation_system_prompt() -> str:
+        return (
+            '你是儿童睡前故事写作助手，擅长创作适合 2 到 6 岁儿童聆听的中文晚安故事。'
+            '你的文字要像温柔的大人坐在床边轻声讲述，细腻、安静、柔软，适合直接做 TTS 口播。'
+        )
+
+    @staticmethod
+    def _build_story_generation_prompt(topic: str) -> str:
+        normalized_topic = topic.strip()
+        return (
+            '请围绕以下主题创作一篇中文睡前故事，直接输出故事正文，不要输出标题、说明、Markdown、分点或额外前后缀。'
+            '写作要求：'
+            '1. 采用温柔、轻声、安抚式的讲述口吻，像月亮妈妈在床边讲故事。'
+            '2. 以第二人称或亲昵称呼和孩子说话，让孩子有被陪伴的感觉。'
+            '3. 从一个小而具体的生活意象展开想象，比如小脚丫、小被子、小枕头、小月亮、小手、小雨声。'
+            '4. 多写触觉、温度、声音、气味、动作等细节，要有画面感和身体感。'
+            '5. 句子尽量短一点，段落尽量短一点，节奏轻柔，适合幼儿睡前聆听。'
+            '6. 可以适度使用重复、拟声和轻微停顿，让语言更有安抚感。'
+            '7. 不要出现激烈冲突、说教、知识讲解、成人化表达或过度复杂情节。'
+            '8. 结尾要自然收束到安静、放松、入睡的状态。'
+            '9. 长度控制在 700 到 1000 字。'
+            f'主题：{normalized_topic}'
+        )
+
+    @staticmethod
+    def _create_doubao_client() -> AsyncOpenAI:
+        base_url = str(settings.DOUBAO_BASE_URL or '').strip()
+        api_key = settings.DOUBAO_API_KEY.get_secret_value().strip()
+
+        if not base_url:
+            raise errors.ServerError(msg='DOUBAO_BASE_URL is not configured')
+        if not api_key:
+            raise errors.ServerError(msg='DOUBAO_API_KEY is not configured')
+
+        return AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            http_client=httpx.AsyncClient(
+                timeout=DOUBAO_HTTP_TIMEOUT,
+                follow_redirects=True,
+                limits=DOUBAO_HTTP_LIMITS,
+            ),
+        )
+
+    @staticmethod
     def _build_error_data(exc: HuoshanAPIError) -> dict[str, object]:
         return {
             'status_code': exc.status_code,
@@ -153,7 +210,10 @@ class HuoshanVoiceService:
             'req_params': {
                 'text': obj.story_content,
                 'speaker': obj.speaker,
-                'audio_params': dict(STORY_AUDIO_PARAMS),
+                'audio_params': {
+                    **STORY_AUDIO_PARAMS,
+                    'speech_rate': int(obj.speech_rate),
+                },
             },
         }
 
@@ -317,6 +377,41 @@ class HuoshanVoiceService:
             await client.close()
 
         return HuoshanVoiceRenewResponse.model_validate(data)
+
+    async def generate_story_content(self, obj: HuoshanStoryGenerateParam) -> HuoshanStoryGenerateResult:
+        model_name = self._resolve_story_generation_model()
+        client = self._create_doubao_client()
+
+        try:
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': self._story_generation_system_prompt(),
+                    },
+                    {
+                        'role': 'user',
+                        'content': self._build_story_generation_prompt(obj.topic),
+                    },
+                ],
+                temperature=0.8,
+            )
+        except Exception as exc:
+            log.error(f'Doubao story generation failed: topic={obj.topic!r}, error={exc!r}')
+            raise errors.GatewayError(msg=f'Doubao story generation failed: {exc}') from exc
+        finally:
+            await client.close()
+
+        story_content = str((response.choices[0].message.content if response.choices else '') or '').strip()
+        if not story_content:
+            raise errors.GatewayError(msg='Doubao story generation returned empty content')
+
+        return HuoshanStoryGenerateResult(
+            topic=obj.topic.strip(),
+            story_content=story_content,
+            model=model_name,
+        )
 
     async def _finalize_story_synthesis(
             self,
