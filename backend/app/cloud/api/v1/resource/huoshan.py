@@ -6,7 +6,7 @@
 @Date    : 2026/04/13
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Path
 
 from backend.app.cloud.schema.huoshan import (
     HuoshanStorySynthesisParam,
@@ -34,8 +34,7 @@ router = APIRouter()
 async def list_all_huoshan_voice_statuses(
     obj: HuoshanVoiceListParam,
 ) -> ResponseSchemaModel[list[HuoshanVoiceStatus]]:
-    query = obj.model_copy(update={'state': obj.state or 'Success'}, deep=True)
-    data = await huoshan_voice_service.list_all_voice_statuses(query)
+    data = await huoshan_voice_service.list_all_voice_statuses(obj)
     return response_base.success(data=data)
 
 
@@ -67,7 +66,7 @@ async def renew_huoshan_voices(
 
 @router.post(
     '/stories/synthesis',
-    summary='Synthesize story audio with Huoshan voice clone and upload to OSS',
+    summary='Submit Huoshan story synthesis task',
     dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
@@ -76,4 +75,17 @@ async def synthesize_huoshan_story(
     obj: HuoshanStorySynthesisParam,
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.synthesize_story(db=db, obj=obj)
+    return response_base.success(data=data)
+
+
+@router.get(
+    '/stories/synthesis/{task_id}',
+    summary='Query Huoshan story synthesis task status',
+    dependencies=[DependsJwtAuth],
+    response_model_by_alias=False,
+)
+async def get_huoshan_story_synthesis(
+    task_id: str = Path(description='Huoshan task ID'),
+) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
+    data = await huoshan_voice_service.get_story_synthesis(task_id=task_id)
     return response_base.success(data=data)

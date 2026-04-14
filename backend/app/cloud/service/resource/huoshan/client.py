@@ -13,7 +13,6 @@ import asyncio
 import json
 import uuid
 
-from time import monotonic
 from typing import Any
 
 import httpx
@@ -170,40 +169,6 @@ class HuoshanLongTextTTSClient:
         )
         self._assert_success(response, action='query')
         return response
-
-    async def wait_until_success(
-            self,
-            *,
-            task_id: str,
-            resource_id: str | None = None,
-            timeout_seconds: float,
-            interval_seconds: float,
-    ) -> dict[str, Any]:
-        deadline = monotonic() + timeout_seconds
-
-        while True:
-            response = await self.query(task_id=task_id, resource_id=resource_id)
-            data = response.get('data') or {}
-            task_status = int(data.get('task_status', 0))
-
-            if task_status == 2:
-                return response
-            if task_status == 3:
-                raise HuoshanTTSError(
-                    status_code=400,
-                    code='TaskFailed',
-                    message='Huoshan story synthesis task failed',
-                    payload=response,
-                )
-            if monotonic() >= deadline:
-                raise HuoshanTTSError(
-                    status_code=504,
-                    code='TaskTimeout',
-                    message=f'Huoshan story synthesis task timed out, task_id={task_id}',
-                    payload=response,
-                )
-
-            await asyncio.sleep(interval_seconds)
 
     async def download_file(self, *, url: str) -> bytes:
         try:

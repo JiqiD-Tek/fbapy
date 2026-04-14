@@ -33,7 +33,7 @@ class AliOSSClient:
     AliOSS 异步 Client 封装
     """
 
-    CDN_HOST = 'https://media.jiqid.com'
+    CDN_HOST = 'http://media.jiqid.com'  # CDN 域名 避免 https
 
     def __init__(self, access_key_id: str, access_key_secret: str, bucket: str, region: str = 'cn-hangzhou') -> None:
         self.access_key_id = access_key_id

@@ -14,9 +14,6 @@ import uuid
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
-
-import httpx
 
 from backend.app.cloud.schema.huoshan import (
     HuoshanStoryBgmInfo,
@@ -35,6 +32,7 @@ from backend.common.ali_oss import oss_client
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
+from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
 from .audio_tools import mix_audio_with_bgm
@@ -56,6 +54,7 @@ STORY_AUDIO_PARAMS = {
     'enable_timestamp': False,
 }
 HUOSHAN_VOICE_REMARK_MAP = {
+    'S_GKcK2x2X1': '曲老师',
     'S_EKcK2x2X1': '虾球',
     'S_DKcK2x2X1': '米粒',
     'S_CKcK2x2X1': '旁白',
@@ -67,6 +66,8 @@ HUOSHAN_VOICE_REMARK_MAP = {
 
 
 class HuoshanVoiceService:
+    STORY_TASK_CACHE_PREFIX = 'fba:huoshan:story'
+
     @staticmethod
     def _attach_voice_remark(status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
         speaker_id = (status.speaker_id or '').strip()
@@ -171,8 +172,8 @@ class HuoshanVoiceService:
 
     @classmethod
     def _build_story_oss_key(cls, *, task_id: str) -> str:
-        prefix = 'huoshan/story'
-        filename = cls._clean_path_segment(f'story-{task_id}')
+        prefix = 'cloud/huoshan'
+        filename = cls._clean_path_segment(f'icl-{task_id}')
         date_path = timezone.now().strftime('%Y%m%d')
         return str(PurePosixPath(prefix) / date_path / f'{filename}.{STORY_AUDIO_FORMAT}')
 
@@ -187,9 +188,39 @@ class HuoshanVoiceService:
             raise errors.RequestError(msg='Background music play URL is missing')
         return song
 
+    @classmethod
+    def _story_task_key(cls, task_id: str) -> str:
+        return f'{cls.STORY_TASK_CACHE_PREFIX}:{task_id}'
+
+    @staticmethod
+    def _story_task_ttl_seconds() -> int:
+        return max(int(settings.CACHE_REDIS_TTL), int(settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS))
+
+    @classmethod
+    async def _save_story_task_result(cls, result: HuoshanStorySynthesisResult) -> None:
+        try:
+            await redis_client.set(
+                cls._story_task_key(result.task_id),
+                result.model_dump_json(),
+                ex=cls._story_task_ttl_seconds(),
+            )
+        except Exception as exc:
+            raise errors.GatewayError(msg='Failed to save Huoshan story task result') from exc
+
+    @classmethod
+    async def _get_story_task_result(cls, task_id: str) -> HuoshanStorySynthesisResult:
+        try:
+            payload_raw = await redis_client.get(cls._story_task_key(task_id))
+        except Exception as exc:
+            raise errors.GatewayError(msg='Failed to load Huoshan story task result') from exc
+
+        if not payload_raw:
+            raise errors.NotFoundError(msg=f'Huoshan story task not found, task_id={task_id}')
+        return HuoshanStorySynthesisResult.model_validate_json(payload_raw)
+
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
         result = await self._list_voice_status_page(
-            HuoshanVoiceListParam(speaker_ids=[speaker], page_size=1)
+            HuoshanVoiceListParam(speaker_ids=[speaker], state=None, page_size=10)
         )
         for status in result.statuses:
             if status.speaker_id == speaker:
@@ -198,37 +229,14 @@ class HuoshanVoiceService:
                 return self._attach_voice_remark(status)
         raise errors.NotFoundError(msg='Voice clone does not exist')
 
-    @staticmethod
-    async def _download_remote_file(url: str) -> bytes:
-        try:
-            async with httpx.AsyncClient(timeout=settings.BYTES_TTS_LONG_TIMEOUT_SECONDS) as client:
-                response = await client.get(url, follow_redirects=True)
-                response.raise_for_status()
-                return response.content
-        except httpx.HTTPStatusError as exc:
-            raise errors.GatewayError(msg=f'Failed to download audio: HTTP {exc.response.status_code}') from exc
-        except httpx.RequestError as exc:
-            raise errors.GatewayError(msg=f'Failed to download audio: {exc}') from exc
-
-    @staticmethod
-    def _guess_suffix_from_url(url: str, *, default: str) -> str:
-        path = urlparse(url).path
-        suffix = Path(path).suffix.lower()
-        return suffix or default
-
     @classmethod
-    async def _mix_story_audio(cls, *, speech_audio: bytes, bgm_audio: bytes, bgm_play_url: str) -> bytes:
-        bgm_suffix = cls._guess_suffix_from_url(bgm_play_url, default='.mp3')
-
+    async def _mix_story_audio(cls, *, speech_audio: bytes, bgm_play_url: str) -> bytes:
         with TemporaryDirectory(prefix='huoshan_story_') as temp_dir:
-            temp_path = Path(temp_dir)
-            speech_path = temp_path / f'speech.{STORY_AUDIO_FORMAT}'
-            bgm_path = temp_path / f'bgm{bgm_suffix}'
-            output_path = temp_path / f'mixed.{STORY_AUDIO_FORMAT}'
+            speech_path = Path(temp_dir) / f'speech.{STORY_AUDIO_FORMAT}'
+            output_path = Path(temp_dir) / f'mixed.{STORY_AUDIO_FORMAT}'
 
             speech_path.write_bytes(speech_audio)
-            bgm_path.write_bytes(bgm_audio)
-            await asyncio.to_thread(mix_audio_with_bgm, speech_path, bgm_path, output_path)
+            await asyncio.to_thread(mix_audio_with_bgm, speech_path, bgm_play_url, output_path)
             return output_path.read_bytes()
 
     async def _list_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
@@ -251,6 +259,8 @@ class HuoshanVoiceService:
             query.page_size = 100
         if query.page_number is None:
             query.page_number = 1
+        if query.state is None:
+            query.state = 'Success'
 
         result = await self._list_voice_status_page(query)
         return [self._attach_voice_remark(status) for status in result.statuses]
@@ -283,53 +293,25 @@ class HuoshanVoiceService:
 
         return HuoshanVoiceRenewResponse.model_validate(data)
 
-    async def synthesize_story(
-            self,
-            *,
-            db: AsyncSession,
-            obj: HuoshanStorySynthesisParam,
+    async def _finalize_story_synthesis(
+        self,
+        *,
+        current_result: HuoshanStorySynthesisResult,
+        query_data: dict[str, object],
+        client: HuoshanLongTextTTSClient,
     ) -> HuoshanStorySynthesisResult:
-        bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
-        voice_status = await self._get_voice_status(speaker=obj.speaker)
-        story_client_config = self._resolve_story_client_config()
-        client = self._create_story_client()
-        uid = uuid.uuid4().hex
-        payload = self._build_story_payload(obj, uid=uid)
-        task_id = ''
-        query_data: dict[str, object] = {}
-        source_audio_url = ''
-
-        try:
-            submit_response = await client.submit(payload=payload)
-            task_id = str((submit_response.get('data') or {}).get('task_id') or '').strip()
-            if not task_id:
-                raise errors.GatewayError(msg='Huoshan story synthesis did not return task_id', data=submit_response)
-
-            query_response = await client.wait_until_success(
-                task_id=task_id,
-                timeout_seconds=settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS,
-                interval_seconds=settings.BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS,
+        task_id = current_result.task_id
+        source_audio_url = str(query_data.get('audio_url') or '').strip()
+        if not source_audio_url:
+            raise errors.GatewayError(
+                msg='Huoshan story synthesis succeeded but no audio URL was returned',
+                data={'task_id': task_id, 'query_data': query_data},
             )
-            query_data = dict(query_response.get('data') or {})
-            source_audio_url = str(query_data.get('audio_url') or '').strip()
-            if not source_audio_url:
-                raise errors.GatewayError(
-                    msg='Huoshan story synthesis succeeded but no audio URL was returned',
-                    data=query_response,
-                )
 
-            speech_audio = await client.download_file(url=source_audio_url)
-        except HuoshanTTSError as exc:
-            self._raise_api_error(exc)
-            raise
-        finally:
-            await client.close()
-
-        bgm_audio = await self._download_remote_file(bgm_play_url)
+        speech_audio = await client.download_file(url=source_audio_url)
         mixed_audio = await self._mix_story_audio(
             speech_audio=speech_audio,
-            bgm_audio=bgm_audio,
-            bgm_play_url=bgm_play_url,
+            bgm_play_url=current_result.bgm.play_url,
         )
 
         oss_key = self._build_story_oss_key(task_id=task_id)
@@ -340,14 +322,47 @@ class HuoshanVoiceService:
                 data={'task_id': task_id, 'oss_key': oss_key},
             )
 
-        log.info(
-            f'Huoshan story synthesized successfully: task_id={task_id}, speaker={obj.speaker}, '
-            f'bgm_song_id={bgm_song.id}, oss_key={oss_key}'
-        )
+        result = current_result.model_copy(update={
+            'task_status': int(query_data.get('task_status', 2)),
+            'is_completed': True,
+            'oss_key': oss_key,
+            'download_url': download_url,
+            'source_audio_url': source_audio_url,
+            'sentences': list(query_data.get('sentences') or []),
+        }, deep=True)
 
-        return HuoshanStorySynthesisResult(
+        log.info(
+            f'Huoshan story synthesized successfully: task_id={task_id}, speaker={current_result.speaker}, '
+            f'bgm_song_id={current_result.bgm.song_id}, oss_key={oss_key}'
+        )
+        return result
+
+    async def synthesize_story(
+            self,
+            *,
+            db: AsyncSession,
+            obj: HuoshanStorySynthesisParam,
+    ) -> HuoshanStorySynthesisResult:
+        bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
+        voice_status = await self._get_voice_status(speaker=obj.speaker)
+        story_client_config = self._resolve_story_client_config()
+        client = self._create_story_client()
+
+        try:
+            submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
+        except HuoshanTTSError as exc:
+            self._raise_api_error(exc)
+            raise
+        finally:
+            await client.close()
+
+        task_id = str((submit_response.get('data') or {}).get('task_id') or '').strip()
+        if not task_id:
+            raise errors.GatewayError(msg='Huoshan story synthesis did not return task_id', data=submit_response)
+
+        result = HuoshanStorySynthesisResult(
             task_id=task_id,
-            speaker=obj.speaker,
+            speaker=voice_status.speaker_id or '',
             speaker_alias=voice_status.speaker_alias,
             speaker_state=voice_status.state,
             resource_id=story_client_config.resource_id,
@@ -355,16 +370,53 @@ class HuoshanVoiceService:
             bgm=HuoshanStoryBgmInfo(
                 song_id=bgm_song.id,
                 title=bgm_song.title,
-                play_url=bgm_play_url,
+                play_url=str(bgm_song.play_url or '').strip(),
                 artist=bgm_song.artist,
                 duration=bgm_song.duration,
             ),
-            oss_key=oss_key,
-            download_url=download_url,
-            source_audio_url=source_audio_url,
-            task_status=int(query_data.get('task_status', 2)),
-            sentences=list(query_data.get('sentences') or []),
+            is_completed=False,
+            task_status=0,
         )
+        await self._save_story_task_result(result)
+
+        log.info(
+            f'Huoshan story synthesis submitted: task_id={task_id}, speaker={obj.speaker}, '
+            f'bgm_song_id={bgm_song.id}, resource_id={story_client_config.resource_id}'
+        )
+
+        return result
+
+    async def get_story_synthesis(self, *, task_id: str) -> HuoshanStorySynthesisResult:
+        result = await self._get_story_task_result(task_id)
+        if result.is_completed:
+            return result
+
+        client = self._create_story_client()
+
+        try:
+            query_response = await client.query(task_id=task_id)
+            query_data = dict(query_response.get('data') or {})
+            task_status = int(query_data.get('task_status', 0))
+
+            if task_status != 2:
+                return result.model_copy(update={
+                    'task_status': task_status,
+                    'source_audio_url': str(query_data.get('audio_url') or '').strip() or None,
+                    'sentences': list(query_data.get('sentences') or []),
+                }, deep=True)
+
+            result = await self._finalize_story_synthesis(
+                current_result=result,
+                query_data=query_data,
+                client=client,
+            )
+            await self._save_story_task_result(result)
+            return result
+        except HuoshanTTSError as exc:
+            self._raise_api_error(exc)
+            raise
+        finally:
+            await client.close()
 
 
 huoshan_voice_service = HuoshanVoiceService()

@@ -43,9 +43,9 @@ class HuoshanVoiceResourceTagParam(HuoshanSchemaBase):
 class HuoshanVoiceListParam(HuoshanSchemaBase):
     project_name: str | None = Field("default", alias='ProjectName', description='Project name')
     speaker_ids: list[str] | None = Field(None, alias='SpeakerIDs', description='Speaker ID list')
-    state: HuoshanVoiceState | None = Field("Success", alias='State', description='Voice state filter')
+    state: HuoshanVoiceState | None = Field('Success', alias='State', description='Voice state filter')
     page_number: int | None = Field(None, alias='PageNumber', gt=0, description='Page number')
-    page_size: int | None = Field(None, alias='PageSize', ge=100, description='Page size')
+    page_size: int | None = Field(None, alias='PageSize', ge=1, description='Page size')
 
 
 class HuoshanVoiceOrderParam(HuoshanSchemaBase):
@@ -170,7 +170,6 @@ class HuoshanStoryBgmInfo(HuoshanSchemaBase):
     artist: str | None = Field(None, description='Artist')
     duration: int = Field(description='Duration in seconds')
 
-
 class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     task_id: str = Field(description='Huoshan task ID')
     speaker: str = Field(description='Speaker ID')
@@ -179,10 +178,11 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     resource_id: str = Field(description='Resource ID')
     audio_format: HuoshanAudioFormat = Field(description='Audio format')
     bgm: HuoshanStoryBgmInfo = Field(description='Background music info')
-    oss_key: str = Field(description='OSS object key')
-    download_url: str = Field(description='Mixed audio download URL')
-    source_audio_url: str = Field(description='Original Huoshan audio URL')
+    is_completed: bool = Field(description='Whether mixed audio is ready')
     task_status: int = Field(description='Task status')
+    oss_key: str | None = Field(None, description='OSS object key')
+    download_url: str | None = Field(None, description='Mixed audio download URL')
+    source_audio_url: str | None = Field(None, description='Original Huoshan audio URL')
     sentences: list[dict[str, Any]] = Field(default_factory=list, description='Sentence timestamp info')
 
 
