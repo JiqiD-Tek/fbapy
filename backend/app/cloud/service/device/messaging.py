@@ -64,7 +64,7 @@ class MessagingService:
         return await self._publish(topic, msg)
 
     async def send_play_music(
-            self, action: str, value: str, song: str, artist: str, playlist: str, platform: str
+            self, action: str, value: str, song: str, artist: str, playlist: str, platform: str, play_url: str = ''
     ) -> str:
         """下发点播音乐指令"""
         payload = {
@@ -74,6 +74,7 @@ class MessagingService:
             'artist': artist,  # 歌手名称
             'playlist': playlist,  # 歌单名称
             'platform': platform,  # 播放平台
+            'play_url': play_url,  # 音乐地址
         }
 
         topic = f'{self.model}/{self.did}/down/control'

@@ -79,10 +79,12 @@ HUOSHAN_VOICE_REMARK_MAP = {
 
 
 class HuoshanVoiceService:
-    STORY_TASK_CACHE_PREFIX = 'fba:huoshan:story'
+    STORY_SYNTHESIS_TASK_CACHE_PREFIX = 'fba:huoshan:story:synthesis'
+    STORY_GENERATE_TASK_CACHE_PREFIX = 'fba:huoshan:story:generate'
 
     def __init__(self) -> None:
-        self._story_processing_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
+        self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
+        self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
 
     @staticmethod
     def _attach_voice_remark(status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
@@ -257,18 +259,22 @@ class HuoshanVoiceService:
         return song
 
     @classmethod
-    def _story_task_key(cls, task_id: str) -> str:
-        return f'{cls.STORY_TASK_CACHE_PREFIX}:{task_id}'
+    def _story_synthesis_task_key(cls, task_id: str) -> str:
+        return f'{cls.STORY_SYNTHESIS_TASK_CACHE_PREFIX}:{task_id}'
+
+    @classmethod
+    def _story_generate_task_key(cls, task_id: str) -> str:
+        return f'{cls.STORY_GENERATE_TASK_CACHE_PREFIX}:{task_id}'
 
     @staticmethod
     def _story_task_ttl_seconds() -> int:
         return max(int(settings.CACHE_REDIS_TTL), int(settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS))
 
     @classmethod
-    async def _save_story_task_result(cls, result: HuoshanStorySynthesisResult) -> None:
+    async def _save_story_synthesis_task_result(cls, result: HuoshanStorySynthesisResult) -> None:
         try:
             await redis_client.set(
-                cls._story_task_key(result.task_id),
+                cls._story_synthesis_task_key(result.task_id),
                 result.model_dump_json(),
                 ex=cls._story_task_ttl_seconds(),
             )
@@ -276,9 +282,9 @@ class HuoshanVoiceService:
             raise errors.GatewayError(msg='Failed to save Huoshan story task result') from exc
 
     @classmethod
-    async def _get_story_task_result(cls, task_id: str) -> HuoshanStorySynthesisResult:
+    async def _get_story_synthesis_task_result(cls, task_id: str) -> HuoshanStorySynthesisResult:
         try:
-            payload_raw = await redis_client.get(cls._story_task_key(task_id))
+            payload_raw = await redis_client.get(cls._story_synthesis_task_key(task_id))
         except Exception as exc:
             raise errors.GatewayError(msg='Failed to load Huoshan story task result') from exc
 
@@ -286,8 +292,30 @@ class HuoshanVoiceService:
             raise errors.NotFoundError(msg=f'Huoshan story task not found, task_id={task_id}')
         return HuoshanStorySynthesisResult.model_validate_json(payload_raw)
 
+    @classmethod
+    async def _save_story_generate_task_result(cls, result: HuoshanStoryGenerateResult) -> None:
+        try:
+            await redis_client.set(
+                cls._story_generate_task_key(result.task_id),
+                result.model_dump_json(),
+                ex=cls._story_task_ttl_seconds(),
+            )
+        except Exception as exc:
+            raise errors.GatewayError(msg='Failed to save Huoshan story generation task result') from exc
+
+    @classmethod
+    async def _get_story_generate_task_result(cls, task_id: str) -> HuoshanStoryGenerateResult:
+        try:
+            payload_raw = await redis_client.get(cls._story_generate_task_key(task_id))
+        except Exception as exc:
+            raise errors.GatewayError(msg='Failed to load Huoshan story generation task result') from exc
+
+        if not payload_raw:
+            raise errors.NotFoundError(msg=f'Huoshan story generation task not found, task_id={task_id}')
+        return HuoshanStoryGenerateResult.model_validate_json(payload_raw)
+
     def _start_story_synthesis_processing(self, task_id: str) -> None:
-        current_task = self._story_processing_tasks.get(task_id)
+        current_task = self._story_synthesis_tasks.get(task_id)
         if current_task is not None and not current_task.done():
             return
 
@@ -295,11 +323,28 @@ class HuoshanVoiceService:
             self._process_story_synthesis(task_id),
             name=f'huoshan-story-synthesis-{task_id}',
         )
-        self._story_processing_tasks[task_id] = task
+        self._story_synthesis_tasks[task_id] = task
 
         def _cleanup(done_task: asyncio.Task[HuoshanStorySynthesisResult]) -> None:
-            if self._story_processing_tasks.get(task_id) is done_task:
-                self._story_processing_tasks.pop(task_id, None)
+            if self._story_synthesis_tasks.get(task_id) is done_task:
+                self._story_synthesis_tasks.pop(task_id, None)
+
+        task.add_done_callback(_cleanup)
+
+    def _start_story_generation_processing(self, task_id: str) -> None:
+        current_task = self._story_generation_tasks.get(task_id)
+        if current_task is not None and not current_task.done():
+            return
+
+        task = asyncio.create_task(
+            self._process_story_generation(task_id),
+            name=f'huoshan-story-generate-{task_id}',
+        )
+        self._story_generation_tasks[task_id] = task
+
+        def _cleanup(done_task: asyncio.Task[HuoshanStoryGenerateResult]) -> None:
+            if self._story_generation_tasks.get(task_id) is done_task:
+                self._story_generation_tasks.pop(task_id, None)
 
         task.add_done_callback(_cleanup)
 
@@ -315,13 +360,25 @@ class HuoshanVoiceService:
         raise errors.NotFoundError(msg='Voice clone does not exist')
 
     @classmethod
-    async def _mix_story_audio(cls, *, speech_audio: bytes, bgm_play_url: str) -> bytes:
+    async def _mix_story_audio(
+            cls,
+            *,
+            speech_audio: bytes,
+            bgm_play_url: str,
+            bgm_volume: int,
+    ) -> bytes:
         with TemporaryDirectory(prefix='huoshan_story_') as temp_dir:
             speech_path = Path(temp_dir) / f'speech.{STORY_AUDIO_FORMAT}'
             output_path = Path(temp_dir) / f'mixed.{STORY_AUDIO_FORMAT}'
 
             speech_path.write_bytes(speech_audio)
-            await asyncio.to_thread(mix_audio_with_bgm, speech_path, bgm_play_url, output_path)
+            await asyncio.to_thread(
+                mix_audio_with_bgm,
+                speech_path,
+                bgm_play_url,
+                output_path,
+                bgm_volume=max(0.0, min(float(bgm_volume) / 100.0, 1.0)),
+            )
             return output_path.read_bytes()
 
     async def _list_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
@@ -378,40 +435,82 @@ class HuoshanVoiceService:
 
         return HuoshanVoiceRenewResponse.model_validate(data)
 
-    async def generate_story_content(self, obj: HuoshanStoryGenerateParam) -> HuoshanStoryGenerateResult:
-        model_name = self._resolve_story_generation_model()
-        client = self._create_doubao_client()
-
-        try:
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': self._story_generation_system_prompt(),
-                    },
-                    {
-                        'role': 'user',
-                        'content': self._build_story_generation_prompt(obj.topic),
-                    },
-                ],
-                temperature=0.8,
-            )
-        except Exception as exc:
-            log.error(f'Doubao story generation failed: topic={obj.topic!r}, error={exc!r}')
-            raise errors.GatewayError(msg=f'Doubao story generation failed: {exc}') from exc
-        finally:
-            await client.close()
+    async def _generate_story_content_once(
+            self,
+            *,
+            client: AsyncOpenAI,
+            model_name: str,
+            topic: str,
+    ) -> str:
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': self._story_generation_system_prompt(),
+                },
+                {
+                    'role': 'user',
+                    'content': self._build_story_generation_prompt(topic),
+                },
+            ],
+            temperature=0.8,
+        )
 
         story_content = str((response.choices[0].message.content if response.choices else '') or '').strip()
         if not story_content:
             raise errors.GatewayError(msg='Doubao story generation returned empty content')
+        return story_content
 
-        return HuoshanStoryGenerateResult(
+    async def _process_story_generation(self, task_id: str) -> HuoshanStoryGenerateResult:
+        result = await self._get_story_generate_task_result(task_id)
+        client: AsyncOpenAI | None = None
+
+        try:
+            client = self._create_doubao_client()
+            story_content = await self._generate_story_content_once(
+                client=client,
+                model_name=result.model,
+                topic=result.topic,
+            )
+            result = result.model_copy(update={
+                'story_content': story_content,
+                'is_completed': True,
+                'task_status': STORY_TASK_STATUS_COMPLETED,
+                'error_message': None,
+            }, deep=True)
+            await self._save_story_generate_task_result(result)
+            log.info(f'Huoshan story generation completed: task_id={task_id}, topic={result.topic!r}')
+            return result
+        except Exception as exc:
+            log.error(f'Huoshan story generation failed: task_id={task_id}, error={exc!r}')
+            result = result.model_copy(update={
+                'task_status': STORY_TASK_STATUS_FAILED,
+                'error_message': getattr(exc, 'msg', None) or str(exc),
+            }, deep=True)
+            await self._save_story_generate_task_result(result)
+            return result
+        finally:
+            if client is not None:
+                await client.close()
+
+    async def submit_story_generation(self, obj: HuoshanStoryGenerateParam) -> HuoshanStoryGenerateResult:
+        result = HuoshanStoryGenerateResult(
+            task_id=uuid.uuid4().hex,
             topic=obj.topic.strip(),
-            story_content=story_content,
-            model=model_name,
+            model=self._resolve_story_generation_model(),
+            story_content=None,
+            is_completed=False,
+            task_status=STORY_TASK_STATUS_PROCESSING,
+            error_message=None,
         )
+        await self._save_story_generate_task_result(result)
+        self._start_story_generation_processing(result.task_id)
+        log.info(f'Huoshan story generation submitted: task_id={result.task_id}, topic={result.topic!r}')
+        return result
+
+    async def get_story_generation(self, *, task_id: str) -> HuoshanStoryGenerateResult:
+        return await self._get_story_generate_task_result(task_id)
 
     async def _finalize_story_synthesis(
             self,
@@ -431,6 +530,7 @@ class HuoshanVoiceService:
         mixed_audio = await self._mix_story_audio(
             speech_audio=speech_audio,
             bgm_play_url=current_result.bgm.play_url,
+            bgm_volume=current_result.bgm_volume,
         )
 
         oss_key = self._build_story_oss_key(task_id=task_id)
@@ -457,7 +557,7 @@ class HuoshanVoiceService:
         return result
 
     async def _process_story_synthesis(self, task_id: str) -> HuoshanStorySynthesisResult:
-        result = await self._get_story_task_result(task_id)
+        result = await self._get_story_synthesis_task_result(task_id)
         client = self._create_story_client()
         deadline = monotonic() + settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS
 
@@ -478,14 +578,14 @@ class HuoshanVoiceService:
                     'sentences': list(query_data.get('sentences') or []),
                     'error_message': None,
                 }, deep=True)
-                await self._save_story_task_result(result)
+                await self._save_story_synthesis_task_result(result)
 
                 if provider_task_status == 2:
                     result = await self._finalize_story_synthesis(
                         current_result=result,
                         client=client,
                     )
-                    await self._save_story_task_result(result)
+                    await self._save_story_synthesis_task_result(result)
                     return result
 
                 if provider_task_status == 3:
@@ -493,7 +593,7 @@ class HuoshanVoiceService:
                         'task_status': STORY_TASK_STATUS_FAILED,
                         'error_message': 'Huoshan story synthesis task failed',
                     }, deep=True)
-                    await self._save_story_task_result(result)
+                    await self._save_story_synthesis_task_result(result)
                     return result
 
                 if monotonic() >= deadline:
@@ -501,7 +601,7 @@ class HuoshanVoiceService:
                         'task_status': STORY_TASK_STATUS_FAILED,
                         'error_message': f'Huoshan story synthesis task timed out, task_id={task_id}',
                     }, deep=True)
-                    await self._save_story_task_result(result)
+                    await self._save_story_synthesis_task_result(result)
                     return result
 
                 await asyncio.sleep(settings.BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS)
@@ -511,7 +611,7 @@ class HuoshanVoiceService:
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': exc.message,
             }, deep=True)
-            await self._save_story_task_result(result)
+            await self._save_story_synthesis_task_result(result)
             return result
         except Exception as exc:
             log.error(f'Huoshan story synthesis processing failed: task_id={task_id}, error={exc!r}')
@@ -519,7 +619,7 @@ class HuoshanVoiceService:
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': str(exc),
             }, deep=True)
-            await self._save_story_task_result(result)
+            await self._save_story_synthesis_task_result(result)
             return result
         finally:
             await client.close()
@@ -561,10 +661,11 @@ class HuoshanVoiceService:
                 artist=bgm_song.artist,
                 duration=bgm_song.duration,
             ),
+            bgm_volume=obj.bgm_volume,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
         )
-        await self._save_story_task_result(result)
+        await self._save_story_synthesis_task_result(result)
         self._start_story_synthesis_processing(task_id)
 
         log.info(
@@ -575,7 +676,7 @@ class HuoshanVoiceService:
         return result
 
     async def get_story_synthesis(self, *, task_id: str) -> HuoshanStorySynthesisResult:
-        return await self._get_story_task_result(task_id)
+        return await self._get_story_synthesis_task_result(task_id)
 
 
 huoshan_voice_service = HuoshanVoiceService()

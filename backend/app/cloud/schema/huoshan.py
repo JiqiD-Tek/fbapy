@@ -14,14 +14,6 @@ from pydantic import ConfigDict, Field, model_validator
 
 from backend.common.schema import SchemaBase
 
-HUOSHAN_ALL_VOICE_STATES = (
-    'Active',
-    'Success',
-    'Training',
-    'Expired',
-    'Reclaimed',
-    'Unknown',
-)
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
 HuoshanAudioFormat = Literal['mp3']
 
@@ -102,8 +94,9 @@ class HuoshanVoiceRenewParam(HuoshanSchemaBase):
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
     speaker: str = Field(description='Voice clone speaker ID')
-    bgm_song_id: int = Field(gt=0, description='Background music song ID')
     speech_rate: int = Field(0, description='Speech rate')
+    bgm_song_id: int = Field(gt=0, description='Background music song ID')
+    bgm_volume: int = Field(50, ge=0, le=100, description='Background music volume')
 
 
 class HuoshanStoryGenerateParam(HuoshanSchemaBase):
@@ -111,9 +104,13 @@ class HuoshanStoryGenerateParam(HuoshanSchemaBase):
 
 
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):
+    task_id: str = Field(description='Story generation task ID')
     topic: str = Field(description='Story topic')
-    story_content: str = Field(description='Generated story content')
     model: str = Field(description='Model name')
+    story_content: str | None = Field(None, description='Generated story content')
+    is_completed: bool = Field(description='Whether story generation is completed')
+    task_status: int = Field(description='Task status')
+    error_message: str | None = Field(None, description='Task error message')
 
 
 class HuoshanOpenAPIErrorDetail(HuoshanSchemaBase):
@@ -181,6 +178,7 @@ class HuoshanStoryBgmInfo(HuoshanSchemaBase):
     artist: str | None = Field(None, description='Artist')
     duration: int = Field(description='Duration in seconds')
 
+
 class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     task_id: str = Field(description='Huoshan task ID')
     speaker: str = Field(description='Speaker ID')
@@ -189,6 +187,7 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     resource_id: str = Field(description='Resource ID')
     audio_format: HuoshanAudioFormat = Field(description='Audio format')
     bgm: HuoshanStoryBgmInfo = Field(description='Background music info')
+    bgm_volume: int = Field(description='Background music volume percent')
     is_completed: bool = Field(description='Whether mixed audio is ready')
     task_status: int = Field(description='Task status')
     oss_key: str | None = Field(None, description='OSS object key')

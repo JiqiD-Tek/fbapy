@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : function.py
+@File    : tool.py
 @Author  : guhua@jiqid.com
 @Date    : 2025/11/25 14:47
 """

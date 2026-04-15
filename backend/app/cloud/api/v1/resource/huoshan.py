@@ -31,6 +31,7 @@ router = APIRouter()
 @router.post(
     '/voices/all',
     summary='Query all Huoshan voice clone statuses as a flat list',
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def list_all_huoshan_voice_statuses(
@@ -43,7 +44,7 @@ async def list_all_huoshan_voice_statuses(
 @router.post(
     '/voices/orders',
     summary='Create Huoshan voice clone orders',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def order_huoshan_voices(
@@ -56,7 +57,7 @@ async def order_huoshan_voices(
 @router.post(
     '/voices/renewals',
     summary='Renew Huoshan voice clones',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def renew_huoshan_voices(
@@ -69,20 +70,33 @@ async def renew_huoshan_voices(
 @router.post(
     '/stories/generate',
     summary='Generate a story by topic with Huoshan large model',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def generate_huoshan_story(
     obj: HuoshanStoryGenerateParam,
 ) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
-    data = await huoshan_voice_service.generate_story_content(obj)
+    data = await huoshan_voice_service.submit_story_generation(obj)
+    return response_base.success(data=data)
+
+
+@router.get(
+    '/stories/generate/{task_id}',
+    summary='Query Huoshan story generation task status',
+    # dependencies=[DependsJwtAuth],
+    response_model_by_alias=False,
+)
+async def get_huoshan_story_generation(
+    task_id: str = Path(description='Story generation task ID'),
+) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
+    data = await huoshan_voice_service.get_story_generation(task_id=task_id)
     return response_base.success(data=data)
 
 
 @router.post(
     '/stories/synthesis',
     summary='Submit Huoshan story synthesis task',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def synthesize_huoshan_story(
@@ -96,7 +110,7 @@ async def synthesize_huoshan_story(
 @router.get(
     '/stories/synthesis/{task_id}',
     summary='Query Huoshan story synthesis task status',
-    dependencies=[DependsJwtAuth],
+    # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
 async def get_huoshan_story_synthesis(
