@@ -10,20 +10,20 @@ from backend.app.cloud.service.user_service import user_service
 from backend.common.exception import errors
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.jwt import DependsJwtAuth
+from backend.common.security.jwt import DependsJwtAuth, DependsSuperUser
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
 
 
 @router.get('/me', summary='获取当前用户信息', dependencies=[DependsJwtAuth])
-async def get_k10_user(request: Request) -> ResponseSchemaModel[GetUserInfoDetail]:
+async def get_cloud_user(request: Request) -> ResponseSchemaModel[GetUserInfoDetail]:
     data = request.user.model_dump()
     return response_base.success(data=data)
 
 
-@router.get('', summary='分页获取用户列表', dependencies=[DependsJwtAuth, DependsPagination])
-async def get_terminal_users_paginated(
+@router.get('', summary='分页获取用户列表', dependencies=[DependsSuperUser, DependsPagination])
+async def get_cloud_users_paginated(
     request: Request,
     db: CurrentSession,
     unionid: Annotated[str | None, Query(description='微信 UnionID')] = None,
@@ -45,13 +45,13 @@ async def get_terminal_users_paginated(
 
 
 @router.get('/me/babies', summary='获取当前用户所有宝宝', dependencies=[DependsJwtAuth])
-async def get_current_user_babies(request: Request, db: CurrentSession) -> ResponseSchemaModel[list[GetBabyDetail]]:
+async def get_cloud_user_babies(request: Request, db: CurrentSession) -> ResponseSchemaModel[list[GetBabyDetail]]:
     data = await baby_service.get_user_babies(db=db, user_id=request.user.id)
     return response_base.success(data=data)
 
 
 @router.get('/{pk}/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
-async def get_user_devices(
+async def get_cloud_user_devices(
     request: Request,
     db: CurrentSession,
     pk: Annotated[int, Path(description='用户 ID')],

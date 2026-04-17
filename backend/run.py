@@ -14,7 +14,7 @@ if __name__ == '__main__':
     granian.Granian(
         target='main:app',
         interface='asgi',
-        address='127.0.0.1',
+        address='10.240.225.15',
         port=8001,
         reload=True,
         reload_filter=CustomReloadFilter,

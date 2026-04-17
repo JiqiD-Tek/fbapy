@@ -1,6 +1,6 @@
-﻿from collections.abc import Sequence
+from collections.abc import Sequence
 
-from sqlalchemy import Select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -46,6 +46,20 @@ class CRUDFirmware(CRUDPlus[Firmware]):
 
     async def get_latest_firmware(self, db: AsyncSession, device_model: str) -> Firmware | None:
         return await self.select_model_by_column(db, device_model=device_model, is_latest=True, status=1)
+
+    async def get_upgrade_firmware(self, db: AsyncSession, *, device_model: str, version_code: int) -> Firmware | None:
+        stmt = (
+            select(Firmware)
+            .where(
+                Firmware.device_model == device_model,
+                Firmware.status == 1,
+                Firmware.version_code > version_code,
+            )
+            .order_by(Firmware.version_code.desc(), Firmware.id.desc())
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_all(self, db: AsyncSession) -> Sequence[Firmware]:
         return await self.select_models(db)

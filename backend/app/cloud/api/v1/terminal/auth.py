@@ -64,7 +64,7 @@ router = APIRouter()
     summary='获取验证码',
     dependencies=[DependsDeviceAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
-async def k11_get_captcha(
+async def get_terminal_captcha(
         db: CurrentSession,
         background_tasks: BackgroundTasks,
         phone: Annotated[str | None, Query(description='手机号')] = None,
@@ -105,7 +105,7 @@ async def k11_get_captcha(
     summary='用户登录',
     dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
 )
-async def k11_login(
+async def terminal_login(
         db: CurrentSessionTransaction,
         auth: AuthLoginParam,
         background_tasks: BackgroundTasks,
@@ -184,7 +184,7 @@ async def get_mini_provision_status(
 
 
 @router.post('/refresh', summary='刷新 token', dependencies=[DependsDeviceAuth])
-async def k11_refresh_token(
+async def terminal_refresh_token(
         db: CurrentSession,
         refresh_token: Annotated[str, Query(description='刷新 token')],
 ) -> ResponseSchemaModel[GetNewToken]:
@@ -193,7 +193,7 @@ async def k11_refresh_token(
 
 
 @router.post('/logout', summary='用户登出', dependencies=[DependsDeviceAuth])
-async def k11_logout(request: Request) -> ResponseModel:
+async def terminal_logout(request: Request) -> ResponseModel:
     await auth_service.logout(request=request)
     return response_base.success()
 

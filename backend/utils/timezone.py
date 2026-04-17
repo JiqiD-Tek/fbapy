@@ -37,10 +37,11 @@ class TimeZone:
         :param format_str: 时间格式字符串，默认为 settings.DATETIME_FORMAT
         :return:
         """
+        if format_str == settings.DATETIME_FORMAT:
+            return datetime.fromisoformat(t_str).astimezone(self.tz_info)
         return datetime.strptime(t_str, format_str).replace(tzinfo=self.tz_info)
 
-    @staticmethod
-    def to_str(t: datetime, format_str: str = settings.DATETIME_FORMAT) -> str:
+    def to_str(self, t: datetime, format_str: str = settings.DATETIME_FORMAT) -> str:
         """
         将 datetime 对象转换为指定格式的时间字符串
 
@@ -48,6 +49,10 @@ class TimeZone:
         :param format_str: 时间格式字符串，默认为 settings.DATETIME_FORMAT
         :return:
         """
+        if format_str == settings.DATETIME_FORMAT:
+            if t.tzinfo is not None:
+                t = t.astimezone(self.tz_info)
+            return t.isoformat(timespec='milliseconds')
         return t.strftime(format_str)
 
     @staticmethod

@@ -1,4 +1,4 @@
-﻿# -*- coding: UTF-8 -*-
+# -*- coding: UTF-8 -*-
 """
 @Project : fbapy
 @File    : firmware_service.py
@@ -34,13 +34,13 @@ class FirmwareService:
 
     @staticmethod
     async def get_list(
-        *,
-        db: AsyncSession,
-        name: str | None = None,
-        version: str | None = None,
-        device_model: str | None = None,
-        status: int | None = None,
-        is_latest: bool | None = None,
+            *,
+            db: AsyncSession,
+            name: str | None = None,
+            version: str | None = None,
+            device_model: str | None = None,
+            status: int | None = None,
+            is_latest: bool | None = None,
     ) -> dict[str, Any]:
         firmware_select = await firmware_dao.get_select(
             name=name,
@@ -50,6 +50,17 @@ class FirmwareService:
             is_latest=is_latest,
         )
         return await paging_data(db, firmware_select)
+
+    @staticmethod
+    async def get_upgrade(*, db: AsyncSession, device_model: str, version_code: int) -> Firmware | None:
+        if version_code < 0:
+            raise errors.RequestError(msg='当前固件版本代码不正确')
+
+        return await firmware_dao.get_upgrade_firmware(
+            db,
+            device_model=device_model,
+            version_code=version_code,
+        )
 
     @staticmethod
     async def create(*, db: AsyncSession, obj: CreateFirmwareParam) -> Firmware:

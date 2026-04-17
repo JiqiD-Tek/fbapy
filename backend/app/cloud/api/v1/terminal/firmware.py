@@ -1,4 +1,4 @@
-﻿# -*- coding: UTF-8 -*-
+# -*- coding: UTF-8 -*-
 """
 @Project : fbapy
 @File    : firmware.py
@@ -11,13 +11,25 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query
 
 from backend.app.cloud.schema.firmware import CreateFirmwareParam, GetFirmwareDetail, UpdateFirmwareParam
+from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.firmware_service import firmware_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+@router.get('/upgrade', summary='获取可升级固件版本')
+async def get_upgrade_firmware(
+    db: CurrentSession,
+    version_code: Annotated[int, Query(description='当前固件版本代码')],
+    device: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[GetFirmwareDetail | None]:
+    data = await firmware_service.get_upgrade(db=db, device_model=device.model, version_code=version_code)
+    return response_base.success(data=data)
 
 
 @router.get('/{pk}', summary='获取固件详情', dependencies=[DependsJwtAuth])

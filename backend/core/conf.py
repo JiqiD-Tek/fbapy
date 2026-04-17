@@ -23,12 +23,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
+            cls,
+            settings_cls: type[BaseSettings],
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级"""
         return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
@@ -185,7 +185,7 @@ class Settings(BaseSettings):
 
     # 时间配置
     DATETIME_TIMEZONE: str = 'Asia/Shanghai'  # 如：Asia/Shanghai、UTC
-    DATETIME_FORMAT: str = "%Y-%m-%dT%H:%M:%S.%f%z"
+    DATETIME_FORMAT: str = '%Y-%m-%dT%H:%M:%S.%f%:z'
 
     # 文件上传
     UPLOAD_READ_SIZE: int = 1024
