@@ -73,8 +73,10 @@ HUOSHAN_VOICE_REMARK_MAP = {
     'S_CKcK2x2X1': '旁白',
     'S_BKcK2x2X1': '珍棒',
     'S_AKcK2x2X1': '珍居',
-    'S_zKcK2x2X1': '未上传数据',
-    'S_yKcK2x2X1': '未上传数据',
+    'S_zKcK2x2X1': '凯叔',
+    'S_yKcK2x2X1': '成男温柔',
+    'S_xKcK2x2X1': '成女温柔',
+    'S_FKcK2x2X1': '成女活泼',
 }
 
 
