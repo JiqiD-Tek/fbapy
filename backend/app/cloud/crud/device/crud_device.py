@@ -1,10 +1,11 @@
-﻿from collections.abc import Sequence
+from collections.abc import Sequence
 
-from sqlalchemy import Select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import Device
+from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.device.device import CreateDeviceParam, UpdateDeviceParam
 
 
@@ -12,20 +13,29 @@ class CRUDDevice(CRUDPlus[Device]):
     async def get(self, db: AsyncSession, pk: int) -> Device | None:
         return await self.select_model(db, pk)
 
-    async def get_select(self, did: str | None, sn: str | None, mac: str | None, model: str | None) -> Select:
-        filters = {}
-        whereclause = []
+    async def get_select(
+        self,
+        *,
+        user_id: int | None = None,
+        did: str | None = None,
+        sn: str | None = None,
+        mac: str | None = None,
+        model: str | None = None,
+    ) -> Select:
+        stmt = select(Device)
 
+        if user_id is not None:
+            stmt = stmt.join(user_device, user_device.c.device_id == Device.id).where(user_device.c.user_id == user_id)
         if did is not None:
-            filters['did'] = did
+            stmt = stmt.where(Device.did == did)
         if sn is not None:
-            filters['sn'] = sn
+            stmt = stmt.where(Device.sn == sn)
         if mac is not None:
-            filters['mac'] = mac
+            stmt = stmt.where(Device.mac == mac)
         if model is not None:
-            whereclause.append(Device.model == model)
+            stmt = stmt.where(Device.model == model)
 
-        return await self.select_order('id', None, *whereclause, **filters)
+        return stmt.distinct().order_by(Device.id.desc())
 
     async def get_by_did(self, db: AsyncSession, did: str) -> Device | None:
         return await self.select_model_by_column(db, did=did)
@@ -52,7 +62,13 @@ class CRUDDevice(CRUDPlus[Device]):
         return await self.count(db, Device.model == model)
 
     async def get_device_count_by_user(self, db: AsyncSession, user_id: int) -> int:
-        return await self.count(db, user_id=user_id)
+        stmt = (
+            select(func.count())
+            .select_from(user_device)
+            .where(user_device.c.user_id == user_id)
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one()
 
 
 device_dao: CRUDDevice = CRUDDevice(Device)

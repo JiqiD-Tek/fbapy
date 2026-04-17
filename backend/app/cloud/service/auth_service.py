@@ -1,14 +1,14 @@
 ﻿from fastapi import Request
 import secrets
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTask, BackgroundTasks
 
 from backend.app.admin.service.login_log_service import login_log_service
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.device.crud_device import device_dao
-from backend.app.cloud.model import Device
+from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.model.user import User
 from backend.app.cloud.schema.device.device import CreateDeviceParam
@@ -240,8 +240,15 @@ class AuthService:
             device_model = await cls._register_device(db, device)
             result = await db.execute(select(user_device.c.user_id).where(user_device.c.device_id == device_model.id))
             bound_user_ids = set(result.scalars().all())
+            stale_user_ids = bound_user_ids - {payload.user_id}
 
-            if bound_user_ids - {payload.user_id}:
+            if stale_user_ids:
+                await db.execute(
+                    update(Baby)
+                    .where(Baby.user_id.in_(stale_user_ids), Baby.device_id == device_model.id)
+                    .values(device_id=None)
+                )
+
                 await db.execute(
                     delete(user_device).where(
                         user_device.c.device_id == device_model.id,
@@ -407,7 +414,7 @@ class AuthService:
         except errors.NotFoundError as e:
             log.error('登陆错误: 用户不存在')
             raise errors.NotFoundError(msg=e.msg)
-        except (errors.RequestError, errors.CustomError) as e:
+        except (errors.RequestError, errors.CustomError, errors.ConflictError) as e:
             log.error(f'登陆错误: {e}')
             task = BackgroundTask(
                 login_log_service.create,

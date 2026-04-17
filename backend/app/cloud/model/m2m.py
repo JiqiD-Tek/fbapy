@@ -2,7 +2,7 @@ import sqlalchemy as sa
 
 from backend.common.model import MappedBase
 
-# 用户设备表
+
 user_device = sa.Table(
     'u_user_device',
     MappedBase.metadata,

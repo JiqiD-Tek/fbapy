@@ -20,10 +20,12 @@ class MessagingService:
     业务化方法命名，便于扩展其他功能
     """
 
-    def __init__(self, mqtt_client: MQTTBroker, did: str, model: str = 'k11') -> None:
+    DEFAULT_MODEL = 'k11'
+
+    def __init__(self, mqtt_client: MQTTBroker, did: str, model: str = None) -> None:
         self.client = mqtt_client
         self.did = did
-        self.model = model
+        self.model = model or self.DEFAULT_MODEL
 
     # ---------------- 公共方法 ----------------
     @staticmethod

@@ -375,6 +375,9 @@ class Settings(BaseSettings):
         '$share/group/k11/+/up/status',
         '$share/group/k11/+/up/property',
         '$share/group/k11/+/up/ack',
+        '$share/group/js61/+/up/status',
+        '$share/group/js61/+/up/property',
+        '$share/group/js61/+/up/ack',
     ]
 
     # 大模型

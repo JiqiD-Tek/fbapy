@@ -1,15 +1,15 @@
-from typing import Annotated, Any
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request
+from fastapi import APIRouter, Path, Query, Request
 
+from backend.app.cloud.schema.baby import GetBabyDetail
 from backend.app.cloud.schema.device.device import GetDeviceDetail
-from backend.app.cloud.schema.user import DeviceAuthParam, GetUserInfoDetail, UserDeviceParam
-from backend.app.cloud.service.device_service import device_service
+from backend.app.cloud.schema.user import GetUserInfoDetail, UserDeviceParam
+from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.user_service import user_service
 from backend.common.exception import errors
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import device_or_jwt_auth_verify
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
@@ -24,6 +24,7 @@ async def get_k10_user(request: Request) -> ResponseSchemaModel[GetUserInfoDetai
 
 @router.get('', summary='分页获取用户列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_terminal_users_paginated(
+    request: Request,
     db: CurrentSession,
     unionid: Annotated[str | None, Query(description='微信 UnionID')] = None,
     username: Annotated[str | None, Query(description='用户名')] = None,
@@ -33,6 +34,7 @@ async def get_terminal_users_paginated(
 ) -> ResponseSchemaModel[PageData[GetUserInfoDetail]]:
     page_data = await user_service.get_list(
         db=db,
+        user_id=request.user.id,
         unionid=unionid,
         username=username,
         nickname=nickname,
@@ -42,39 +44,46 @@ async def get_terminal_users_paginated(
     return response_base.success(data=page_data)
 
 
-@router.get('/{pk}/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
-async def get_user_devices(
-    db: CurrentSession, pk: Annotated[int, Path(description='用户 ID')]
-) -> ResponseSchemaModel[list[GetDeviceDetail]]:
-    data = await user_service.get_devices(db=db, pk=pk)
+@router.get('/me/babies', summary='获取当前用户所有宝宝', dependencies=[DependsJwtAuth])
+async def get_current_user_babies(request: Request, db: CurrentSession) -> ResponseSchemaModel[list[GetBabyDetail]]:
+    data = await baby_service.get_user_babies(db=db, user_id=request.user.id)
     return response_base.success(data=data)
 
 
-@router.post('/bind', summary='设备绑定')
+@router.get('/{pk}/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
+async def get_user_devices(
+    request: Request,
+    db: CurrentSession,
+    pk: Annotated[int, Path(description='用户 ID')],
+) -> ResponseSchemaModel[list[GetDeviceDetail]]:
+    if pk != request.user.id:
+        raise errors.ForbiddenError(msg='无权查看其他用户设备')
+
+    data = await user_service.get_devices(db=db, user_id=request.user.id)
+    return response_base.success(data=data)
+
+
+@router.post('/bind', summary='设备绑定', dependencies=[DependsJwtAuth])
 async def bind_device(
+    request: Request,
     db: CurrentSessionTransaction,
     obj: UserDeviceParam,
-    auth_ctx: Annotated[Any, Depends(device_or_jwt_auth_verify)],
 ) -> ResponseModel:
-    if isinstance(auth_ctx, DeviceAuthParam):
-        current_device = await device_service.get_by_did(db=db, did=auth_ctx.did)
-        if current_device.id != obj.device_id:
-            raise errors.RequestError(msg='无权操作其他设备')
+    if obj.user_id != request.user.id:
+        raise errors.RequestError(msg='无权操作其他用户')
 
     await user_service.bind_device(db=db, obj=obj)
     return response_base.success()
 
 
-@router.post('/unbind', summary='设备解绑')
+@router.post('/unbind', summary='设备解绑', dependencies=[DependsJwtAuth])
 async def unbind_device(
+    request: Request,
     db: CurrentSessionTransaction,
     obj: UserDeviceParam,
-    auth_ctx: Annotated[Any, Depends(device_or_jwt_auth_verify)],
 ) -> ResponseModel:
-    if isinstance(auth_ctx, DeviceAuthParam):
-        current_device = await device_service.get_by_did(db=db, did=auth_ctx.did)
-        if current_device.id != obj.device_id:
-            raise errors.RequestError(msg='无权操作其他设备')
+    if obj.user_id != request.user.id:
+        raise errors.RequestError(msg='无权操作其他用户')
 
     await user_service.unbind_device(db=db, obj=obj)
     return response_base.success()

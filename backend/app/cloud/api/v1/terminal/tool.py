@@ -34,6 +34,7 @@ async def weather_tool(
 async def music_tool(
         mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         did: Annotated[str, Body(description='设备did')],
+        model: Annotated[str, Body(description='设备型号')],
         action: Annotated[str, Body(description='操作')],
         value: Annotated[str | None, Body(description='值')] = None,
         song: Annotated[str | None, Body(description='歌曲名称')] = None,
@@ -43,8 +44,8 @@ async def music_tool(
         play_url: Annotated[str | None, Body(description='音频地址')] = None,
 ) -> ResponseModel:
     """音乐播放"""
-    messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
-    await messaging_service.send_play_music(
+    service = MessagingService(mqtt_client=mqtt_client, did=did, model=model)
+    await service.send_play_music(
         action=action, value=value, song=song, artist=artist, playlist=playlist, platform=platform,
         play_url=play_url,
     )
@@ -56,13 +57,14 @@ async def music_tool(
 async def control_tool(
         mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         did: Annotated[str, Body(description='设备did')],
+        model: Annotated[str, Body(description='设备型号')],
         target: Annotated[str, Body(description='目标')],
         action: Annotated[str, Body(description='动作')],
         value: Annotated[str | None, Body(description='值')] = None,
 ) -> ResponseModel:
     """设备控制"""
-    messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
-    await messaging_service.send_system_control(target=target, action=action, value=value)
+    service = MessagingService(mqtt_client=mqtt_client, did=did, model=model)
+    await service.send_system_control(target=target, action=action, value=value)
 
     return response_base.success()
 
@@ -72,11 +74,12 @@ async def control_tool(
 async def alarm_tool(
         mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         did: Annotated[str, Body(description='设备did')],
+        model: Annotated[str, Body(description='设备型号')],
         action: Annotated[str, Body(description='操作')],
         target_time: Annotated[str | None, Body(description='时间')] = None,
         message: Annotated[str | None, Body(description='消息')] = None,
 ) -> ResponseModel:
-    messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
-    await messaging_service.send_alarm(action=action, target_time=target_time, message=message)
+    service = MessagingService(mqtt_client=mqtt_client, did=did, model=model)
+    await service.send_alarm(action=action, target_time=target_time, message=message)
 
     return response_base.success()

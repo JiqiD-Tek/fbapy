@@ -1,4 +1,4 @@
-﻿from collections.abc import Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import Select
@@ -18,14 +18,18 @@ class CRUDUser(CRUDPlus[User]):
 
     async def get_select(
         self,
-        unionid: str | None,
-        username: str | None,
-        nickname: str | None,
-        phone: str | None,
-        email: str | None,
+        *,
+        user_id: int | None = None,
+        unionid: str | None = None,
+        username: str | None = None,
+        nickname: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
     ) -> Select:
         filters = {}
 
+        if user_id is not None:
+            filters['id'] = user_id
         if unionid is not None:
             filters['unionid'] = unionid
         if username is not None:
@@ -43,7 +47,6 @@ class CRUDUser(CRUDPlus[User]):
         return await self.select_model_by_column(db, username=name)
 
     async def get_by_unionid(self, db: AsyncSession, unionid: str) -> User | None:
-        """通过微信 UnionID 获取用户。"""
         return await self.select_model_by_column(db, unionid=unionid)
 
     async def get_all(self, db: AsyncSession) -> Sequence[User]:
@@ -59,15 +62,12 @@ class CRUDUser(CRUDPlus[User]):
         return await self.delete_model_by_column(db, allow_multiple=True, id__in=pks)
 
     async def update_login_time(self, db: AsyncSession, pk: int) -> int:
-        """更新用户上次登录时间"""
         return await self.update_model_by_column(db, {'last_login_time': timezone.now()}, id=pk)
 
     async def get_by_phone(self, db: AsyncSession, phone: str) -> User | None:
-        """通过手机获取用户"""
         return await self.select_model_by_column(db, phone=phone)
 
     async def get_by_email(self, db: AsyncSession, email: str) -> User | None:
-        """通过邮箱获取用户"""
         return await self.select_model_by_column(db, email=email)
 
     async def get_join(
@@ -76,16 +76,8 @@ class CRUDUser(CRUDPlus[User]):
         *,
         user_id: int | None = None,
     ) -> Any | None:
-        """
-        获取用户关联信息
-
-        :param db: 数据库会话
-        :param user_id: 用户 ID
-        :return:
-        """
         filters = {}
-
-        if user_id:
+        if user_id is not None:
             filters['id'] = user_id
 
         result = await self.select_models(
@@ -97,12 +89,7 @@ class CRUDUser(CRUDPlus[User]):
             **filters,
         )
 
-        return select_join_serialize(
-            result,
-            relationships=[
-                'User-m2m-Device',
-            ],
-        )
+        return select_join_serialize(result, relationships=['User-m2m-Device'])
 
 
 user_dao: CRUDUser = CRUDUser(User)
