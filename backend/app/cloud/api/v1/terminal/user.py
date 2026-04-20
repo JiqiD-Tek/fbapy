@@ -24,13 +24,13 @@ async def get_cloud_user(request: Request) -> ResponseSchemaModel[GetUserInfoDet
 
 @router.get('', summary='分页获取用户列表', dependencies=[DependsSuperUser, DependsPagination])
 async def get_cloud_users_paginated(
-    request: Request,
-    db: CurrentSession,
-    unionid: Annotated[str | None, Query(description='微信 UnionID')] = None,
-    username: Annotated[str | None, Query(description='用户名')] = None,
-    nickname: Annotated[str | None, Query(description='昵称')] = None,
-    phone: Annotated[str | None, Query(description='手机号')] = None,
-    email: Annotated[str | None, Query(description='邮箱')] = None,
+        request: Request,
+        db: CurrentSession,
+        unionid: Annotated[str | None, Query(description='微信 UnionID')] = None,
+        username: Annotated[str | None, Query(description='用户名')] = None,
+        nickname: Annotated[str | None, Query(description='昵称')] = None,
+        phone: Annotated[str | None, Query(description='手机号')] = None,
+        email: Annotated[str | None, Query(description='邮箱')] = None,
 ) -> ResponseSchemaModel[PageData[GetUserInfoDetail]]:
     page_data = await user_service.get_list(
         db=db,
@@ -50,24 +50,20 @@ async def get_cloud_user_babies(request: Request, db: CurrentSession) -> Respons
     return response_base.success(data=data)
 
 
-@router.get('/{pk}/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
+@router.get('/me/devices', summary='获取用户所有设备', dependencies=[DependsJwtAuth])
 async def get_cloud_user_devices(
-    request: Request,
-    db: CurrentSession,
-    pk: Annotated[int, Path(description='用户 ID')],
+        request: Request,
+        db: CurrentSession,
 ) -> ResponseSchemaModel[list[GetDeviceDetail]]:
-    if pk != request.user.id:
-        raise errors.ForbiddenError(msg='无权查看其他用户设备')
-
     data = await user_service.get_devices(db=db, user_id=request.user.id)
     return response_base.success(data=data)
 
 
 @router.post('/bind', summary='设备绑定', dependencies=[DependsJwtAuth])
 async def bind_device(
-    request: Request,
-    db: CurrentSessionTransaction,
-    obj: UserDeviceParam,
+        request: Request,
+        db: CurrentSessionTransaction,
+        obj: UserDeviceParam,
 ) -> ResponseModel:
     if obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
@@ -78,9 +74,9 @@ async def bind_device(
 
 @router.post('/unbind', summary='设备解绑', dependencies=[DependsJwtAuth])
 async def unbind_device(
-    request: Request,
-    db: CurrentSessionTransaction,
-    obj: UserDeviceParam,
+        request: Request,
+        db: CurrentSessionTransaction,
+        obj: UserDeviceParam,
 ) -> ResponseModel:
     if obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
