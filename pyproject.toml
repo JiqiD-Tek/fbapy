@@ -58,7 +58,6 @@ dependencies = [
   "opentelemetry-instrumentation-logging>=0.60b1",
   "opentelemetry-instrumentation-redis>=0.60b1",
   "opentelemetry-instrumentation-sqlalchemy>=0.60b1",
-
   "oss2>=2.19.1",
   "paho-mqtt>=2.1.0",
   "opentelemetry-sdk>=1.40.0",
@@ -81,6 +80,7 @@ dependencies = [
   "starlette-context>=0.5.1",
   "user-agents>=2.2.0",
   "volcengine-python-sdk>=5.0.23",
+  "taospy>=2.8.9",
 ]
 dynamic = ["version"]
 

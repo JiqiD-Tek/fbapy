@@ -267,6 +267,8 @@ iniconfig==2.3.0
     # via pytest
 ip2loc==1.0.0
     # via fastapi-best-architecture
+iso8601==1.0.2
+    # via taospy
 itsdangerous==2.2.0
     # via fastapi-best-architecture
 jinja2==3.1.6
@@ -518,7 +520,9 @@ python-multipart==0.0.24
 python-socketio==5.16.1
     # via fastapi-best-architecture
 pytz==2026.1.post1
-    # via flower
+    # via
+    #   flower
+    #   taospy
 pyyaml==6.0.3
     # via
     #   langchain-classic
@@ -538,6 +542,7 @@ requests==2.33.1
     #   langsmith
     #   oss2
     #   requests-toolbelt
+    #   taospy
 requests-toolbelt==1.0.0
     # via langsmith
 rich==14.3.3
@@ -580,6 +585,8 @@ starlette==1.0.0
     #   starlette-context
 starlette-context==0.5.1
     # via fastapi-best-architecture
+taospy==2.8.9
+    # via fastapi-best-architecture
 tenacity==9.1.4
     # via
     #   langchain-community
@@ -604,7 +611,7 @@ types-protobuf==7.34.1.20260408
     #   livekit
     #   livekit-api
     #   livekit-protocol
-typing-extensions==4.15.0
+typing-extensions==4.14.1
     # via
     #   aiosignal
     #   alembic
@@ -633,6 +640,7 @@ typing-extensions==4.15.0
     #   rich-toolkit
     #   sqlalchemy
     #   starlette
+    #   taospy
     #   type-lens
     #   typing-inspect
     #   typing-inspection

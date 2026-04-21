@@ -68,6 +68,17 @@ class Settings(BaseSettings):
     # Redis
     REDIS_TIMEOUT: int = 5
 
+    # TDengine
+    TDENGINE_ENABLED: bool = False
+    TDENGINE_SCHEME: Literal['http', 'https'] = 'http'
+    TDENGINE_HOST: str = '127.0.0.1'
+    TDENGINE_PORT: int = 6041
+    TDENGINE_USER: str = 'root'
+    TDENGINE_PASSWORD: str = 'taosdata'
+    TDENGINE_DATABASE: str = 'fba'
+    TDENGINE_REQUEST_TIMEOUT_SECONDS: float = 10.0
+    TDENGINE_AUTO_CREATE_DATABASE: bool = True
+
     # 缓存
     CACHE_LOCAL_ENABLED: bool = True
     CACHE_LOCAL_MAXSIZE: int = 100000

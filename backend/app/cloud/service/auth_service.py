@@ -30,7 +30,7 @@ from backend.app.cloud.schema.user import (
 from backend.app.cloud.service.user_service import user_service
 from backend.common.mini_service import mini_service
 from backend.common.context import ctx
-from backend.common.enums import LoginLogStatusType
+from backend.common.enums import LoginLogStatusType, MiniProvisionStatus
 from backend.common.exception import errors
 from backend.common.i18n import t
 from backend.common.log import log
@@ -132,7 +132,7 @@ class AuthService:
         return MiniProvisionPayload(
             token=token,
             user_id=user.id,
-            status='pending',
+            status=MiniProvisionStatus.pending,
             msg='等待设备绑定',
             bound=False,
             device_id=None,
@@ -221,14 +221,14 @@ class AuthService:
 
         try:
             payload_device_did = str(payload.device_did or '').strip()
-            if payload.status == 'success':
+            if payload.status == MiniProvisionStatus.success:
                 if payload_device_did and payload_device_did != device.did:
                     raise errors.RequestError(msg='该配网 token 已被其他设备使用')
                 ttl = await redis_client.ttl(key)
                 if ttl is None or ttl < 0:
                     ttl = 0
                 return payload.to_status_detail(ttl)
-            if payload.status == 'failed':
+            if payload.status == MiniProvisionStatus.failed:
                 raise errors.RequestError(msg=payload.msg or '配网绑定失败')
 
             if payload.user_id <= 0:
@@ -265,7 +265,7 @@ class AuthService:
                 )
                 msg = '设备绑定成功'
 
-            payload.status = 'success'
+            payload.status = MiniProvisionStatus.success
             payload.msg = msg
             payload.bound = True
             payload.device_id = device_model.id
@@ -275,8 +275,8 @@ class AuthService:
             return payload.to_status_detail(ttl)
         except (errors.RequestError, errors.CustomError, errors.ConflictError, errors.GatewayError,
                 errors.NotFoundError) as exc:
-            if payload.status != 'success':
-                payload.status = 'failed'
+            if payload.status != MiniProvisionStatus.success:
+                payload.status = MiniProvisionStatus.failed
                 payload.msg = exc.msg
                 payload.bound = False
                 await cls._save_mini_provision_payload(key=key, payload=payload)

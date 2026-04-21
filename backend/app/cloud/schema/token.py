@@ -3,6 +3,7 @@
 from pydantic import Field
 
 from backend.app.cloud.schema.user import GetUserInfoDetail
+from backend.common.enums import MiniProvisionStatus
 from backend.common.schema import SchemaBase
 
 
@@ -31,7 +32,7 @@ class MiniProvisionTokenDetail(SchemaBase):
 
     token: str = Field(description='配网 token')
     expire_seconds: int = Field(description='过期时间（秒）')
-    status: str = Field(description='配网状态')
+    status: MiniProvisionStatus = Field(description='配网状态')
     msg: str = Field(description='状态说明')
 
 
@@ -39,7 +40,7 @@ class MiniProvisionStatusDetail(SchemaBase):
     """小程序配网绑定结果"""
 
     token: str = Field(description='配网 token')
-    status: str = Field(description='配网状态')
+    status: MiniProvisionStatus = Field(description='配网状态')
     msg: str = Field(description='状态说明')
     bound: bool = Field(description='是否已完成绑定')
     expire_seconds: int = Field(description='剩余过期时间（秒）')
@@ -53,7 +54,7 @@ class MiniProvisionPayload(SchemaBase):
 
     token: str = Field(description='配网 token')
     user_id: int = Field(description='用户 ID')
-    status: str = Field('pending', description='配网状态')
+    status: MiniProvisionStatus = Field(MiniProvisionStatus.pending, description='配网状态')
     msg: str = Field('', description='状态说明')
     bound: bool = Field(False, description='是否已完成绑定')
     device_id: int | None = Field(None, description='设备 ID')

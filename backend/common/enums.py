@@ -32,6 +32,14 @@ class StrEnum(_EnumBase, str, Enum):
     """字符串枚举基类"""
 
 
+class MiniProvisionStatus(StrEnum):
+    """小程序配网状态"""
+
+    pending = 'pending'
+    success = 'success'
+    failed = 'failed'
+
+
 class MenuType(IntEnum):
     """菜单类型"""
 
