@@ -27,7 +27,7 @@ from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR, UPLOAD_DIR
 from backend.database.db import create_tables
 from backend.database.redis import redis_client
-from backend.database.tdengine import tdengine_client
+from backend.database.tsdb import tsdb_client
 from backend.middleware.access_middleware import AccessMiddleware
 from backend.middleware.i18n_middleware import I18nMiddleware
 from backend.middleware.jwt_auth_middleware import JwtAuthMiddleware
@@ -56,8 +56,8 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 初始化 redis
     await redis_client.init()
 
-    # 初始化 TDengine
-    await tdengine_client.init()
+    # 初始化 TSDB
+    await tsdb_client.init()
 
     # 初始化 snowflake 节点
     await snowflake.init()
@@ -82,8 +82,8 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 释放 snowflake 节点
     await snowflake.shutdown()
 
-    # 关闭 TDengine 连接
-    await tdengine_client.aclose()
+    # 关闭 TSDB 连接
+    await tsdb_client.aclose()
 
     # 关闭 redis 连接
     await redis_client.aclose()

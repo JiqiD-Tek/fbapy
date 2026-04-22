@@ -62,19 +62,24 @@ services:
     networks:
       - fba-network
 
-  fba_tdengine:
-    image: tdengine/tdengine:latest
-    container_name: fba_tdengine
-    hostname: tdengine-server
+  fba_tsdb:
+    image: tdengine/tsdb:latest
+    container_name: fba_tsdb
+    hostname: tsdb
     restart: always
     cpus: 1.0
     mem_limit: 2048m
     ports:
-      - "${DOCKER_MAP_TDENGINE_PORT_RANGE:-6030-6060}:6030-6060"
-      - "${DOCKER_MAP_TDENGINE_PORT_RANGE:-6030-6060}:6030-6060/udp"
+      - "${DOCKER_MAP_TSDB_PORT_6030:-6030}:6030"
+      - "${DOCKER_MAP_TSDB_PORT_6041:-6041}:6041"
+      - "${DOCKER_MAP_TSDB_PORT_6043:-6043}:6043"
+      - "${DOCKER_MAP_TSDB_PORT_6060:-6060}:6060"
+      - "${DOCKER_MAP_TSDB_PORT_RANGE_TCP:-6044-6049}:6044-6049"
+      - "${DOCKER_MAP_TSDB_PORT_RANGE_UDP:-6044-6045}:6044-6045/udp"
     environment:
       TZ: Asia/Shanghai
-      TAOS_ROOT_PASSWORD: ${TAOS_ROOT_PASSWORD}
+      TAOS_ROOT_PASSWORD: ${TSDB_ROOT_PASSWORD}
+      EXPLORER_SKIP_REGISTER: ${TSDB_EXPLORER_SKIP_REGISTER:-true}
     volumes:
       - ${DATA_ROOT}/tdengine/log:/var/log/taos
       - ${DATA_ROOT}/tdengine/data:/var/lib/taos

@@ -11,27 +11,27 @@ from backend.common.log import log
 from backend.core.conf import settings
 
 
-class TDEngineError(RuntimeError):
-    """Raised when TDengine operations fail."""
+class TSDBError(RuntimeError):
+    """Raised when TSDB operations fail."""
 
 
-def quote_tdengine_identifier(value: str) -> str:
-    """Quote a TDengine identifier."""
+def quote_tsdb_identifier(value: str) -> str:
+    """Quote a TSDB identifier."""
 
     escaped = str(value).replace('`', '``').strip()
     if not escaped:
-        raise TDEngineError('TDengine identifier must not be empty')
+        raise TSDBError('TSDB identifier must not be empty')
     return f'`{escaped}`'
 
 
 def build_create_database_sql(database: str) -> str:
     """Build a CREATE DATABASE statement."""
 
-    return f'CREATE DATABASE IF NOT EXISTS {quote_tdengine_identifier(database)}'
+    return f'CREATE DATABASE IF NOT EXISTS {quote_tsdb_identifier(database)}'
 
 
-class TDEngineCli:
-    """Async TDengine client based on the official taospy REST connector."""
+class TSDBCli:
+    """Async TSDB client based on the official taospy REST connector."""
 
     def __init__(self) -> None:
         self._connections: dict[str | None, Any] = {}
@@ -39,35 +39,35 @@ class TDEngineCli:
 
     @property
     def enabled(self) -> bool:
-        return settings.TDENGINE_ENABLED
+        return settings.TSDB_ENABLED
 
     @property
     def database(self) -> str:
-        return settings.TDENGINE_DATABASE
+        return settings.TSDB_DATABASE
 
     @property
     def ready(self) -> bool:
         return bool(self._connections)
 
     async def init(self) -> None:
-        """Initialize the TDengine client."""
+        """Initialize the TSDB client."""
 
         if not self.enabled:
             return
 
         try:
             await self.ping()
-            if settings.TDENGINE_AUTO_CREATE_DATABASE:
+            if settings.TSDB_AUTO_CREATE_DATABASE:
                 await self.ensure_database()
             log.info(
-                'TDengine initialized via taospy-rest at {}://{}:{}/{}',
-                settings.TDENGINE_SCHEME,
-                settings.TDENGINE_HOST,
-                settings.TDENGINE_PORT,
+                'TSDB initialized via taospy-rest at {}://{}:{}/{}',
+                settings.TSDB_SCHEME,
+                settings.TSDB_HOST,
+                settings.TSDB_PORT,
                 self.database,
             )
         except Exception as exc:
-            log.error('TDengine initialization failed: {}', exc)
+            log.error('TSDB initialization failed: {}', exc)
             await self.aclose()
             sys.exit()
 
@@ -83,7 +83,7 @@ class TDEngineCli:
             self._connections.clear()
 
     async def ping(self) -> None:
-        """Verify the TDengine endpoint is reachable."""
+        """Verify the TSDB endpoint is reachable."""
 
         await self.query('SELECT SERVER_VERSION()')
 
@@ -102,7 +102,7 @@ class TDEngineCli:
             except Exception as exc:
                 self._close_connection(connection)
                 self._connections.pop(database, None)
-                raise TDEngineError(str(exc)) from exc
+                raise TSDBError(str(exc)) from exc
 
     async def query(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
         """Alias for execute()."""
@@ -121,10 +121,10 @@ class TDEngineCli:
     @staticmethod
     def _open_connection(database: str | None) -> Any:
         kwargs: dict[str, Any] = {
-            'url': f'{settings.TDENGINE_SCHEME}://{settings.TDENGINE_HOST}:{settings.TDENGINE_PORT}',
-            'user': settings.TDENGINE_USER,
-            'password': settings.TDENGINE_PASSWORD,
-            'timeout': settings.TDENGINE_REQUEST_TIMEOUT_SECONDS,
+            'url': f'{settings.TSDB_SCHEME}://{settings.TSDB_HOST}:{settings.TSDB_PORT}',
+            'user': settings.TSDB_USER,
+            'password': settings.TSDB_PASSWORD,
+            'timeout': settings.TSDB_REQUEST_TIMEOUT_SECONDS,
         }
         if database:
             kwargs['database'] = database
@@ -153,4 +153,4 @@ class TDEngineCli:
                 close()
 
 
-tdengine_client: TDEngineCli = TDEngineCli()
+tsdb_client: TSDBCli = TSDBCli()
