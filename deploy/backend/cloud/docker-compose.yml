@@ -62,6 +62,26 @@ services:
     networks:
       - fba-network
 
+  fba_tdengine:
+    image: tdengine/tdengine:latest
+    container_name: fba_tdengine
+    hostname: tdengine-server
+    restart: always
+    cpus: 1.0
+    mem_limit: 2048m
+    ports:
+      - "${DOCKER_MAP_TDENGINE_PORT_RANGE:-6030-6060}:6030-6060"
+      - "${DOCKER_MAP_TDENGINE_PORT_RANGE:-6030-6060}:6030-6060/udp"
+    environment:
+      TZ: Asia/Shanghai
+      TAOS_ROOT_PASSWORD: ${TAOS_ROOT_PASSWORD}
+    volumes:
+      - ${DATA_ROOT}/tdengine/log:/var/log/taos
+      - ${DATA_ROOT}/tdengine/data:/var/lib/taos
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - fba-network
+
   fba_emqx:
     image: emqx/emqx-enterprise:5.10.1-rc.2
     container_name: fba_emqx
