@@ -114,9 +114,7 @@ class Settings(BaseSettings):
         f'{FASTAPI_API_V1_PATH}/auth/login',
         f'{FASTAPI_API_V1_PATH}/live/coze/v1/chat',  # 聊天
     ]
-    TOKEN_REQUEST_PATH_EXCLUDE_PATTERN: list[Pattern[str]] = [  # JWT / RBAC 路由白名单（正则）
-        rf'^{FASTAPI_API_V1_PATH}/monitors/(redis|server)$',
-    ]
+    TOKEN_REQUEST_PATH_EXCLUDE_PATTERN: list[Pattern[str]] = []  # JWT / RBAC 路由白名单（正则）
 
     # 用户安全
     USER_LOCK_REDIS_PREFIX: str = 'fba:user:lock'
@@ -140,10 +138,7 @@ class Settings(BaseSettings):
 
     # RBAC
     RBAC_ROLE_MENU_MODE: bool = True
-    RBAC_ROLE_MENU_EXCLUDE: list[str] = [
-        'sys:monitor:redis',
-        'sys:monitor:server',
-    ]
+    RBAC_ROLE_MENU_EXCLUDE: list[str] = []
 
     # Cookie
     COOKIE_REFRESH_TOKEN_KEY: str = 'fba_refresh_token'
@@ -458,27 +453,6 @@ class Settings(BaseSettings):
             values['GRAFANA_METRICS_ENABLE'] = True
 
         return values
-
-    @model_validator(mode='after')
-    def check_auth_secrets(self) -> 'Settings':
-        min_length = self.AUTH_SECRET_MIN_LENGTH
-
-        master_secret = self.MASTER_SECRET.strip()
-        key_salt = self.KEY_SALT.strip()
-
-        if not master_secret:
-            raise ValueError('MASTER_SECRET must not be empty')
-        if len(master_secret) < min_length:
-            raise ValueError(f'MASTER_SECRET must be at least {min_length} characters long')
-
-        if not key_salt:
-            raise ValueError('KEY_SALT must not be empty')
-        if len(key_salt) < min_length:
-            raise ValueError(f'KEY_SALT must be at least {min_length} characters long')
-
-        self.MASTER_SECRET = master_secret
-        self.KEY_SALT = key_salt
-        return self
 
 
 @cache

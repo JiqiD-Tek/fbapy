@@ -31,3 +31,5 @@ celerybeat-schedule.*
 .serena/
 .agents/
 .logs/
+.superpowers/
+superpowers/
