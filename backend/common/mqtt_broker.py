@@ -23,6 +23,7 @@ import paho.mqtt.client as mqtt
 from jose import jwt
 from paho.mqtt.matcher import MQTTMatcher
 
+from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.log import log
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
@@ -658,6 +659,5 @@ async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroke
 
 async def on_message(message_ctx: MQTTMessageContext) -> None:
     """全局消息处理回调示例。"""
-    log.info(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
-    from backend.app.cloud.timeseries.event_router import EventRouter
-    await EventRouter.insert(message_ctx)
+    log.debug(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
+    await EventStore.insert(message_ctx)
