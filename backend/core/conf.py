@@ -77,7 +77,6 @@ class Settings(BaseSettings):
     TSDB_PASSWORD: str = 'taosdata'
     TSDB_DATABASE: str = 'fba'
     TSDB_REQUEST_TIMEOUT_SECONDS: float = 10.0
-    TSDB_AUTO_CREATE_DATABASE: bool = True
 
     # 缓存
     CACHE_LOCAL_ENABLED: bool = True

@@ -28,7 +28,7 @@ from backend.app.cloud.schema.user import (
     UserDeviceParam,
 )
 from backend.app.cloud.service.user_service import user_service
-from backend.common.mini_service import mini_service
+from backend.common.providers.mini_service import mini_service
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType, MiniProvisionStatus
 from backend.common.exception import errors

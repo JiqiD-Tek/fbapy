@@ -659,3 +659,5 @@ async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroke
 async def on_message(message_ctx: MQTTMessageContext) -> None:
     """全局消息处理回调示例。"""
     log.info(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
+    from backend.app.cloud.timeseries.event_router import EventRouter
+    await EventRouter.insert(message_ctx)

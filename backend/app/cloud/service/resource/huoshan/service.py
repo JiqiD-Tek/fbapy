@@ -34,7 +34,7 @@ from backend.app.cloud.schema.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.service.resource.song_service import cloud_song_service
-from backend.common.ali_oss import oss_client
+from backend.common.providers.ali_oss import oss_client
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings

@@ -8,7 +8,7 @@
 
 import uuid
 
-from backend.common.ali_oss import oss_client
+from backend.common.providers.ali_oss import oss_client
 from backend.utils.timezone import timezone
 
 

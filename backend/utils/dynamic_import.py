@@ -62,6 +62,12 @@ def get_app_models() -> list[object]:
         if model_objs:
             objs.extend(model_objs)
 
+    for app in apps:
+        module_path = f'backend.app.{app}.timeseries'
+        model_objs = get_model_objects(module_path)
+        if model_objs:
+            objs.extend(model_objs)
+
     return objs
 
 

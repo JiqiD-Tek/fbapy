@@ -21,7 +21,7 @@ from backend.app.live.agents.net.coze.audio.speech import (
 from backend.app.live.agents.net.coze.models import WebsocketsEvent, WebsocketsEventType
 from backend.app.live.agents.providers.coze.tts import CozeTTS as TTS
 from backend.app.live.service.coze.service import CozeService
-from backend.common.ali_oss import oss_client
+from backend.common.providers.ali_oss import oss_client
 from backend.common.exception import errors
 from backend.core.conf import settings
 
