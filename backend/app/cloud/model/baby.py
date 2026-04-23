@@ -22,7 +22,7 @@ class Baby(Base):
     id: Mapped[id_key] = mapped_column(init=False)
     name: Mapped[str] = mapped_column(sa.String(64), comment='Baby name')
     user_id: Mapped[int] = mapped_column(sa.BigInteger, index=True, comment='User ID')
-    device_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='Device ID')
+    device_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, unique=True, comment='Device ID')
     nickname: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Baby nickname')
     avatar: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='Avatar')
     sex: Mapped[int] = mapped_column(default=0, comment='Sex (0 unknown, 1 male, 2 female)')

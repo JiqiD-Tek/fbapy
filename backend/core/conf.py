@@ -74,9 +74,10 @@ class Settings(BaseSettings):
     TSDB_HOST: str = '127.0.0.1'
     TSDB_PORT: int = 6041
     TSDB_USER: str = 'root'
-    TSDB_PASSWORD: str = 'taosdata'
+    TSDB_PASSWORD: str = ''
     TSDB_DATABASE: str = 'fba'
     TSDB_REQUEST_TIMEOUT_SECONDS: float = 10.0
+    TSDB_KEEP_DAYS: int = 30
 
     # 缓存
     CACHE_LOCAL_ENABLED: bool = True

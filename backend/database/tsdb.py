@@ -223,7 +223,9 @@ class TSDBClient:
     async def create_database(self, database: str | None = None) -> None:
         """Create the target database if needed."""
 
-        await self.execute(f'CREATE DATABASE IF NOT EXISTS {quote_identifier(database or self.database)}')
+        database_name = quote_identifier(database or self.database)
+        await self.execute(f'CREATE DATABASE IF NOT EXISTS {database_name} KEEP {settings.TSDB_KEEP_DAYS}d')
+        await self.execute(f'ALTER DATABASE {database_name} KEEP {settings.TSDB_KEEP_DAYS}d')
 
     async def create_all(self, *, database: str | None = None) -> None:
         """Create all registered tables in the target database."""
@@ -236,8 +238,10 @@ class TSDBClient:
         async with self._lock:
             connection = await self._get_connection(database=database)
             try:
+                log.debug('TSDB execute: {}', sql)
                 return await asyncio.to_thread(self._execute_sql, connection, sql)
             except Exception as exc:
+                log.error('TSDB execute failed: {}', exc)
                 self._close_connection(connection)
                 self._connections.pop(database, None)
                 raise TSDBError(str(exc)) from exc
@@ -245,7 +249,7 @@ class TSDBClient:
     async def query(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
         """Alias for execute()."""
 
-        return await self.execute(sql, database=database)
+        return await self.execute(sql, database=self.database if database is None else database)
 
     async def _get_connection(self, *, database: str | None = None) -> Any:
         connection = self._connections.get(database)

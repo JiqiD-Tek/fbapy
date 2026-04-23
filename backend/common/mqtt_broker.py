@@ -659,5 +659,7 @@ async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroke
 
 async def on_message(message_ctx: MQTTMessageContext) -> None:
     """全局消息处理回调示例。"""
-    log.debug(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
-    await EventStore.insert(message_ctx)
+    try:
+        await EventStore.insert(message_ctx)
+    except Exception as e:
+        log.debug(f'保存消息失败: {e}', exc_info=True)

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
+import cachebox
+from sqlalchemy import select
+
+from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.timeseries.js61_event import JS61EventTable
-from backend.app.cloud.timeseries.k11_event import K11EventTable
 from backend.common.log import log
+from backend.database.db import async_db_session
 from backend.database.tsdb import TSDBTable, quote_identifier, quote_value, tsdb_client
 from backend.utils.timezone import timezone
 
@@ -22,7 +27,7 @@ class EventRoute:
     """Parsed routing metadata from an MQTT device event topic."""
 
     model: str
-    device_id: str
+    did: str
     direction: str
     category: str
 
@@ -30,10 +35,12 @@ class EventRoute:
 class EventStore:
     """Persist and query MQTT device events in TSDB."""
 
-    TABLES_BY_MODEL: dict[str, TSDBTable] = {
+    TABLES_BY_MODEL: ClassVar[dict[str, TSDBTable]] = {
         'js61': JS61EventTable.__table__,
-        'k11': K11EventTable.__table__,
     }
+    BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, ttl=600)
+    BABY_ID_CACHE_LOCK: ClassVar[asyncio.Lock] = asyncio.Lock()
+
     MAX_PAYLOAD_LENGTH = 4096
     MAX_QUERY_LIMIT = 50000
 
@@ -49,8 +56,57 @@ class EventStore:
         return normalized.lower() if lowercase else normalized
 
     @classmethod
-    def _build_subtable_name(cls, model: str, device_id: str) -> str:
-        return f'{model}_{device_id}'
+    def cache_key(cls, did: str) -> str:
+        return f'timeseries:baby-id:{did}'
+
+    @classmethod
+    def invalidate_baby_id_cache(cls, did: str | None) -> None:
+        normalized_did = cls._normalize_text(did)
+        if normalized_did is None:
+            return
+
+        cls.BABY_ID_CACHE.pop(cls.cache_key(normalized_did), None)
+
+    @classmethod
+    async def _query_baby_id(cls, did: str) -> int | None:
+        async with async_db_session() as db:
+            stmt = (
+                select(Baby.id)
+                .join(Device, Device.id == Baby.device_id)
+                .where(Device.did == did)
+                .order_by(Baby.id.desc())
+                .limit(1)
+            )
+            result = await db.execute(stmt)
+            baby_id = result.scalar_one_or_none()
+
+        return baby_id
+
+    @classmethod
+    async def _resolve_baby_id(cls, did: str) -> int | str:
+        cache_key = cls.cache_key(did)
+        if cache_key in cls.BABY_ID_CACHE:
+            return cls.BABY_ID_CACHE[cache_key]
+
+        async with cls.BABY_ID_CACHE_LOCK:
+            if cache_key in cls.BABY_ID_CACHE:
+                return cls.BABY_ID_CACHE[cache_key]
+
+            baby_id = await cls._query_baby_id(did)
+            cls.BABY_ID_CACHE[cache_key] = baby_id
+            return baby_id
+
+    @classmethod
+    async def _resolve_subtable_name(cls, model: str, baby_id: int) -> str:
+        return f'{model}_{baby_id}'
+
+    @classmethod
+    def _ensure_tsdb_ready(cls, *, action: str) -> bool:
+        if not tsdb_client.enabled:
+            log.debug(f'skip TSDB {action} because TSDB client is not enabled')
+            return False
+
+        return True
 
     @classmethod
     def _resolve_model_table(cls, model: str) -> tuple[str, TSDBTable] | None:
@@ -65,18 +121,6 @@ class EventStore:
         return model_key, table
 
     @classmethod
-    def _ensure_tsdb_ready(cls, *, action: str) -> bool:
-        if not tsdb_client.enabled:
-            log.debug(f'skip TSDB {action} because TSDB client is not enabled')
-            return False
-
-        if not tsdb_client.ready:
-            log.debug(f'skip TSDB {action} because TSDB client is not ready')
-            return False
-
-        return True
-
-    @classmethod
     def _parse_message_topic(cls, topic: str) -> EventRoute | None:
         parts = [segment.strip() for segment in topic.split('/') if segment.strip()]
         if len(parts) < 4:
@@ -84,7 +128,7 @@ class EventStore:
 
         return EventRoute(
             model=parts[0].lower(),
-            device_id=parts[1],
+            did=parts[1],
             direction=parts[2],
             category=parts[3],
         )
@@ -114,10 +158,10 @@ class EventStore:
 
     @classmethod
     def _resolve_time_range(
-        cls,
-        *,
-        start_time: datetime | str | None,
-        end_time: datetime | str | None,
+            cls,
+            *,
+            start_time: datetime | str | None,
+            end_time: datetime | str | None,
     ) -> tuple[datetime | None, datetime | None]:
         normalized_start = cls._normalize_time_filter(start_time)
         normalized_end = cls._normalize_time_filter(end_time)
@@ -132,13 +176,13 @@ class EventStore:
 
     @classmethod
     def _build_query_filters(
-        cls,
-        *,
-        start_time: datetime | None,
-        end_time: datetime | None,
-        direction: str | None,
-        category: str | None,
-        service: str | None,
+            cls,
+            *,
+            start_time: datetime | None,
+            end_time: datetime | None,
+            direction: str | None,
+            category: str | None,
+            service: str | None,
     ) -> list[str]:
         filters: list[str] = []
 
@@ -148,9 +192,9 @@ class EventStore:
             filters.append(f'ts <= {int(end_time.timestamp() * 1000)}')
 
         for field_name, field_value in (
-            ('direction', direction),
-            ('category', category),
-            ('service', service),
+                ('direction', direction),
+                ('category', category),
+                ('service', service),
         ):
             normalized_value = cls._normalize_text(field_value)
             if normalized_value is None:
@@ -160,10 +204,9 @@ class EventStore:
         return filters
 
     @classmethod
-    def _build_insert_tags(cls, route: EventRoute) -> dict[str, str]:
+    def _build_insert_tags(cls, *, baby_id: int) -> dict[str, int]:
         return {
-            'did': route.device_id,
-            'model': route.model,
+            'baby_id': baby_id,
         }
 
     @classmethod
@@ -171,9 +214,10 @@ class EventStore:
         return {
             'ts': int(message_ctx.timestamp * 1000),
             'event_id': uuid.uuid4().hex,
+            'did': route.did,
             'direction': route.direction,
             'category': route.category,
-            'service': 'mqtt',
+            'service': 'mqtt',  # TODO: get from message
             'topic': message_ctx.topic,
             'payload': cls._serialize_message_payload(message_ctx.topic, message_ctx.payload),
         }
@@ -186,12 +230,12 @@ class EventStore:
 
     @classmethod
     def _build_query_sql(
-        cls,
-        *,
-        subtable_name: str,
-        selected_columns: str,
-        filters: list[str],
-        limit: int,
+            cls,
+            *,
+            subtable_name: str,
+            selected_columns: str,
+            filters: list[str],
+            limit: int,
     ) -> str:
         where_sql = f" WHERE {' AND '.join(filters)}" if filters else ''
         return (
@@ -202,10 +246,10 @@ class EventStore:
 
     @classmethod
     def _map_query_rows(
-        cls,
-        *,
-        column_names: tuple[str, ...],
-        rows: list[tuple[object, ...]] | list[list[object]],
+            cls,
+            *,
+            column_names: tuple[str, ...],
+            rows: list[tuple[object, ...]] | list[list[object]],
     ) -> list[dict[str, object]]:
         return [dict(zip(column_names, row, strict=False)) for row in rows]
 
@@ -224,12 +268,16 @@ class EventStore:
         if resolved_table is None:
             return
 
+        baby_id = await cls._resolve_baby_id(route.did)
+        if baby_id is None:
+            return
+
         model_key, table = resolved_table
         try:
             await table.insert(
                 tsdb_client,
-                subtable_name=cls._build_subtable_name(model_key, route.device_id),
-                tags=cls._build_insert_tags(route),
+                subtable_name=await cls._resolve_subtable_name(model_key, baby_id),
+                tags=cls._build_insert_tags(baby_id=baby_id),
                 values=cls._build_insert_values(message_ctx, route),
             )
         except Exception as exc:
@@ -239,16 +287,16 @@ class EventStore:
 
     @classmethod
     async def query(
-        cls,
-        *,
-        model: str,
-        device_id: str,
-        start_time: datetime | str | None = None,
-        end_time: datetime | str | None = None,
-        direction: str | None = None,
-        category: str | None = None,
-        service: str | None = None,
-        limit: int = 10000,
+            cls,
+            *,
+            model: str,
+            baby_id: int,
+            start_time: datetime | str | None = None,
+            end_time: datetime | str | None = None,
+            direction: str | None = None,
+            category: str | None = None,
+            service: str | None = None,
+            limit: int = 10000,
     ) -> list[dict[str, object]]:
         """Query device event messages from one TSDB subtable."""
 
@@ -257,10 +305,6 @@ class EventStore:
             return []
 
         if not cls._ensure_tsdb_ready(action='message query'):
-            return []
-
-        normalized_device_id = cls._normalize_text(device_id)
-        if normalized_device_id is None:
             return []
 
         model_key, table = resolved_table
@@ -274,8 +318,9 @@ class EventStore:
             category=category,
             service=service,
         )
+
         sql = cls._build_query_sql(
-            subtable_name=cls._build_subtable_name(model_key, normalized_device_id),
+            subtable_name=await cls._resolve_subtable_name(model_key, baby_id),
             selected_columns=selected_columns,
             filters=filters,
             limit=safe_limit,
@@ -284,3 +329,22 @@ class EventStore:
         rows = result.get('data', [])
 
         return cls._map_query_rows(column_names=column_names, rows=rows)
+
+
+event_store = EventStore()
+
+
+async def main() -> None:
+    await tsdb_client.init()
+    ret = await event_store.query(
+        model='js61',
+        baby_id=1,
+        start_time='2026-04-01 00:00:00',
+        end_time='2026-05-01 00:00:00',
+        limit=10000,
+    )
+    print(ret)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

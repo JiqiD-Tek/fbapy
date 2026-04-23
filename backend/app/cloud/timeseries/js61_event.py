@@ -8,6 +8,7 @@ class JS61EventTable(TSDBBase):
     __columns__ = (
         TSDBField(name='ts', definition='TIMESTAMP', description='Event timestamp'),
         TSDBField(name='event_id', definition='VARCHAR(64) COMPOSITE KEY', description='Unique event id'),
+        TSDBField(name='did', definition='VARCHAR(64)', description='device id'),
         TSDBField(name='direction', definition='VARCHAR(8)', description='Event direction, such as up/down'),
         TSDBField(name='category', definition='VARCHAR(32)', description='Business event category'),
         TSDBField(name='service', definition='VARCHAR(32)', description='Source service name'),
@@ -15,6 +16,5 @@ class JS61EventTable(TSDBBase):
         TSDBField(name='payload', definition='NCHAR(4096)', description='Original event payload'),
     )
     __tags__ = (
-        TSDBField(name='did', definition='VARCHAR(64)', description='Device id'),
-        TSDBField(name='model', definition='VARCHAR(32)', description='Device model'),
+        TSDBField(name='baby_id', definition='VARCHAR(64)', description='Baby id'),
     )

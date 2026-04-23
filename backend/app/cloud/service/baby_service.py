@@ -25,6 +25,19 @@ class BabyService:
     """宝宝服务类"""
 
     @staticmethod
+    async def _invalidate_timeseries_baby_cache(*, db: AsyncSession, device_id: int | None) -> None:
+        if device_id is None:
+            return
+
+        device = await device_dao.get(db, device_id)
+        if device is None:
+            return
+
+        from backend.app.cloud.timeseries.event_store import EventStore
+
+        EventStore.invalidate_baby_id_cache(device.did)
+
+    @staticmethod
     async def _ensure_device_exists(*, db: AsyncSession, device_id: int) -> None:
         if await device_dao.get(db, device_id) is None:
             raise errors.NotFoundError(msg='设备不存在')
@@ -53,11 +66,11 @@ class BabyService:
 
     @staticmethod
     async def _ensure_user_can_operate_device_baby(
-        *,
-        db: AsyncSession,
-        user_id: int,
-        device_id: int,
-        baby_id: int,
+            *,
+            db: AsyncSession,
+            user_id: int,
+            device_id: int,
+            baby_id: int,
     ) -> Baby:
         await BabyService._ensure_device_exists(db=db, device_id=device_id)
         await BabyService._ensure_user_device_bound(
@@ -74,13 +87,13 @@ class BabyService:
 
     @staticmethod
     async def get_list(
-        *,
-        db: AsyncSession,
-        user_id: int,
-        name: str | None = None,
-        nickname: str | None = None,
-        sex: int | None = None,
-        device_id: int | None = None,
+            *,
+            db: AsyncSession,
+            user_id: int,
+            name: str | None = None,
+            nickname: str | None = None,
+            sex: int | None = None,
+            device_id: int | None = None,
     ) -> dict[str, Any]:
         if device_id is not None:
             await BabyService._ensure_device_exists(db=db, device_id=device_id)
@@ -114,6 +127,7 @@ class BabyService:
         baby_data['user_id'] = user_id
         baby_data['device_id'] = obj.device_id
         baby = await baby_dao.create(db, baby_data)
+        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
         return baby
 
     @staticmethod
@@ -146,7 +160,16 @@ class BabyService:
         )
         if baby.device_id == obj.device_id:
             return
+
+        previous_device_id = baby.device_id
+        await db.execute(
+            update(Baby)
+            .where(Baby.user_id == user_id, Baby.device_id == obj.device_id, Baby.id != obj.baby_id)
+            .values(device_id=None)
+        )
         await baby_dao.update_model(db, obj.baby_id, {'device_id': obj.device_id})
+        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=previous_device_id)
+        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
 
     @staticmethod
     async def unbind_device_baby(*, db: AsyncSession, user_id: int, obj: DeviceBabyParam) -> None:
@@ -159,14 +182,7 @@ class BabyService:
         if baby.device_id != obj.device_id:
             raise errors.RequestError(msg='宝宝未绑定该设备')
         await baby_dao.update_model(db, obj.baby_id, {'device_id': None})
-
-    @staticmethod
-    async def cleanup_device_babies_for_user(*, db: AsyncSession, user_id: int, device_id: int) -> None:
-        await db.execute(
-            update(Baby)
-            .where(Baby.user_id == user_id, Baby.device_id == device_id)
-            .values(device_id=None)
-        )
+        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
 
 
 baby_service: BabyService = BabyService()

@@ -96,13 +96,13 @@ class VikingMemoryClient:
     def _build_filter(
             cls,
             *,
-            did: str,
+            user_id: str,
             assistant_id: FilterValue = None,
             memory_types: FilterValue = None,
             extra_filter: MemoryFilter | None = None,
     ) -> MemoryFilter:
         memory_filter = dict(extra_filter or {})
-        memory_filter[cls.FILTER_USER_ID] = did
+        memory_filter[cls.FILTER_USER_ID] = user_id
 
         if assistant_id_value := cls._normalize_filter_value(assistant_id):
             memory_filter[cls.FILTER_ASSISTANT_ID] = assistant_id_value
@@ -116,7 +116,7 @@ class VikingMemoryClient:
             self,
             query_fn: MemoryQuery,
             *,
-            did: str,
+            user_id: str,
             query: str | None = None,
             limit: int,
             assistant_id: FilterValue = None,
@@ -130,7 +130,7 @@ class VikingMemoryClient:
         params: dict[str, Any] = {
             'query': self._normalize_text(query),
             'filter': self._build_filter(
-                did=did,
+                user_id=user_id,
                 assistant_id=assistant_id,
                 memory_types=memory_types,
                 extra_filter=extra_filter,
@@ -287,7 +287,7 @@ class VikingMemoryClient:
 
     async def query_event_memories(
             self,
-            did: str,
+            user_id: str,
             *,
             query: str | None = None,
             limit: int | None = None,
@@ -297,7 +297,7 @@ class VikingMemoryClient:
     ) -> MemoryResponse:
         return await self._query(
             self._get_collection().async_search_event_memory,
-            did=did,
+            user_id=user_id,
             query=query,
             limit=self._resolve_limit(limit, self.DEFAULT_EVENT_LIMIT),
             assistant_id=assistant_id,
@@ -308,7 +308,7 @@ class VikingMemoryClient:
 
     async def query_profile_memories(
             self,
-            did: str,
+            user_id: str,
             *,
             query: str | None = None,
             limit: int | None = None,
@@ -317,7 +317,7 @@ class VikingMemoryClient:
     ) -> MemoryResponse:
         return await self._query(
             self._get_collection().async_search_profile_memory,
-            did=did,
+            user_id=user_id,
             query=query,
             limit=self._resolve_limit(limit, self.DEFAULT_PROFILE_LIMIT),
             assistant_id=assistant_id,
@@ -327,7 +327,7 @@ class VikingMemoryClient:
 
     async def query_event_memories_text(
             self,
-            did: str,
+            user_id: str,
             *,
             query: str | None = None,
             limit: int | None = None,
@@ -336,7 +336,7 @@ class VikingMemoryClient:
             time_decay_config: dict[str, Any] | None = None,
     ) -> str:
         payload = await self.query_event_memories(
-            did,
+            user_id,
             query=query,
             limit=limit,
             assistant_id=assistant_id,
@@ -347,7 +347,7 @@ class VikingMemoryClient:
 
     async def query_profile_memories_text(
             self,
-            did: str,
+            user_id: str,
             *,
             query: str | None = None,
             limit: int | None = None,
@@ -355,7 +355,7 @@ class VikingMemoryClient:
             extra_filter: MemoryFilter | None = None,
     ) -> str:
         payload = await self.query_profile_memories(
-            did,
+            user_id,
             query=query,
             limit=limit,
             assistant_id=assistant_id,
@@ -369,12 +369,12 @@ viking_memory_client = VikingMemoryClient()
 
 async def main():
     ret = await viking_memory_client.query_event_memories_text(
-        did='5C:8A:A9:A5:EA:6B', query=''
+        user_id="1", query=''
     )
     print(ret)
 
     ret = await viking_memory_client.query_profile_memories_text(
-        did='5C:8A:A9:A5:EA:6B', query=''
+        user_id="1", query=''
     )
     print(ret)
 
