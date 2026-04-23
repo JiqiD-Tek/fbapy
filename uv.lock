@@ -671,6 +671,19 @@ wheels = [
 ]
 
 [[package]]
+name = "beautifulsoup4"
+version = "4.14.3"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "soupsieve" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/c3/b0/1c6a16426d389813b48d95e26898aff79abbde42ad353958ad95cc8c9b21/beautifulsoup4-4.14.3.tar.gz", hash = "sha256:6292b1c5186d356bba669ef9f7f051757099565ad9ada5dd630bd9de5fa7fb86" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/1a/39/47f9197bdd44df24d67ac8893641e16f386c984a0619ef2ee4c51fbbc019/beautifulsoup4-4.14.3-py3-none-any.whl", hash = "sha256:0918bfe44902e6ad8d57732ba310582e98da931428d231a5ecb9e7c703a735bb" },
+]
+
+[[package]]
 name = "bidict"
 version = "0.23.1"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -1285,6 +1298,15 @@ wheels = [
 ]
 
 [[package]]
+name = "decorator"
+version = "5.2.1"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/43/fa/6d96a0978d19e17b68d634497769987b16c8f4cd0a7a05048bec693caa6b/decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/4e/8c/f3147f5c4b73e7550fe5f9352eaa956ae838d5c51eb58e7a25b9f3e2643b/decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a" },
+]
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -1522,6 +1544,8 @@ dependencies = [
     { name = "starlette-context" },
     { name = "taospy" },
     { name = "user-agents" },
+    { name = "vikingdb-python-sdk" },
+    { name = "volcengine" },
     { name = "volcengine-python-sdk" },
 ]
 
@@ -1608,6 +1632,8 @@ requires-dist = [
     { name = "starlette-context", specifier = ">=0.5.1" },
     { name = "taospy", specifier = ">=2.8.9" },
     { name = "user-agents", specifier = ">=2.2.0" },
+    { name = "vikingdb-python-sdk", specifier = ">=0.1.18" },
+    { name = "volcengine", specifier = ">=1.0.0" },
     { name = "volcengine-python-sdk", specifier = ">=5.0.23" },
 ]
 
@@ -1845,6 +1871,18 @@ wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/b1/c4/1fe2817daca8e97c365fd739dd4057f71cce26ef600fb8465deb8060c83c/gevent-26.4.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:dc38137ba2f43794c488615aafa2eefd0cc142f484a8274d4c827ed7a031a1e2" },
     { url = "https://mirrors.aliyun.com/pypi/packages/e7/cc/ccbcbd56e7e85482291fbb90a317f5febf630ec4174a91506f4167ba0912/gevent-26.4.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:29a225d2d4da37e20c7a246754a64442d0e43e4534b8cc764f89530bb22a4237" },
     { url = "https://mirrors.aliyun.com/pypi/packages/8e/b9/7dd37b6001d16f692b1bfb6e68cad642beb38b34a753c29bbff312f46e4b/gevent-26.4.0-cp314-cp314-win_amd64.whl", hash = "sha256:d1c08bc9bb6bd79732a26710a99588b5e9b67b668e165dd609704b876f41baab" },
+]
+
+[[package]]
+name = "google"
+version = "3.0.0"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "beautifulsoup4" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/89/97/b49c69893cddea912c7a660a4b6102c6b02cd268f8c7162dd70b7c16f753/google-3.0.0.tar.gz", hash = "sha256:143530122ee5130509ad5e989f0512f7cb218b2d4eddbafbad40fd10e8d8ccbe" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/ac/35/17c9141c4ae21e9a29a43acdfd848e3e468a810517f862cad07977bf8fe9/google-3.0.0-py2.py3-none-any.whl", hash = "sha256:889cf695f84e4ae2c55fbc0cfdaf4c1e729417fa52ab1db0485202ba173e4935" },
 ]
 
 [[package]]
@@ -4087,6 +4125,15 @@ wheels = [
 ]
 
 [[package]]
+name = "py"
+version = "1.11.0"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/98/ff/fec109ceb715d2a6b4c4a85a61af3b40c723a961e8828319fbcb15b868dc/py-1.11.0.tar.gz", hash = "sha256:51c75c4126074b472f746a24399ad32f6053d1b34b68d2fa41e558e6f4a98719" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/f6/f0/10642828a8dfb741e5f3fbaac830550a518a775c7fff6f04a007259b0548/py-1.11.0-py2.py3-none-any.whl", hash = "sha256:607c53218732647dff4acdfcd50cb62615cedf612e72d1724fb1a0cc6405b378" },
+]
+
+[[package]]
 name = "pyasn1"
 version = "0.6.3"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -4554,6 +4601,19 @@ wheels = [
 ]
 
 [[package]]
+name = "retry"
+version = "0.9.2"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "decorator" },
+    { name = "py" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/9d/72/75d0b85443fbc8d9f38d08d2b1b67cc184ce35280e4a3813cda2f445f3a4/retry-0.9.2.tar.gz", hash = "sha256:f8bfa8b99b69c4506d6f5bd3b0aabf77f98cdb17f3c9fc3f5ca820033336fba4" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/4b/0d/53aea75710af4528a25ed6837d71d117602b01946b307a3912cb3cfcbcba/retry-0.9.2-py2.py3-none-any.whl", hash = "sha256:ccddf89761fa2c726ab29391837d4327f819ea14d244c232a1d24c67a2f98606" },
+]
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -4701,6 +4761,15 @@ source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2" },
+]
+
+[[package]]
+name = "soupsieve"
+version = "2.8.3"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/7b/ae/2d9c981590ed9999a0d91755b47fc74f74de286b0f5cee14c9269041e6c4/soupsieve-2.8.3.tar.gz", hash = "sha256:3267f1eeea4251fb42728b6dfb746edc9acaffc4a45b27e19450b676586e8349" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/46/2c/1462b1d0a634697ae9e55b3cecdcb64788e8b7d63f54d923fcd0bb140aed/soupsieve-2.8.3-py3-none-any.whl", hash = "sha256:ed64f2ba4eebeab06cc4962affce381647455978ffc1e36bb79a545b91f45a95" },
 ]
 
 [[package]]
@@ -5177,12 +5246,48 @@ wheels = [
 ]
 
 [[package]]
+name = "vikingdb-python-sdk"
+version = "0.1.18"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+    { name = "urllib3" },
+    { name = "volcengine" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/45/77/b77c37574fa3adff500ff9f09113855fc01892d5d7de70c3ca2bcbb09221/vikingdb_python_sdk-0.1.18.tar.gz", hash = "sha256:880b88f6382deb87e3fa4b620f29cb2b8c1836214541ce962452451f3b0d5c40" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/f2/cb/abdf7bff8391eab84828d21ed44b61021396aae93ec07a125160682e3e08/vikingdb_python_sdk-0.1.18-py3-none-any.whl", hash = "sha256:3eadb6b60977ae8d0ef0311a6db5354983ef588be4335c11dc3d82aae6f4951d" },
+]
+
+[[package]]
 name = "vine"
 version = "5.1.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/bd/e4/d07b5f29d283596b9727dd5275ccbceb63c44a1a82aa9e4bfd20426762ac/vine-5.1.0.tar.gz", hash = "sha256:8b62e981d35c41049211cf62a0a1242d8c1ee9bd15bb196ce38aefd6799e61e0" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/03/ff/7c0c86c43b3cbb927e0ccc0255cb4057ceba4799cd44ae95174ce8e8b5b2/vine-5.1.0-py3-none-any.whl", hash = "sha256:40fdf3c48b2cfe1c38a49e9ae2da6fda88e4794c810050a728bd7413811fb1dc" },
+]
+
+[[package]]
+name = "volcengine"
+version = "1.0.220"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
+dependencies = [
+    { name = "google" },
+    { name = "protobuf" },
+    { name = "pycryptodome" },
+    { name = "pytz" },
+    { name = "requests" },
+    { name = "retry" },
+    { name = "six" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/c3/56/dbedecf15bad89315289ad714d4908c284d73e07e454503f0882a761a4e2/volcengine-1.0.220.tar.gz", hash = "sha256:64ceaa18075d5ffdc83f1c113706d6ca7a3693e54505b3b8eb0d77fd00992eaf" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/ad/17/1e2f6a78365371f25fa2b1af71e0b5037222d4331278c3a92fc58ae100be/volcengine-1.0.220-py3-none-any.whl", hash = "sha256:71112533653d7c64324163b019af17fdf3d848765237ced17de130c4b9e7ee76" },
 ]
 
 [[package]]

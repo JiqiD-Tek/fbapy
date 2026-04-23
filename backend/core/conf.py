@@ -436,6 +436,18 @@ class Settings(BaseSettings):
     DOUBAO_API_KEY: SecretStr = ''
     DOUBAO_BASE_URL: str = ''
 
+    # Viking Memory
+    VIKING_MEMORY_ENABLED: bool = False
+    VIKING_MEMORY_COLLECTION_NAME: str = ''
+    VIKING_MEMORY_PROJECT_NAME: str = 'default'
+    VIKING_MEMORY_HOST: str = 'api-knowledgebase.mlp.cn-beijing.volces.com'
+    VIKING_MEMORY_REGION: str = 'cn-beijing'
+    VIKING_MEMORY_SCHEME: Literal['http', 'https'] = 'https'
+    VIKING_MEMORY_TIMEOUT_SECONDS: int = 30
+    VIKING_MEMORY_API_KEY: SecretStr = ''
+    VIKING_MEMORY_EVENT_MEMORY_TYPES: list[str] = ['event_v1']
+    VIKING_MEMORY_PROFILE_MEMORY_TYPES: list[str] = ['profile_v1']
+
     @model_validator(mode='before')
     @classmethod
     def check_env(cls, values: Any) -> Any:

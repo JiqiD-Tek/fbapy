@@ -80,7 +80,9 @@ dependencies = [
   "openpyxl>=3.1.5",
   "oss2>=2.19.1",
   "paho-mqtt>=2.1.0",
+  "volcengine>=1.0.0",
   "volcengine-python-sdk>=5.0.23",
+  "vikingdb-python-sdk>=0.1.18",
   "taospy>=2.8.9",
 ]
 dynamic = ["version"]
