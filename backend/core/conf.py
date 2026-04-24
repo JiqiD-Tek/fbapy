@@ -399,6 +399,9 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_VERSION: str = ''
 
     # 火山 TTS
+    JS61_BYTES_TTS_APPID: str = ''
+    JS61_BYTES_TTS_TOKEN: str = ''
+
     BYTES_TTS_APPID: str = ''
     BYTES_TTS_TOKEN: str = ''
     BYTES_TTS_LONG_RESOURCE_ID: str = 'seed-icl-2.0'
@@ -412,6 +415,8 @@ class Settings(BaseSettings):
     # 火山 OpenAPI
     BYTES_OPENAPI_ACCESS_KEY: str = ''
     BYTES_OPENAPI_SECRET_KEY: SecretStr = ''
+    JS61_BYTES_OPENAPI_ACCESS_KEY: str = ''
+    JS61_BYTES_OPENAPI_SECRET_KEY: SecretStr = ''
     BYTES_OPENAPI_HOST: str = ''
     BYTES_OPENAPI_REGION: str = 'cn-north-1'
     BYTES_OPENAPI_SERVICE: str = 'speech_saas_prod'

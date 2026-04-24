@@ -17,8 +17,8 @@ from typing import Any
 
 import httpx
 
-from .exceptions import HuoshanOpenAPIError, HuoshanTTSError
-from .models import HUOSHAN_TTS_JSON_CONTENT_TYPE, HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
+from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanOpenAPIError, HuoshanTTSError
+from backend.app.cloud.service.resource.huoshan.models import HUOSHAN_TTS_JSON_CONTENT_TYPE, HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
 
 import volcenginesdkcore
 

@@ -41,10 +41,10 @@ from backend.core.conf import settings
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
-from .audio_tools import mix_audio_with_bgm
-from .client import HuoshanLongTextTTSClient, HuoshanOpenAPIClient
-from .exceptions import HuoshanAPIError, HuoshanOpenAPIError, HuoshanTTSError
-from .models import HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
+from backend.app.cloud.service.resource.huoshan.audio_tools import mix_audio_with_bgm
+from backend.app.cloud.service.resource.huoshan.client import HuoshanLongTextTTSClient, HuoshanOpenAPIClient
+from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanAPIError, HuoshanOpenAPIError, HuoshanTTSError
+from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,7 +77,9 @@ HUOSHAN_VOICE_REMARK_MAP = {
     'S_yKcK2x2X1': '成男温柔',
     'S_xKcK2x2X1': '成女温柔',
     'S_FKcK2x2X1': '成女活泼',
+    'S_7V2ryDOZ1': '汤普森爸爸',
 }
+HUOSHAN_JS61_SPEAKERS = frozenset({'S_7V2ryDOZ1'})
 
 
 class HuoshanVoiceService:
@@ -109,15 +111,33 @@ class HuoshanVoiceService:
         )
 
     @staticmethod
-    def _resolve_story_client_config() -> HuoshanLongTextTTSConfig:
+    def _resolve_story_tts_credentials(speaker: str | None = None) -> tuple[str, str]:
+        speaker_id = str(speaker or '').strip()
+        if (
+                speaker_id in HUOSHAN_JS61_SPEAKERS
+                and settings.JS61_BYTES_TTS_APPID.strip()
+                and settings.JS61_BYTES_TTS_TOKEN.strip()
+        ):
+            return settings.JS61_BYTES_TTS_APPID.strip(), settings.JS61_BYTES_TTS_TOKEN.strip()
+
+        return settings.BYTES_TTS_APPID.strip(), settings.BYTES_TTS_TOKEN.strip()
+
+    @classmethod
+    async def _get_project_name(cls, speaker: str | None = None):
+        speaker_id = str(speaker or '').strip()
+        return "JS61" if speaker_id in HUOSHAN_JS61_SPEAKERS else "default"
+
+    @classmethod
+    def _resolve_story_client_config(cls, speaker: str | None = None) -> HuoshanLongTextTTSConfig:
+        app_id, access_key = cls._resolve_story_tts_credentials(speaker)
         resource_id = settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
         query_resource_id = (
                 settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
                 or HuoshanLongTextTTSClient.infer_query_resource_id(resource_id)
         )
         return HuoshanLongTextTTSConfig(
-            app_id=settings.BYTES_TTS_APPID.strip(),
-            access_key=settings.BYTES_TTS_TOKEN.strip(),
+            app_id=app_id,
+            access_key=access_key,
             resource_id=resource_id,
             query_resource_id=query_resource_id,
             submit_url=settings.BYTES_TTS_LONG_SUBMIT_URL,
@@ -130,8 +150,8 @@ class HuoshanVoiceService:
         return HuoshanOpenAPIClient(cls._resolve_client_config())
 
     @classmethod
-    def _create_story_client(cls) -> HuoshanLongTextTTSClient:
-        return HuoshanLongTextTTSClient(cls._resolve_story_client_config())
+    def _create_story_client(cls, speaker: str | None = None) -> HuoshanLongTextTTSClient:
+        return HuoshanLongTextTTSClient(cls._resolve_story_client_config(speaker))
 
     @staticmethod
     def _resolve_story_generation_model() -> str:
@@ -351,8 +371,9 @@ class HuoshanVoiceService:
         task.add_done_callback(_cleanup)
 
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
+        project_name = await self._get_project_name(speaker)
         result = await self._list_voice_status_page(
-            HuoshanVoiceListParam(speaker_ids=[speaker], state=None, page_size=10)
+            HuoshanVoiceListParam(project_name=project_name, speaker_ids=[speaker], state=None, page_size=10)
         )
         for status in result.statuses:
             if status.speaker_id == speaker:
@@ -560,7 +581,7 @@ class HuoshanVoiceService:
 
     async def _process_story_synthesis(self, task_id: str) -> HuoshanStorySynthesisResult:
         result = await self._get_story_synthesis_task_result(task_id)
-        client = self._create_story_client()
+        client = self._create_story_client(result.speaker)
         deadline = monotonic() + settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS
 
         try:
@@ -633,9 +654,11 @@ class HuoshanVoiceService:
             obj: HuoshanStorySynthesisParam,
     ) -> HuoshanStorySynthesisResult:
         bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
+        log.info(bgm_song)
         voice_status = await self._get_voice_status(speaker=obj.speaker)
-        story_client_config = self._resolve_story_client_config()
-        client = self._create_story_client()
+        log.info(voice_status)
+        story_client_config = self._resolve_story_client_config(obj.speaker)
+        client = self._create_story_client(obj.speaker)
 
         try:
             submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
@@ -682,3 +705,12 @@ class HuoshanVoiceService:
 
 
 huoshan_voice_service = HuoshanVoiceService()
+
+
+async def main():
+    voice_status = await huoshan_voice_service._get_voice_status(speaker='S_7V2ryDOZ1')
+    print(voice_status)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
