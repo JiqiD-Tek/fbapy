@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Literal, TypeAlias
+from typing import Any, TypeAlias
 
 RequestScalar: TypeAlias = str | int | float | bool | None
 RequestValue: TypeAlias = RequestScalar | dict[str, Any] | list[Any] | tuple[Any, ...]
@@ -12,16 +12,6 @@ JSONResponse: TypeAlias = dict[str, Any] | list[Any]
 
 DEFAULT_BASE_URL = 'https://api.ximalaya.com/ximalayaos-openapi-xm'
 FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
-
-
-@dataclass(frozen=True, slots=True)
-class XimalayaEndpoint:
-    group: str
-    name: str
-    path: str
-    method: Literal['GET', 'POST']
-    section: str
-    description: str
 
 
 @dataclass(slots=True)
@@ -44,5 +34,4 @@ __all__ = [
     'RequestScalar',
     'RequestValue',
     'XimalayaClientConfig',
-    'XimalayaEndpoint',
 ]

@@ -39,6 +39,12 @@ class HuoshanVoiceListParam(HuoshanSchemaBase):
     page_number: int | None = Field(None, alias='PageNumber', gt=0, description='Page number')
     page_size: int | None = Field(None, alias='PageSize', ge=1, description='Page size')
 
+    @property
+    def speaker_id(self) -> str | None:
+        if not self.speaker_ids or len(self.speaker_ids) != 1:
+            return None
+        return str(self.speaker_ids[0]).strip() or None
+
 
 class HuoshanVoiceOrderParam(HuoshanSchemaBase):
     resource_id: str = Field('volc.megatts.voiceclone', alias='ResourceID', description='Resource ID')

@@ -8,7 +8,7 @@
 
 from fastapi import APIRouter, Path
 
-from backend.app.cloud.schema.huoshan import (
+from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStorySynthesisParam,
@@ -22,7 +22,6 @@ from backend.app.cloud.schema.huoshan import (
 )
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
-from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession
 
 router = APIRouter()

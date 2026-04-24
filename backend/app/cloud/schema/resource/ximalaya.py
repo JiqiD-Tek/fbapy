@@ -1,4 +1,4 @@
-﻿# -*- coding: UTF-8 -*-
+# -*- coding: UTF-8 -*-
 """
 @Project : fbapy
 @File    : ximalaya.py
@@ -8,8 +8,6 @@
 
 from __future__ import annotations
 
-from typing import Literal, Any
-
 from pydantic import Field
 
 from backend.common.schema import SchemaBase
@@ -17,22 +15,12 @@ from backend.common.schema import SchemaBase
 
 class XimalayaRequestBase(SchemaBase):
     """小雅接口请求公共参数。"""
-    device_id: str = Field(description='设备唯一标识，用于服务端生成签名')
+
+    did: str = Field(description='设备唯一标识，用于服务端生成签名')
 
 
-class XimalayaEndpointInvokeParam(XimalayaRequestBase):
-    endpoint_key: str = Field(description='注册表中的接口 key，如 on_demand.list_categories')
-    params: dict[str, Any] | None = Field(None, description='业务参数')
-
-
-class XimalayaPathInvokeParam(XimalayaRequestBase):
-    method: Literal['GET', 'POST'] = Field('GET', description='请求方法')
-    path: str = Field(description='开放平台接口路径')
-    params: dict[str, Any] | None = Field(None, description='业务参数')
-
-
-class XimalayaListCategoriesParam(XimalayaRequestBase):
-    """分类列表仅依赖公共参数。"""
+class XimalayaRecommendedParam(XimalayaRequestBase):
+    """推荐接口仅依赖公共参数。"""
 
 
 class XimalayaListTagsParam(XimalayaRequestBase):
@@ -64,17 +52,3 @@ class XimalayaSearchAlbumsParam(XimalayaRequestBase):
     count: int | None = Field(None, description='每页条数')
     calc_dimension: int | None = Field(None, description='排序维度')
     contains_paid: bool | None = Field(None, description='是否包含付费内容')
-
-
-class XimalayaSearchTracksParam(XimalayaRequestBase):
-    q: str = Field(description='搜索关键词')
-    category_id: int | None = Field(None, description='分类 ID')
-    page: int | None = Field(None, description='页码，从 1 开始')
-    count: int | None = Field(None, description='每页条数')
-
-
-class XimalayaTrackPlayInfoParam(XimalayaRequestBase):
-    ids: list[int] = Field(description='声音 ID 列表')
-
-    def build_ids_param(self) -> dict[str, str]:
-        return {'ids': ','.join(str(item) for item in self.ids)}

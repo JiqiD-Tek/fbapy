@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import httpx
 from openai import AsyncOpenAI
 
-from backend.app.cloud.schema.huoshan import (
+from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
@@ -41,6 +41,7 @@ from backend.core.conf import settings
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
+from backend.app.cloud.service.resource.huoshan.config import PROJECT_MAP
 from backend.app.cloud.service.resource.huoshan.audio_tools import mix_audio_with_bgm
 from backend.app.cloud.service.resource.huoshan.client import HuoshanLongTextTTSClient, HuoshanOpenAPIClient
 from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanAPIError, HuoshanOpenAPIError, HuoshanTTSError
@@ -48,7 +49,6 @@ from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
     from backend.app.cloud.model import CloudSong
 
 DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-pro-260215'
@@ -66,20 +66,6 @@ STORY_AUDIO_PARAMS = {
     'loudness_rate': 0,
     'enable_timestamp': False,
 }
-HUOSHAN_VOICE_REMARK_MAP = {
-    'S_GKcK2x2X1': '曲老师',
-    'S_EKcK2x2X1': '虾球',
-    'S_DKcK2x2X1': '米粒',
-    'S_CKcK2x2X1': '旁白',
-    'S_BKcK2x2X1': '珍棒',
-    'S_AKcK2x2X1': '珍居',
-    'S_zKcK2x2X1': '凯叔',
-    'S_yKcK2x2X1': '成男温柔',
-    'S_xKcK2x2X1': '成女温柔',
-    'S_FKcK2x2X1': '成女活泼',
-    'S_7V2ryDOZ1': '汤普森爸爸',
-}
-HUOSHAN_JS61_SPEAKERS = frozenset({'S_7V2ryDOZ1'})
 
 
 class HuoshanVoiceService:
@@ -90,10 +76,9 @@ class HuoshanVoiceService:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
         self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
 
-    @staticmethod
-    def _attach_voice_remark(status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
-        speaker_id = (status.speaker_id or '').strip()
-        speaker_remark = HUOSHAN_VOICE_REMARK_MAP.get(speaker_id)
+    @classmethod
+    def _attach_voice_remark(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
+        speaker_remark = cls._resolve_voice_remark(status.speaker_id)
         if speaker_remark is None:
             return status
         return status.model_copy(update={'speaker_remark': speaker_remark}, deep=True)
@@ -110,22 +95,51 @@ class HuoshanVoiceService:
             timeout=settings.BYTES_OPENAPI_TIMEOUT_SECONDS,
         )
 
-    @staticmethod
-    def _resolve_story_tts_credentials(speaker: str | None = None) -> tuple[str, str]:
+    @classmethod
+    def _resolve_project_name(cls, speaker: str | None = None) -> str:
         speaker_id = str(speaker or '').strip()
-        if (
-                speaker_id in HUOSHAN_JS61_SPEAKERS
-                and settings.JS61_BYTES_TTS_APPID.strip()
-                and settings.JS61_BYTES_TTS_TOKEN.strip()
-        ):
-            return settings.JS61_BYTES_TTS_APPID.strip(), settings.JS61_BYTES_TTS_TOKEN.strip()
+        if not speaker_id:
+            return 'default'
 
-        return settings.BYTES_TTS_APPID.strip(), settings.BYTES_TTS_TOKEN.strip()
+        for project_name, project_config in PROJECT_MAP.items():
+            voice_map = project_config.get('voice') or {}
+            if speaker_id in voice_map:
+                return project_name
+        return 'default'
 
     @classmethod
-    async def _get_project_name(cls, speaker: str | None = None):
+    def _resolve_project_config(cls, speaker: str | None = None) -> dict[str, object]:
+        project_name = cls._resolve_project_name(speaker)
+        project_config = PROJECT_MAP.get(project_name)
+        if project_config is None:
+            return PROJECT_MAP['default']
+        return project_config
+
+    @classmethod
+    def _resolve_voice_remark(cls, speaker: str | None = None) -> str | None:
         speaker_id = str(speaker or '').strip()
-        return "JS61" if speaker_id in HUOSHAN_JS61_SPEAKERS else "default"
+        if not speaker_id:
+            return None
+
+        voice_map = cls._resolve_project_config(speaker).get('voice') or {}
+        speaker_remark = voice_map.get(speaker_id)
+        if not speaker_remark:
+            return None
+        return str(speaker_remark).strip() or None
+
+    @classmethod
+    def _resolve_story_tts_credentials(cls, speaker: str | None = None) -> tuple[str, str]:
+        project_config = cls._resolve_project_config(speaker)
+        app_id = str(project_config.get('appid') or '').strip()
+        access_key = str(project_config.get('token') or '').strip()
+        if app_id and access_key:
+            return app_id, access_key
+
+        default_project = PROJECT_MAP.get('default', {})
+        return (
+            str(default_project.get('appid') or '').strip(),
+            str(default_project.get('token') or '').strip(),
+        )
 
     @classmethod
     def _resolve_story_client_config(cls, speaker: str | None = None) -> HuoshanLongTextTTSConfig:
@@ -371,7 +385,7 @@ class HuoshanVoiceService:
         task.add_done_callback(_cleanup)
 
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
-        project_name = await self._get_project_name(speaker)
+        project_name = self._resolve_project_name(speaker)
         result = await self._list_voice_status_page(
             HuoshanVoiceListParam(project_name=project_name, speaker_ids=[speaker], state=None, page_size=10)
         )
@@ -405,6 +419,9 @@ class HuoshanVoiceService:
             return output_path.read_bytes()
 
     async def _list_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
+        if obj.speaker_id and (not obj.project_name or obj.project_name == 'default'):
+            obj = obj.model_copy(update={'project_name': self._resolve_project_name(obj.speaker_id)}, deep=True)
+
         client = self._create_openapi_client()
         payload = obj.model_dump(exclude_none=True)
 
