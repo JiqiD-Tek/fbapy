@@ -168,6 +168,11 @@ URL: http://10.240.225.34:8083/bugzilla/
 # Jenkins 初始化
 URL: http://10.240.225.34:8082/jenkins/
 首次访问需要获取初始管理员密码
+
+# gerrit 
+URL: http://10.240.225.34:8081/
+账号：admin  
+密码：admin@2025
 ```
 
 ## 运维管理

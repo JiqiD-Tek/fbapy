@@ -1,4 +1,0 @@
-#!/usr/bin/env python
-# @Author    : guhua@jiqid.com
-# @File      : __init__.py.py
-# @Created   : 2025/4/11 17:05

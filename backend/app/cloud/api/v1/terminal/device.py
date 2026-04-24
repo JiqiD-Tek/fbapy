@@ -12,12 +12,10 @@ from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import GetDeviceDetail, UpdateDeviceParam
-from backend.app.cloud.schema.device.device_insight import GetDeviceInsightDetail
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.insight_service import device_insight_service
 from backend.app.cloud.service.device_service import device_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
@@ -69,40 +67,6 @@ async def get_device(
         pk: Annotated[int, Path(description='设备 ID')],
 ) -> ResponseSchemaModel[GetDeviceDetail]:
     data = await device_service.get(db=db, user_id=request.user.id, pk=pk)
-    return response_base.success(data=data)
-
-
-@router.get('/{pk}/insights', summary='获取宝宝的 Viking 和 TSDB 数据', dependencies=[DependsJwtAuth])
-async def get_device_insights(
-        request: Request,
-        db: CurrentSession,
-        pk: Annotated[int, Path(description='宝宝 ID')],
-        start_time: Annotated[str | None, Query(description='TSDB 查询开始时间')] = None,
-        end_time: Annotated[str | None, Query(description='TSDB 查询结束时间')] = None,
-        direction: Annotated[str | None, Query(description='TSDB 消息方向')] = None,
-        category: Annotated[str | None, Query(description='TSDB 事件分类')] = None,
-        service: Annotated[str | None, Query(description='TSDB 服务来源')] = None,
-        tsdb_limit: Annotated[int, Query(description='TSDB 返回条数', ge=1, le=50000)] = 100,
-        memory_query: Annotated[str | None, Query(description='Viking 语义查询词')] = None,
-        memory_event_limit: Annotated[int, Query(description='Viking 事件记忆条数', ge=1, le=100)] = 10,
-        memory_profile_limit: Annotated[int, Query(description='Viking 画像记忆条数', ge=1, le=100)] = 10,
-        assistant_id: Annotated[str | None, Query(description='按 assistant 隔离的 ID')] = None,
-) -> ResponseSchemaModel[GetDeviceInsightDetail]:
-    data = await device_insight_service.get_device_insight(
-        db=db,
-        user_id=request.user.id,
-        baby_id=pk,
-        start_time=start_time,
-        end_time=end_time,
-        direction=direction,
-        category=category,
-        service=service,
-        tsdb_limit=tsdb_limit,
-        memory_query=memory_query,
-        memory_event_limit=memory_event_limit,
-        memory_profile_limit=memory_profile_limit,
-        assistant_id=assistant_id,
-    )
     return response_base.success(data=data)
 
 

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, Depends
 
 from backend.app.cloud.schema.intent import WeatherParam
 from backend.app.cloud.service.device.messaging import MessagingService
-from backend.app.live.agents.api_clients.weather_api import open_weather_map
+from backend.app.cloud.service.resource.weather import weather_service
 from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 
@@ -25,7 +25,7 @@ async def weather_tool(
         obj: WeatherParam,
 ) -> ResponseSchemaModel[dict]:
     """天气查询"""
-    data = await open_weather_map.get_weather_info(obj.city)
+    data = await weather_service.query(city=obj.city, ip=obj.ip)
 
     return response_base.success(data=data)
 

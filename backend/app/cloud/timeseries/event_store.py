@@ -258,18 +258,22 @@ class EventStore:
         """Persist one MQTT message into the matching TSDB subtable."""
 
         if not cls._ensure_tsdb_ready(action='message insert'):
+            log.debug('TSDB is not ready, skipping message insert')
             return
 
         route = cls._parse_message_topic(message_ctx.topic)
         if route is None:
+            log.debug(f'invalid message topic, topic={message_ctx.topic}')
             return
 
         resolved_table = cls._resolve_model_table(route.model)
         if resolved_table is None:
+            log.debug(f'model not found for model={route.model}')
             return
 
         baby_id = await cls._resolve_baby_id(route.did)
         if baby_id is None:
+            log.debug(f'baby_id not found for did={route.did}')
             return
 
         model_key, table = resolved_table

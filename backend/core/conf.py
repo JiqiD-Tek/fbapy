@@ -214,6 +214,12 @@ class Settings(BaseSettings):
     IP_LOCATION_REDIS_PREFIX: str = 'fba:ip:location'
     IP_LOCATION_EXPIRE_SECONDS: int = 60 * 60 * 24  # 1 天
 
+    # Weather
+    WEATHER_API_HOST: str = 'mj7p3y7naa.re.qweatherapi.com'
+    WEATHER_API_KEY: str = ''
+    WEATHER_DEFAULT_LOCATION: str = '广州'
+    WEATHER_TIMEOUT_SECONDS: float = 10.0
+
     # Trace ID
     TRACE_ID_REQUEST_HEADER_KEY: str = 'X-Request-ID'
     TRACE_ID_LOG_LENGTH: int = 32  # UUID 长度，必须小于等于 32
@@ -386,29 +392,13 @@ class Settings(BaseSettings):
         '$share/group/js61/+/up/ack',
     ]
 
-    # 大模型
-    SPEECH_TYPE: Literal['coze', 'azure'] = 'coze'  # 语音[stt, tts]类型  azure  coze
-    SPEECH_ENCODING: Literal['wav', 'mp3'] = 'wav'  # 语音编码格式
-
-    # 微软 语音
-    AZURE_SPEECH_KEY: SecretStr = ''
-    AZURE_SPEECH_REGION: str = ''
-
     # 微软 大模型
     AZURE_OPENAI_MODEL: str = ''
     AZURE_OPENAI_ENDPOINT: str = ''
     AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ''
     AZURE_OPENAI_API_VERSION: str = ''
 
-    # 火山引擎
-    BYTES_ASR_URL: str = ''
-    BYTES_ASR_APPID: str = ''
-    BYTES_ASR_TOKEN: str = ''
-    BYTES_ASR_CLUSTER: str = ''
-
-    BYTES_TTS_URL: str = ''
-    BYTES_TTS_CLUSTER: str = ''
-    BYTES_TTS_VOICE_TYPE: str = ''
+    # 火山 TTS
     BYTES_TTS_APPID: str = ''
     BYTES_TTS_TOKEN: str = ''
     BYTES_TTS_LONG_RESOURCE_ID: str = 'seed-icl-2.0'
@@ -418,6 +408,8 @@ class Settings(BaseSettings):
     BYTES_TTS_LONG_TIMEOUT_SECONDS: float = 60.0
     BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS: float = 2.0
     BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS: float = 900.0
+
+    # 火山 OpenAPI
     BYTES_OPENAPI_ACCESS_KEY: str = ''
     BYTES_OPENAPI_SECRET_KEY: SecretStr = ''
     BYTES_OPENAPI_HOST: str = ''
@@ -425,13 +417,6 @@ class Settings(BaseSettings):
     BYTES_OPENAPI_SERVICE: str = 'speech_saas_prod'
     BYTES_OPENAPI_VERSION: str = '2025-05-21'
     BYTES_OPENAPI_TIMEOUT_SECONDS: float = 10.0
-
-    # 音声复刻
-    BYTES_ICL_CLUSTER: str = ''
-    BYTES_ICL_VOICE_TYPE: str = ''
-
-    # 是否启用复刻声音
-    BYTES_ICL_STATUS: bool = False
 
     # 豆包大模型
     DOUBAO_API_KEY: SecretStr = ''
