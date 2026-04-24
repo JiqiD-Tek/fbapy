@@ -5,7 +5,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import Baby
+from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.schema.baby import UpdateBabyParam
 
 
@@ -13,14 +13,24 @@ class CRUDBaby(CRUDPlus[Baby]):
     async def get(self, db: AsyncSession, pk: int) -> Baby | None:
         return await self.select_model(db, pk)
 
+    async def get_by_device_did(self, db: AsyncSession, *, did: str) -> Baby | None:
+        stmt = (
+            select(Baby)
+            .join(Device, Device.id == Baby.device_id)
+            .where(Device.did == did)
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_select(
-        self,
-        *,
-        user_id: int,
-        name: str | None = None,
-        nickname: str | None = None,
-        sex: int | None = None,
-        device_id: int | None = None,
+            self,
+            *,
+            user_id: int,
+            name: str | None = None,
+            nickname: str | None = None,
+            sex: int | None = None,
+            device_id: int | None = None,
     ) -> Select:
         stmt = select(Baby).where(Baby.user_id == user_id)
 

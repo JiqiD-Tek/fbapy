@@ -9,9 +9,8 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
 import cachebox
-from sqlalchemy import select
 
-from backend.app.cloud.model import Baby, Device
+from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.timeseries.js61_event import JS61EventTable
 from backend.common.log import log
 from backend.database.db import async_db_session
@@ -70,17 +69,8 @@ class EventStore:
     @classmethod
     async def _query_baby_id(cls, did: str) -> int | None:
         async with async_db_session() as db:
-            stmt = (
-                select(Baby.id)
-                .join(Device, Device.id == Baby.device_id)
-                .where(Device.did == did)
-                .order_by(Baby.id.desc())
-                .limit(1)
-            )
-            result = await db.execute(stmt)
-            baby_id = result.scalar_one_or_none()
-
-        return baby_id
+            baby = await baby_service.get_by_device_did(db=db, did=did)
+            return baby.id if baby is not None else None
 
     @classmethod
     async def _resolve_baby_id(cls, did: str) -> int | str:

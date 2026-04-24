@@ -40,6 +40,7 @@ from backend.app.cloud.schema.user import (
     MQTTAuthParam,
 )
 from backend.app.cloud.service.auth_service import auth_service
+from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.resource.storage import storage_service
 from backend.common.providers.ali_sms import sms_client
 from backend.common.providers.ali_sts import sts_client
@@ -319,7 +320,8 @@ async def fba_token(
     # quota = await device_service.allocate_quota(db=db, did=device.did)
     quota = 600
 
-    payload = {'mac': device.mac, 'did': device.did, 'ttl': quota}
+    baby = await baby_service.get_by_device_did(db=db, did=device.did)
+    payload = {'mac': device.mac, 'did': device.did, 'baby_id': baby.id if baby is not None else 0}
     token = jwt_encode(payload=payload)
 
     token = FbaToken(

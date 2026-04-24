@@ -86,6 +86,10 @@ class BabyService:
         return await BabyService._ensure_user_has_baby(db=db, user_id=user_id, baby_id=pk)
 
     @staticmethod
+    async def get_by_device_did(*, db: AsyncSession, did: str) -> Baby | None:
+        return await baby_dao.get_by_device_did(db, did=did)
+
+    @staticmethod
     async def get_list(
             *,
             db: AsyncSession,
