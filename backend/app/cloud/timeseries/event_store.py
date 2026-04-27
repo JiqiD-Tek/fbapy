@@ -134,6 +134,15 @@ class EventStore:
         return text
 
     @classmethod
+    def _resolve_service_name(cls, payload: object) -> str:
+        if isinstance(payload, dict):
+            service = cls._normalize_text(payload.get('service'))
+            if service is not None:
+                return service
+
+        return 'mqtt'
+
+    @classmethod
     def _normalize_time_filter(cls, value: datetime | str | None) -> datetime | None:
         if value is None:
             return None
@@ -207,7 +216,7 @@ class EventStore:
             'did': route.did,
             'direction': route.direction,
             'category': route.category,
-            'service': 'mqtt',  # TODO: get from message
+            'service': cls._resolve_service_name(message_ctx.payload),
             'topic': message_ctx.topic,
             'payload': cls._serialize_message_payload(message_ctx.topic, message_ctx.payload),
         }

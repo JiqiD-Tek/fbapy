@@ -21,6 +21,7 @@ MemoryFilter = dict[str, Any]
 MemoryBundle = dict[str, MemoryResponse]
 MemoryTextBundle = dict[str, str]
 FilterValue = str | list[str] | tuple[str, ...] | set[str] | None
+TimeFilterValue = datetime | str | int | float | None
 MemoryQuery = Callable[..., Awaitable[MemoryResponse]]
 
 RESULT_LIST_KEYS = ('result_list', 'results', 'data')
@@ -36,8 +37,12 @@ class VikingMemoryClient:
     FILTER_USER_ID = 'user_id'
     FILTER_ASSISTANT_ID = 'assistant_id'
     FILTER_MEMORY_TYPE = 'memory_type'
+    FILTER_START_TIME = 'start_time'
+    FILTER_END_TIME = 'end_time'
     DEFAULT_EVENT_LIMIT = 10
     DEFAULT_PROFILE_LIMIT = 10
+    MIN_LIMIT = 1
+    MAX_LIMIT = 5000
     MAX_TEXT_FRAGMENTS = 8
     TIMESTAMP_OUTPUT_FORMAT = '%Y-%m-%d %H:%M:%S'
 
@@ -69,9 +74,41 @@ class VikingMemoryClient:
 
         return cls._normalize_text(value)
 
+    @classmethod
+    def _resolve_limit(cls, limit: int | None, default: int) -> int:
+        resolved_limit = default if limit is None else limit
+        return max(cls.MIN_LIMIT, min(resolved_limit, cls.MAX_LIMIT))
+
     @staticmethod
-    def _resolve_limit(limit: int | None, default: int) -> int:
-        return default if limit is None else limit
+    def _normalize_timestamp_number(value: int | float) -> int:
+        timestamp_value = float(value)
+        if timestamp_value < 1_000_000_000_000:
+            timestamp_value *= 1000
+        return int(timestamp_value)
+
+    @classmethod
+    def _normalize_time_filter_value(cls, value: TimeFilterValue) -> int | None:
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            parsed = value
+        elif isinstance(value, (int, float)):
+            return cls._normalize_timestamp_number(value)
+        else:
+            text = cls._normalize_text(value)
+            if text is None:
+                return None
+            if text.isdigit():
+                return cls._normalize_timestamp_number(int(text))
+            try:
+                parsed = datetime.fromisoformat(text.replace('Z', '+00:00'))
+            except ValueError:
+                return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.tz_info)
+        return int(parsed.timestamp() * 1000)
 
     def _get_client(self) -> VikingMem:
         if self._client is None:
@@ -99,6 +136,8 @@ class VikingMemoryClient:
             user_id: str,
             assistant_id: FilterValue = None,
             memory_types: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
     ) -> MemoryFilter:
         memory_filter = dict(extra_filter or {})
@@ -109,6 +148,14 @@ class VikingMemoryClient:
 
         if memory_type_value := cls._normalize_filter_value(memory_types):
             memory_filter[cls.FILTER_MEMORY_TYPE] = memory_type_value
+
+        start_time_value = cls._normalize_time_filter_value(start_time)
+        if start_time_value is not None:
+            memory_filter[cls.FILTER_START_TIME] = start_time_value
+
+        end_time_value = cls._normalize_time_filter_value(end_time)
+        if end_time_value is not None:
+            memory_filter[cls.FILTER_END_TIME] = end_time_value
 
         return memory_filter
 
@@ -121,6 +168,8 @@ class VikingMemoryClient:
             limit: int,
             assistant_id: FilterValue = None,
             memory_types: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
             time_decay_config: dict[str, Any] | None = None,
     ) -> MemoryResponse:
@@ -133,6 +182,8 @@ class VikingMemoryClient:
                 user_id=user_id,
                 assistant_id=assistant_id,
                 memory_types=memory_types,
+                start_time=start_time,
+                end_time=end_time,
                 extra_filter=extra_filter,
             ),
             'limit': limit,
@@ -292,6 +343,8 @@ class VikingMemoryClient:
             query: str | None = None,
             limit: int | None = None,
             assistant_id: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
             time_decay_config: dict[str, Any] | None = None,
     ) -> MemoryResponse:
@@ -302,6 +355,8 @@ class VikingMemoryClient:
             limit=self._resolve_limit(limit, self.DEFAULT_EVENT_LIMIT),
             assistant_id=assistant_id,
             memory_types=settings.VIKING_MEMORY_EVENT_MEMORY_TYPES,
+            start_time=start_time,
+            end_time=end_time,
             extra_filter=extra_filter,
             time_decay_config=time_decay_config,
         )
@@ -313,6 +368,8 @@ class VikingMemoryClient:
             query: str | None = None,
             limit: int | None = None,
             assistant_id: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
     ) -> MemoryResponse:
         return await self._query(
@@ -322,6 +379,8 @@ class VikingMemoryClient:
             limit=self._resolve_limit(limit, self.DEFAULT_PROFILE_LIMIT),
             assistant_id=assistant_id,
             memory_types=settings.VIKING_MEMORY_PROFILE_MEMORY_TYPES,
+            start_time=start_time,
+            end_time=end_time,
             extra_filter=extra_filter,
         )
 
@@ -332,6 +391,8 @@ class VikingMemoryClient:
             query: str | None = None,
             limit: int | None = None,
             assistant_id: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
             time_decay_config: dict[str, Any] | None = None,
     ) -> str:
@@ -340,10 +401,13 @@ class VikingMemoryClient:
             query=query,
             limit=limit,
             assistant_id=assistant_id,
+            start_time=start_time,
+            end_time=end_time,
             extra_filter=extra_filter,
             time_decay_config=time_decay_config,
         )
-        return self.format_event_memories(payload)
+        formatted = self.format_event_memories(payload)
+        return f"[用户事件]：\n{formatted}"
 
     async def query_profile_memories_text(
             self,
@@ -352,6 +416,8 @@ class VikingMemoryClient:
             query: str | None = None,
             limit: int | None = None,
             assistant_id: FilterValue = None,
+            start_time: TimeFilterValue = None,
+            end_time: TimeFilterValue = None,
             extra_filter: MemoryFilter | None = None,
     ) -> str:
         payload = await self.query_profile_memories(
@@ -359,9 +425,13 @@ class VikingMemoryClient:
             query=query,
             limit=limit,
             assistant_id=assistant_id,
+            start_time=start_time,
+            end_time=end_time,
             extra_filter=extra_filter,
         )
-        return self.format_profile_memories(payload)
+
+        formatted = self.format_profile_memories(payload)
+        return f"[用户画像]：\n{formatted}"
 
 
 viking_memory_client = VikingMemoryClient()

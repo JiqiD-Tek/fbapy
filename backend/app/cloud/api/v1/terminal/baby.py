@@ -84,6 +84,8 @@ async def get_insights(
         memory_event_limit: Annotated[int, Query(description='Viking 事件记忆条数', ge=1, le=100)] = 10,
         memory_profile_limit: Annotated[int, Query(description='Viking 画像记忆条数', ge=1, le=100)] = 10,
         assistant_id: Annotated[str | None, Query(description='按 assistant 隔离的 ID')] = None,
+        start_time: Annotated[str | None, Query(description='Viking 查询开始时间，支持 ISO 字符串或毫秒时间戳')] = None,
+        end_time: Annotated[str | None, Query(description='Viking 查询结束时间，支持 ISO 字符串或毫秒时间戳')] = None,
 ) -> ResponseSchemaModel[VikingInsightDetail]:
     data = await insight_service.query_viking(
         db=db,
@@ -93,6 +95,8 @@ async def get_insights(
         memory_event_limit=memory_event_limit,
         memory_profile_limit=memory_profile_limit,
         assistant_id=assistant_id,
+        start_time=start_time,
+        end_time=end_time,
     )
     return response_base.success(data=data)
 

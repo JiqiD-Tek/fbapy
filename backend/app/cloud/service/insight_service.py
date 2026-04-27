@@ -38,6 +38,8 @@ class InsightService:
             query: str | None,
             limit: int,
             assistant_id: str | None,
+            start_time: datetime | str | int | float | None,
+            end_time: datetime | str | int | float | None,
     ) -> VikingMemorySectionDetail:
         try:
             raw = await viking_memory_client.query_event_memories(
@@ -45,6 +47,8 @@ class InsightService:
                 query=query,
                 limit=limit,
                 assistant_id=assistant_id,
+                start_time=start_time,
+                end_time=end_time,
             )
             return VikingMemorySectionDetail(
                 enabled=viking_memory_client.enabled,
@@ -67,6 +71,8 @@ class InsightService:
             query: str | None,
             limit: int,
             assistant_id: str | None,
+            start_time: datetime | str | int | float | None,
+            end_time: datetime | str | int | float | None,
     ) -> VikingMemorySectionDetail:
         try:
             raw = await viking_memory_client.query_profile_memories(
@@ -74,6 +80,8 @@ class InsightService:
                 query=query,
                 limit=limit,
                 assistant_id=assistant_id,
+                start_time=start_time,
+                end_time=end_time,
             )
             return VikingMemorySectionDetail(
                 enabled=viking_memory_client.enabled,
@@ -99,6 +107,8 @@ class InsightService:
             memory_event_limit: int = 10,
             memory_profile_limit: int = 10,
             assistant_id: str | None = None,
+            start_time: datetime | str | int | float | None = None,
+            end_time: datetime | str | int | float | None = None,
     ) -> VikingInsightDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
         if baby.device_id is None:
@@ -110,12 +120,16 @@ class InsightService:
                 query=memory_query,
                 limit=memory_event_limit,
                 assistant_id=assistant_id,
+                start_time=start_time,
+                end_time=end_time,
             ),
             self._query_viking_profiles(
                 baby_id=baby_id,
                 query=memory_query,
                 limit=memory_profile_limit,
                 assistant_id=assistant_id,
+                start_time=start_time,
+                end_time=end_time,
             ),
         )
 

@@ -16,7 +16,6 @@ from tempfile import TemporaryDirectory
 from time import monotonic
 from typing import TYPE_CHECKING
 
-import httpx
 from openai import AsyncOpenAI
 
 from backend.app.cloud.schema.resource.huoshan import (
@@ -35,6 +34,7 @@ from backend.app.cloud.schema.resource.huoshan import (
 )
 from backend.app.cloud.service.resource.song_service import cloud_song_service
 from backend.common.providers.ali_oss import oss_client
+from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL, create_async_doubao_client
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
@@ -51,9 +51,6 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
     from backend.app.cloud.model import CloudSong
 
-DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-pro-260215'
-DOUBAO_HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=30.0)
-DOUBAO_HTTP_LIMITS = httpx.Limits(max_connections=20, max_keepalive_connections=20, keepalive_expiry=120.0)
 STORY_AUDIO_FORMAT = 'mp3'
 STORY_TASK_STATUS_PENDING = 0
 STORY_TASK_STATUS_PROCESSING = 1
@@ -168,10 +165,6 @@ class HuoshanVoiceService:
         return HuoshanLongTextTTSClient(cls._resolve_story_client_config(speaker))
 
     @staticmethod
-    def _resolve_story_generation_model() -> str:
-        return DEFAULT_DOUBAO_STORY_MODEL
-
-    @staticmethod
     def _story_generation_system_prompt() -> str:
         return (
             '你是儿童睡前故事写作助手，擅长创作适合 2 到 6 岁儿童聆听的中文晚安故事。'
@@ -194,26 +187,6 @@ class HuoshanVoiceService:
             '8. 结尾要自然收束到安静、放松、入睡的状态。'
             '9. 长度控制在 700 到 1000 字。'
             f'主题：{normalized_topic}'
-        )
-
-    @staticmethod
-    def _create_doubao_client() -> AsyncOpenAI:
-        base_url = str(settings.DOUBAO_BASE_URL or '').strip()
-        api_key = settings.DOUBAO_API_KEY.get_secret_value().strip()
-
-        if not base_url:
-            raise errors.ServerError(msg='DOUBAO_BASE_URL is not configured')
-        if not api_key:
-            raise errors.ServerError(msg='DOUBAO_API_KEY is not configured')
-
-        return AsyncOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            http_client=httpx.AsyncClient(
-                timeout=DOUBAO_HTTP_TIMEOUT,
-                follow_redirects=True,
-                limits=DOUBAO_HTTP_LIMITS,
-            ),
         )
 
     @staticmethod
@@ -507,7 +480,7 @@ class HuoshanVoiceService:
         client: AsyncOpenAI | None = None
 
         try:
-            client = self._create_doubao_client()
+            client = create_async_doubao_client()
             story_content = await self._generate_story_content_once(
                 client=client,
                 model_name=result.model,
@@ -538,7 +511,7 @@ class HuoshanVoiceService:
         result = HuoshanStoryGenerateResult(
             task_id=uuid.uuid4().hex,
             topic=obj.topic.strip(),
-            model=self._resolve_story_generation_model(),
+            model=DEFAULT_DOUBAO_STORY_MODEL,
             story_content=None,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
