@@ -109,6 +109,15 @@ class HuoshanStoryGenerateParam(HuoshanSchemaBase):
     topic: str = Field(min_length=1, max_length=200, description='Story topic')
 
 
+class HuoshanStreamTTSParam(HuoshanSchemaBase):
+    text: str = Field(min_length=1, max_length=5000, description='TTS text content')
+    speaker: str = Field(min_length=1, description='Speaker ID')
+
+
+class HuoshanStreamTTSResult(HuoshanSchemaBase):
+    request_id: str = Field(description='TTS request ID')
+
+
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):
     task_id: str = Field(description='Story generation task ID')
     topic: str = Field(description='Story topic')

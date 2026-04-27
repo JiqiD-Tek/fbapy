@@ -404,6 +404,11 @@ class Settings(BaseSettings):
 
     BYTES_TTS_APPID: str = ''
     BYTES_TTS_TOKEN: str = ''
+    BYTES_TTS_STREAM_WS_URL: str = 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
+    BYTES_TTS_STREAM_RESOURCE_ID: str = 'seed-tts-2.0'
+    BYTES_TTS_STREAM_AUDIO_FORMAT: str = 'mp3'
+    BYTES_TTS_STREAM_SPEECH_RATE: int = 0
+    BYTES_TTS_STREAM_LOUDNESS_RATE: int = 0
     BYTES_TTS_LONG_RESOURCE_ID: str = 'seed-icl-2.0'
     BYTES_TTS_LONG_QUERY_RESOURCE_ID: str = ''
     BYTES_TTS_LONG_SUBMIT_URL: str = 'https://openspeech.bytedance.com/api/v3/tts/submit'

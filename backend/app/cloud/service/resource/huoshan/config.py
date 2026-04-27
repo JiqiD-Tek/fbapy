@@ -8,6 +8,14 @@
 
 from backend.core.conf import settings
 
+STREAM_TTS_CONFIG = {
+    'ws_url': settings.BYTES_TTS_STREAM_WS_URL.strip(),
+    'resource_id': settings.BYTES_TTS_STREAM_RESOURCE_ID.strip(),
+    'audio_format': settings.BYTES_TTS_STREAM_AUDIO_FORMAT.strip(),
+    'speech_rate': settings.BYTES_TTS_STREAM_SPEECH_RATE,
+    'loudness_rate': settings.BYTES_TTS_STREAM_LOUDNESS_RATE,
+}
+
 PROJECT_MAP = {
     "default": {
         "appid": settings.BYTES_TTS_APPID.strip(),
