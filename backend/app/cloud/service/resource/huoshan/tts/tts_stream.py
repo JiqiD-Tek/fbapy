@@ -158,7 +158,7 @@ class TTSStreamService:
             ),
             'resource_id': (
                 cls._normalize_text(STREAM_TTS_CONFIG.get('resource_id'))
-                or 'seed-tts-2.0'
+                or 'seed-icl-2.0'
             ),
             'audio_format': (
                 cls._normalize_text(STREAM_TTS_CONFIG.get('audio_format'))

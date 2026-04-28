@@ -19,7 +19,11 @@ from backend.database.db import CurrentSession
 router = APIRouter()
 
 
-@router.get('/usage', summary='获取使用报告', dependencies=[DependsJwtAuth])
+@router.get(
+    '/usage',
+    summary='获取使用报告',
+    dependencies=[DependsJwtAuth]
+)
 async def get_usage_report(
         request: Request,
         db: CurrentSession,

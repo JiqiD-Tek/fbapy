@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
@@ -153,32 +154,27 @@ class ReportService:
     REPORT_ANALYSIS_SYSTEM_PROMPT: ClassVar[str] = (
         '你擅长生成结构化、克制、可直接解析的儿童成长分析结果。'
     )
-    REPORT_ANALYSIS_PROMPT_TEMPLATE: ClassVar[str] = (
-        '你是儿童成长报告分析助手。'
-        '请基于使用统计数据和用户画像摘要，输出一个 JSON 对象，不要输出 Markdown，不要输出解释。'
-        'JSON 结构必须为：'
-        '{'
-        '"radar":[{"label":"词汇","value":0},{"label":"情感","value":0},{"label":"专注力","value":0},{"label":"想象力","value":0},{"label":"逻辑","value":0}],'
-        '"metrics":[{"label":"口语词汇","value":0,"trend":"flat"},{"label":"情感表达","value":0,"trend":"flat"},{"label":"专注力","value":0,"trend":"flat"},{"label":"想象力","value":0,"trend":"flat"},{"label":"逻辑理解","value":0,"trend":"flat"}],'
-        '"insights":{"summary":{"observations":[],"suggestion":""},"interaction":{"observations":[],"suggestion":""},"playback":{"observations":[],"suggestion":""}}'
-        '}'
-        '要求：'
-        '1. value 取值范围 0 到 100。'
-        '2. trend 只能是 up、down、flat。'
-        '3. observations 为简短中文句子数组。'
-        '4. 如果信息不足，请给出保守判断，不要编造细节。'
-        '5. 优先结合使用统计与画像摘要一起判断。'
-        '6. summary / interaction / playback 三个模块的文案风格，请参考儿童成长周报卡片。'
-        '7. summary.observations 聚焦整体成长观察，写 1 到 2 条，每条一句话，语气温和、具体，适合家长阅读。'
-        '8. interaction.observations 聚焦 AI 互动趋势、提问表达、互动活跃度，写 1 到 2 条。'
-        '9. playback.observations 聚焦收听习惯、内容偏好、播放活跃度，写 1 到 2 条。'
-        '10. suggestion 为单句建议，风格参考“下周建议”，要自然、可执行、面向家长。'
-        '11. 如果适合，可以自然使用宝宝称呼；优先使用提供的名字，不要杜撰新名字。'
-        '12. 不要把统计数字生硬罗列成报表，要组织成自然语言，但若关键数字确实有帮助，可以少量引用。'
-        '当前宝宝称呼：{baby_name}\n'
-        '以下是使用统计数据：\n{usage_summary}\n'
-        '以下是 Viking 画像与事件摘要：\n{viking_report}'
-    )
+    REPORT_OUTPUT_TEMPLATE: ClassVar[dict[str, Any]] = {
+        'radar': [
+            {'label': '词汇', 'value': 0},
+            {'label': '情感', 'value': 0},
+            {'label': '专注力', 'value': 0},
+            {'label': '想象力', 'value': 0},
+            {'label': '逻辑', 'value': 0},
+        ],
+        'metrics': [
+            {'label': '口语词汇', 'value': 0, 'trend': 'flat'},
+            {'label': '情感表达', 'value': 0, 'trend': 'flat'},
+            {'label': '专注力', 'value': 0, 'trend': 'flat'},
+            {'label': '想象力', 'value': 0, 'trend': 'flat'},
+            {'label': '逻辑理解', 'value': 0, 'trend': 'flat'},
+        ],
+        'insights': {
+            'summary': {'observations': [], 'suggestion': ''},
+            'interaction': {'observations': [], 'suggestion': ''},
+            'playback': {'observations': [], 'suggestion': ''},
+        },
+    }
 
     _usage_cache: ClassVar[dict[int, ReportCacheEntry]] = {}
     _usage_cache_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
@@ -198,19 +194,19 @@ class ReportService:
                 observations=[
                     '本周成长数据已完成汇总，正在结合互动与收听情况生成更细致的成长观察。',
                 ],
-                suggestion='下周建议：继续保持规律陪伴，帮助宝宝在自然互动中积累更多表达和探索体验。',
+                suggestion='继续保持规律陪伴，帮助宝宝在自然互动中积累更多表达和探索体验。',
             ),
             interaction=ReportInsight(
                 observations=[
                     'AI互动数据已纳入统计，后续会结合提问内容和互动频率补充更具体的交流趋势。',
                 ],
-                suggestion='下周建议：可以多引导宝宝开口提问和表达想法，帮助观察互动兴趣的变化。',
+                suggestion='可以多引导宝宝开口提问和表达想法，帮助观察互动兴趣的变化。',
             ),
             playback=ReportInsight(
                 observations=[
                     '收听与播放数据已完成整理，后续会结合内容偏好生成更具体的使用习惯小结。',
                 ],
-                suggestion='下周建议：可以搭配不同主题内容轮换收听，继续观察宝宝对故事和互动内容的偏好。',
+                suggestion='可以搭配不同主题内容轮换收听，继续观察宝宝对故事和互动内容的偏好。',
             ),
         )
 
@@ -242,6 +238,38 @@ class ReportService:
             cls._build_report_radar(),
             cls._build_report_metrics(),
             cls._build_report_insights(),
+        )
+
+    @classmethod
+    def _build_report_prompt(
+            cls,
+            *,
+            baby_name: str,
+            usage_summary: dict[str, Any],
+            viking_report: str,
+    ) -> str:
+        output_template = json.dumps(cls.REPORT_OUTPUT_TEMPLATE, ensure_ascii=False)
+        usage_summary_text = json.dumps(usage_summary, ensure_ascii=False)
+        return (
+            '你是儿童成长报告分析助手。'
+            '请基于使用统计数据和用户画像摘要，输出一个 JSON 对象，不要输出 Markdown，不要输出解释。'
+            f'JSON 结构必须为：{output_template}'
+            '要求：'
+            '1. value 取值范围 0 到 100。'
+            '2. trend 只能是 up、down、flat。'
+            '3. observations 为简短中文句子数组。'
+            '4. 如果信息不足，请给出保守判断，不要编造细节。'
+            '5. 优先结合使用统计与画像摘要一起判断。'
+            '6. summary / interaction / playback 三个模块的文案风格，请参考儿童成长周报卡片。'
+            '7. summary.observations 聚焦整体成长观察，写 1 到 2 条，每条一句话，语气温和、具体，适合家长阅读。'
+            '8. interaction.observations 聚焦 AI 互动趋势、提问表达、互动活跃度，写 1 到 2 条。'
+            '9. playback.observations 聚焦收听习惯、内容偏好、播放活跃度，写 1 到 2 条。'
+            '10. suggestion 为单句建议，风格要自然、可执行、面向家长。'
+            '11. 如果适合，可以自然使用宝宝称呼；优先使用提供的名字，不要杜撰新名字。'
+            '12. 不要把统计数字生硬罗列成报表，要组织成自然语言，但若关键数字确实有帮助，可以少量引用。'
+            f'当前宝宝称呼：{baby_name}\n'
+            f'以下是使用统计数据：\n{usage_summary_text}\n'
+            f'以下是 Viking 画像与事件摘要：\n{viking_report}'
         )
 
     async def _build_usage_report(self, *, baby: Baby) -> UsageReport:
@@ -347,9 +375,9 @@ class ReportService:
             usage_summary: dict[str, Any],
             viking_report: str,
     ) -> str:
-        prompt = cls.REPORT_ANALYSIS_PROMPT_TEMPLATE.format(
+        prompt = cls._build_report_prompt(
             baby_name=baby_name,
-            usage_summary=json.dumps(usage_summary, ensure_ascii=False),
+            usage_summary=usage_summary,
             viking_report=viking_report,
         )
         return await doubao_provider.chat(
