@@ -41,7 +41,10 @@ from backend.core.conf import settings
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
-from backend.app.cloud.service.resource.huoshan.config import PROJECT_MAP
+from backend.app.cloud.service.resource.huoshan.config import (
+    get_voice_name,
+    get_voice_project_for_speaker,
+)
 from backend.app.cloud.service.resource.huoshan.audio_tools import mix_audio_with_bgm
 from backend.app.cloud.service.resource.huoshan.client import HuoshanLongTextTTSClient, HuoshanOpenAPIClient
 from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanAPIError, HuoshanOpenAPIError, HuoshanTTSError
@@ -75,7 +78,7 @@ class HuoshanVoiceService:
 
     @classmethod
     def _attach_voice_remark(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
-        speaker_remark = cls._resolve_voice_remark(status.speaker_id)
+        speaker_remark = get_voice_name(status.speaker_id)
         if speaker_remark is None:
             return status
         return status.model_copy(update={'speaker_remark': speaker_remark}, deep=True)
@@ -93,62 +96,16 @@ class HuoshanVoiceService:
         )
 
     @classmethod
-    def _resolve_project_name(cls, speaker: str | None = None) -> str:
-        speaker_id = str(speaker or '').strip()
-        if not speaker_id:
-            return 'default'
-
-        for project_name, project_config in PROJECT_MAP.items():
-            voice_map = project_config.get('voice') or {}
-            if speaker_id in voice_map:
-                return project_name
-        return 'default'
-
-    @classmethod
-    def _resolve_project_config(cls, speaker: str | None = None) -> dict[str, object]:
-        project_name = cls._resolve_project_name(speaker)
-        project_config = PROJECT_MAP.get(project_name)
-        if project_config is None:
-            return PROJECT_MAP['default']
-        return project_config
-
-    @classmethod
-    def _resolve_voice_remark(cls, speaker: str | None = None) -> str | None:
-        speaker_id = str(speaker or '').strip()
-        if not speaker_id:
-            return None
-
-        voice_map = cls._resolve_project_config(speaker).get('voice') or {}
-        speaker_remark = voice_map.get(speaker_id)
-        if not speaker_remark:
-            return None
-        return str(speaker_remark).strip() or None
-
-    @classmethod
-    def _resolve_story_tts_credentials(cls, speaker: str | None = None) -> tuple[str, str]:
-        project_config = cls._resolve_project_config(speaker)
-        app_id = str(project_config.get('appid') or '').strip()
-        access_key = str(project_config.get('token') or '').strip()
-        if app_id and access_key:
-            return app_id, access_key
-
-        default_project = PROJECT_MAP.get('default', {})
-        return (
-            str(default_project.get('appid') or '').strip(),
-            str(default_project.get('token') or '').strip(),
-        )
-
-    @classmethod
     def _resolve_story_client_config(cls, speaker: str | None = None) -> HuoshanLongTextTTSConfig:
-        app_id, access_key = cls._resolve_story_tts_credentials(speaker)
+        project = get_voice_project_for_speaker(speaker)
         resource_id = settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
         query_resource_id = (
                 settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
                 or HuoshanLongTextTTSClient.infer_query_resource_id(resource_id)
         )
         return HuoshanLongTextTTSConfig(
-            app_id=app_id,
-            access_key=access_key,
+            app_id=project.appid,
+            access_key=project.token,
             resource_id=resource_id,
             query_resource_id=query_resource_id,
             submit_url=settings.BYTES_TTS_LONG_SUBMIT_URL,
@@ -358,7 +315,7 @@ class HuoshanVoiceService:
         task.add_done_callback(_cleanup)
 
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
-        project_name = self._resolve_project_name(speaker)
+        project_name = get_voice_project_for_speaker(speaker).name
         result = await self._list_voice_status_page(
             HuoshanVoiceListParam(project_name=project_name, speaker_ids=[speaker], state=None, page_size=10)
         )
@@ -393,7 +350,7 @@ class HuoshanVoiceService:
 
     async def _list_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
         if obj.speaker_id and (not obj.project_name or obj.project_name == 'default'):
-            obj = obj.model_copy(update={'project_name': self._resolve_project_name(obj.speaker_id)}, deep=True)
+            obj = obj.model_copy(update={'project_name': get_voice_project_for_speaker(obj.speaker_id).name}, deep=True)
 
         client = self._create_openapi_client()
         payload = obj.model_dump(exclude_none=True)

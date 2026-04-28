@@ -16,6 +16,7 @@ from backend.common.schema import SchemaBase
 
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
 HuoshanAudioFormat = Literal['mp3']
+HuoshanASRAudioInputFormat = Literal['pcm', 'wav']
 
 
 class HuoshanSchemaBase(SchemaBase):
@@ -116,6 +117,16 @@ class HuoshanStreamTTSParam(HuoshanSchemaBase):
 
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
+
+
+class HuoshanStreamASRParam(HuoshanSchemaBase):
+    audio_base64: str = Field(min_length=1, description='Base64 encoded PCM or WAV audio')
+    audio_format: HuoshanASRAudioInputFormat = Field('pcm', description='Input audio format')
+
+
+class HuoshanStreamASRResult(HuoshanSchemaBase):
+    request_id: str = Field(description='ASR request ID')
+    text: str = Field('', description='Recognized text')
 
 
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):

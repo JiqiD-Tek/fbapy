@@ -417,6 +417,12 @@ class Settings(BaseSettings):
     BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS: float = 2.0
     BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS: float = 900.0
 
+    # 火山 ASR
+    BYTES_ASR_APPID: str = ''
+    BYTES_ASR_TOKEN: str = ''
+    BYTES_ASR_CLUSTER: str = ''
+    BYTES_ASR_STREAM_WS_URL: str = 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel'
+
     # 火山 OpenAPI
     BYTES_OPENAPI_ACCESS_KEY: str = ''
     BYTES_OPENAPI_SECRET_KEY: SecretStr = ''

@@ -17,10 +17,13 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
 )
-from backend.app.cloud.service.resource.huoshan.config import PROJECT_MAP, STREAM_TTS_CONFIG
+from backend.app.cloud.service.resource.huoshan.config import (
+    get_voice_project_for_speaker,
+)
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.common.exception import errors
 from backend.common.log import log
+from backend.core.conf import settings
 
 PROTOCOL_VERSION = 0b0001
 DEFAULT_HEADER_SIZE = 0b0001
@@ -120,52 +123,22 @@ class TTSStreamService:
         return str(value or '').strip()
 
     @classmethod
-    def _resolve_project_name(cls, speaker: str) -> str:
-        normalized_speaker = cls._normalize_text(speaker)
-        if not normalized_speaker:
-            return 'default'
-
-        for candidate_project_name, project_config in PROJECT_MAP.items():
-            voice_map = project_config.get('voice') or {}
-            if normalized_speaker in voice_map:
-                return candidate_project_name
-
-        return 'default'
-
-    @classmethod
-    def _resolve_credentials(
-            cls,
-            *,
-            speaker: str,
-    ) -> tuple[str, str]:
-        resolved_project_name = cls._resolve_project_name(speaker)
-        project_config = PROJECT_MAP.get(resolved_project_name) or PROJECT_MAP.get('default') or {}
-
-        appid = cls._normalize_text(project_config.get('appid'))
-        access_token = cls._normalize_text(project_config.get('token'))
-        if not appid or not access_token:
-            raise errors.ServerError(
-                msg=f'Huoshan TTS credentials are not configured for project={resolved_project_name}'
-            )
-        return appid, access_token
-
-    @classmethod
     def _resolve_stream_config(cls) -> dict[str, Any]:
         return {
             'ws_url': (
-                cls._normalize_text(STREAM_TTS_CONFIG.get('ws_url'))
+                cls._normalize_text(settings.BYTES_TTS_STREAM_WS_URL)
                 or 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
             ),
             'resource_id': (
-                cls._normalize_text(STREAM_TTS_CONFIG.get('resource_id'))
-                or 'seed-icl-2.0'
+                cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
+                or 'seed-tts-2.0'
             ),
             'audio_format': (
-                cls._normalize_text(STREAM_TTS_CONFIG.get('audio_format'))
+                cls._normalize_text(settings.BYTES_TTS_STREAM_AUDIO_FORMAT)
                 or 'mp3'
             ),
-            'speech_rate': int(STREAM_TTS_CONFIG.get('speech_rate') or 0),
-            'loudness_rate': int(STREAM_TTS_CONFIG.get('loudness_rate') or 0),
+            'speech_rate': int(settings.BYTES_TTS_STREAM_SPEECH_RATE or 0),
+            'loudness_rate': int(settings.BYTES_TTS_STREAM_LOUDNESS_RATE or 0),
         }
 
     @classmethod
@@ -214,15 +187,17 @@ class TTSStreamService:
             audio_format = stream_config['audio_format']
             speech_rate = stream_config['speech_rate']
             loudness_rate = stream_config['loudness_rate']
-            appid, access_token = self._resolve_credentials(
-                speaker=speaker,
-            )
+            project = get_voice_project_for_speaker(speaker)
+            if not project.app_id or not project.access_token:
+                raise errors.ServerError(
+                    msg=f'Huoshan TTS credentials are not configured for project={project.name}'
+                )
 
             ws = await websockets.connect(
                 ws_url,
                 additional_headers=self._build_ws_headers(
-                    appid=appid,
-                    access_token=access_token,
+                    appid=project.app_id,
+                    access_token=project.access_token,
                     resource_id=resource_id,
                 ),
                 max_size=MAX_WS_MESSAGE_SIZE,

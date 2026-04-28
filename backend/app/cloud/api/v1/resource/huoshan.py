@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Path, Query
 
 from backend.app.cloud.schema.resource.huoshan import (
+    HuoshanStreamASRParam,
+    HuoshanStreamASRResult,
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
     HuoshanStoryGenerateParam,
@@ -27,6 +29,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 
+from backend.app.cloud.service.resource.huoshan.asr.asr_stream import asr_stream_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
@@ -127,6 +130,19 @@ async def get_huoshan_story_synthesis(
         task_id: str = Path(description='Huoshan task ID'),
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.get_story_synthesis(task_id=task_id)
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/asr/stream',
+    summary='Submit simple Huoshan stream ASR task',
+    response_model_by_alias=False,
+)
+async def submit_huoshan_stream_asr(
+        obj: HuoshanStreamASRParam,
+        # dependencies=[DependsJwtAuth],
+) -> ResponseSchemaModel[HuoshanStreamASRResult]:
+    data = await asr_stream_service.transcribe(obj)
     return response_base.success(data=data)
 
 
