@@ -154,6 +154,157 @@ def _is_success_code(code: int | None) -> bool:
     return code is None or code in SUCCESS_CODES
 
 
+class ASRRealtimeSession:
+    def __init__(
+            self,
+            *,
+            service: ASRStreamService,
+            request_id: str,
+            stream_config: dict[str, Any],
+            audio_spec: ASRAudioSpec,
+            websocket: Any,
+    ) -> None:
+        self._service = service
+        self.request_id = request_id
+        self.stream_config = stream_config
+        self.audio_spec = audio_spec
+        self.websocket = websocket
+        self._frame_size = self._service._resolve_frame_size(
+            audio_spec,
+            int(self.stream_config.get('frame_duration_ms') or self._service.DEFAULT_FRAME_DURATION_MS),
+        )
+        self._pending_audio = bytearray()
+        self._input_finished = False
+        self._closed = False
+        self._latest_text = ''
+
+    async def send_audio_chunk(self, audio_chunk: bytes) -> None:
+        if self._closed:
+            raise errors.RequestError(msg='ASR realtime session is already closed')
+        if self._input_finished:
+            raise errors.RequestError(msg='ASR realtime input has already finished')
+        if not audio_chunk:
+            return
+
+        self._pending_audio.extend(audio_chunk)
+        await self._flush_pending_audio()
+
+    async def finish_input(self) -> None:
+        if self._closed or self._input_finished:
+            return
+
+        try:
+            if self._pending_audio:
+                await self.websocket.send(_build_audio_request_packet(bytes(self._pending_audio)))
+                self._pending_audio.clear()
+            await self.websocket.send(_build_audio_request_packet(b'', is_final=True))
+        except websockets.ConnectionClosed as exc:
+            raise DoubaoProtocolError(f'Huoshan ASR websocket is closed: {exc}') from exc
+        self._input_finished = True
+
+    async def iter_events(self):
+        while True:
+            try:
+                response = await self._receive_message()
+            except asyncio.TimeoutError:
+                break
+            except websockets.ConnectionClosed:
+                break
+
+            result = _parse_protocol_response(response)
+            log.debug(f'Receive Huoshan realtime ASR result: {result}')
+            for event in self._build_events(result):
+                yield event
+
+        yield {
+            'type': 'completed',
+            'request_id': self.request_id,
+            'text': self._latest_text,
+        }
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._pending_audio.clear()
+        with suppress(Exception):
+            await self.websocket.close()
+
+    async def _flush_pending_audio(self) -> None:
+        try:
+            while len(self._pending_audio) >= self._frame_size:
+                frame = bytes(self._pending_audio[:self._frame_size])
+                del self._pending_audio[:self._frame_size]
+                await self.websocket.send(_build_audio_request_packet(frame))
+        except websockets.ConnectionClosed as exc:
+            raise DoubaoProtocolError(f'Huoshan ASR websocket is closed: {exc}') from exc
+
+    async def _receive_message(self) -> bytes:
+        if self._input_finished:
+            return await asyncio.wait_for(
+                self.websocket.recv(),
+                timeout=self._service.DEFAULT_REALTIME_FINAL_TIMEOUT_SECONDS,
+            )
+        return await self.websocket.recv()
+
+    def _build_events(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+        response_code = _extract_response_code(result)
+        if not _is_success_code(response_code):
+            payload = result.get('payload_msg')
+            if isinstance(payload, dict):
+                error_message = (
+                    payload.get('error')
+                    or payload.get('message')
+                    or json.dumps(payload, ensure_ascii=False)
+                )
+            else:
+                error_message = str(response_code)
+            raise DoubaoProtocolError(f'Huoshan ASR returned error: {error_message}')
+
+        payload = result.get('payload_msg')
+        if not isinstance(payload, dict):
+            return []
+
+        result_payload = payload.get('result')
+        if not isinstance(result_payload, dict):
+            return []
+
+        events: list[dict[str, Any]] = []
+        result_text = self._service._normalize_text(result_payload.get('text'))
+        if result_text:
+            self._latest_text = result_text
+            events.append(
+                {
+                    'type': 'partial',
+                    'request_id': self.request_id,
+                    'text': result_text,
+                }
+            )
+
+        utterances = result_payload.get('utterances')
+        if not isinstance(utterances, list):
+            return events
+
+        for utterance in utterances:
+            if not isinstance(utterance, dict):
+                continue
+            if not utterance.get('definite', False):
+                continue
+
+            utterance_text = self._service._normalize_text(utterance.get('text'))
+            if not utterance_text:
+                continue
+
+            events.append(
+                {
+                    'type': 'final',
+                    'request_id': self.request_id,
+                    'text': utterance_text,
+                }
+            )
+        return events
+
+
 class ASRStreamService:
     DEFAULT_WS_URL: ClassVar[str] = 'wss://openspeech.bytedance.com/api/v3/sauc/bigmodel'
     DEFAULT_RESOURCE_ID: ClassVar[str] = 'volc.bigasr.sauc.duration'
@@ -167,11 +318,24 @@ class ASRStreamService:
     DEFAULT_END_WINDOW_SIZE: ClassVar[int] = 200
     DEFAULT_FRAME_DURATION_MS: ClassVar[int] = 200
     DEFAULT_RECV_TIMEOUT_SECONDS: ClassVar[float] = 10.0
+    DEFAULT_REALTIME_FINAL_TIMEOUT_SECONDS: ClassVar[float] = 1.5
     DEFAULT_UID: ClassVar[str] = 'huoshan_stream_asr_service'
 
     @staticmethod
     def _normalize_text(value: Any) -> str:
         return str(value or '').strip()
+
+    @classmethod
+    def _read_positive_int(cls, value: Any, default: int, field_name: str) -> int:
+        if value in (None, ''):
+            return default
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError) as exc:
+            raise errors.RequestError(msg=f'invalid {field_name}') from exc
+        if parsed <= 0:
+            raise errors.RequestError(msg=f'invalid {field_name}')
+        return parsed
 
     @classmethod
     def _resolve_stream_config(cls) -> dict[str, Any]:
@@ -199,6 +363,7 @@ class ASRStreamService:
             'end_window_size': cls.DEFAULT_END_WINDOW_SIZE,
             'frame_duration_ms': cls.DEFAULT_FRAME_DURATION_MS,
             'recv_timeout_seconds': cls.DEFAULT_RECV_TIMEOUT_SECONDS,
+            'realtime_final_timeout_seconds': cls.DEFAULT_REALTIME_FINAL_TIMEOUT_SECONDS,
         }
 
     @classmethod
@@ -251,6 +416,25 @@ class ASRStreamService:
             sample_rate=sample_rate,
             bits=bits,
             channel=channel,
+        )
+
+    @classmethod
+    def build_realtime_audio_spec(
+            cls,
+            *,
+            sample_rate: Any = None,
+            bits: Any = None,
+            channel: Any = None,
+    ) -> ASRAudioSpec:
+        return ASRAudioSpec(
+            pcm_bytes=b'',
+            sample_rate=cls._read_positive_int(
+                sample_rate,
+                cls.DEFAULT_SAMPLE_RATE,
+                'sample_rate',
+            ),
+            bits=cls._read_positive_int(bits, cls.DEFAULT_BITS, 'bits'),
+            channel=cls._read_positive_int(channel, cls.DEFAULT_CHANNEL, 'channel'),
         )
 
     @classmethod
@@ -313,6 +497,41 @@ class ASRStreamService:
             app_config['token'] = f'{token_text[:4]}***'
         return masked_request
 
+    async def create_realtime_session(
+            self,
+            *,
+            sample_rate: Any = None,
+            bits: Any = None,
+            channel: Any = None,
+    ) -> ASRRealtimeSession:
+        request_id = uuid.uuid4().hex
+        stream_config = self._resolve_stream_config()
+        audio_spec = self.build_realtime_audio_spec(
+            sample_rate=sample_rate,
+            bits=bits,
+            channel=channel,
+        )
+        websocket = await self._open_upstream_websocket(stream_config)
+        try:
+            await self._send_init_request(
+                websocket,
+                request_id=request_id,
+                stream_config=stream_config,
+                audio_spec=audio_spec,
+            )
+        except Exception:
+            with suppress(Exception):
+                await websocket.close()
+            raise
+
+        return ASRRealtimeSession(
+            service=self,
+            request_id=request_id,
+            stream_config=stream_config,
+            audio_spec=audio_spec,
+            websocket=websocket,
+        )
+
     async def transcribe(self, obj: HuoshanStreamASRParam) -> HuoshanStreamASRResult:
         request_id = uuid.uuid4().hex
         stream_config = self._resolve_stream_config()
@@ -321,18 +540,7 @@ class ASRStreamService:
         websocket = None
         receiver_task: asyncio.Task[str] | None = None
         try:
-            websocket = await websockets.connect(
-                stream_config['ws_url'],
-                additional_headers=_build_auth_headers(
-                    stream_config['appid'],
-                    stream_config['access_token'],
-                    stream_config['resource_id'],
-                ),
-                max_size=MAX_WS_MESSAGE_SIZE,
-                ping_interval=None,
-                ping_timeout=None,
-                close_timeout=10,
-            )
+            websocket = await self._open_upstream_websocket(stream_config)
 
             await self._send_init_request(
                 websocket,
@@ -407,6 +615,20 @@ class ASRStreamService:
         else:
             error_message = 'unknown error'
         raise DoubaoProtocolError(f'Huoshan ASR init failed: {error_message}')
+
+    async def _open_upstream_websocket(self, stream_config: dict[str, Any]):
+        return await websockets.connect(
+            stream_config['ws_url'],
+            additional_headers=_build_auth_headers(
+                stream_config['appid'],
+                stream_config['access_token'],
+                stream_config['resource_id'],
+            ),
+            max_size=MAX_WS_MESSAGE_SIZE,
+            ping_interval=None,
+            ping_timeout=None,
+            close_timeout=10,
+        )
 
     async def _send_pcm_frames(
             self,
