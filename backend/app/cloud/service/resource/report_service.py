@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
@@ -127,8 +126,7 @@ class UsageCounter:
             cls,
             rows: list[dict[str, Any]],
             dates: list[date],
-    ) -> tuple[UsageCounter, dict[date, UsageCounter]]:
-        overall_counter = cls()
+    ) -> dict[date, UsageCounter]:
         daily_counters = {current_date: cls() for current_date in dates}
 
         for row in rows:
@@ -136,10 +134,9 @@ class UsageCounter:
             if event_date is None or event_date not in daily_counters:
                 continue
 
-            overall_counter.add(service, play_preference=play_preference)
             daily_counters[event_date].add(service, play_preference=play_preference)
 
-        return overall_counter, daily_counters
+        return daily_counters
 
 
 @dataclass(slots=True)
@@ -149,25 +146,35 @@ class ReportCacheEntry:
 
 
 class ReportService:
-    REPORT_DAYS: ClassVar[int] = 7
+    REPORT_DAYS: ClassVar[int] = 14
+    REPORT_COMPARE_DAYS: ClassVar[int] = 7
     REPORT_QUERY_LIMIT: ClassVar[int] = 20000
     REPORT_ANALYSIS_SYSTEM_PROMPT: ClassVar[str] = (
-        '你擅长生成结构化、克制、可直接解析的儿童成长分析结果。'
+        '你是儿童成长报告分析助手。'
+        '你的任务是根据输入数据生成稳定、保守、可直接解析的 JSON 结果。'
+        '只输出 JSON，不要输出 Markdown、代码块、解释或额外文本。'
+        '如果证据不足，使用保守判断，不要编造细节，trend 优先使用 flat。'
+        'radar 和 metrics 的 label 必须严格使用：表达、情感、专注、想象、逻辑。'
+        '表达=口头表达、词汇使用与主动交流；情感=情绪表达与回应；专注=持续参与与注意保持；'
+        '想象=联想、代入与创造表达；逻辑=因果理解、顺序组织与简单推理。'
+        'value 范围只能是 0 到 100；trend 只能是 up、down、flat。'
+        'metrics.value 和 radar.value 主要依据最近一周数据；metrics.trend 依据最近一周相对前一周的变化。'
+        'observations 使用简短中文句子；suggestion 只写一条自然、具体、可执行的建议。'
     )
     REPORT_OUTPUT_TEMPLATE: ClassVar[dict[str, Any]] = {
         'radar': [
-            {'label': '词汇', 'value': 0},
+            {'label': '表达', 'value': 0},
             {'label': '情感', 'value': 0},
-            {'label': '专注力', 'value': 0},
-            {'label': '想象力', 'value': 0},
+            {'label': '专注', 'value': 0},
+            {'label': '想象', 'value': 0},
             {'label': '逻辑', 'value': 0},
         ],
         'metrics': [
-            {'label': '口语词汇', 'value': 0, 'trend': 'flat'},
-            {'label': '情感表达', 'value': 0, 'trend': 'flat'},
-            {'label': '专注力', 'value': 0, 'trend': 'flat'},
-            {'label': '想象力', 'value': 0, 'trend': 'flat'},
-            {'label': '逻辑理解', 'value': 0, 'trend': 'flat'},
+            {'label': '表达', 'value': 0, 'trend': 'flat'},
+            {'label': '情感', 'value': 0, 'trend': 'flat'},
+            {'label': '专注', 'value': 0, 'trend': 'flat'},
+            {'label': '想象', 'value': 0, 'trend': 'flat'},
+            {'label': '逻辑', 'value': 0, 'trend': 'flat'},
         ],
         'insights': {
             'summary': {'observations': [], 'suggestion': ''},
@@ -181,8 +188,9 @@ class ReportService:
 
     @classmethod
     def _resolve_report_window(cls) -> tuple[datetime, datetime, list[date]]:
-        end_time = timezone.now()
-        start_date = (end_time - timedelta(days=cls.REPORT_DAYS - 1)).date()
+        today = timezone.now().date()
+        end_time = datetime.combine(today, time.min, tzinfo=timezone.tz_info)
+        start_date = today - timedelta(days=cls.REPORT_DAYS)
         start_time = datetime.combine(start_date, time.min, tzinfo=timezone.tz_info)
         dates = [start_date + timedelta(days=offset) for offset in range(cls.REPORT_DAYS)]
         return start_time, end_time, dates
@@ -192,52 +200,31 @@ class ReportService:
         return ReportInsights(
             summary=ReportInsight(
                 observations=[
-                    '本周成长数据已完成汇总，正在结合互动与收听情况生成更细致的成长观察。',
+                    '这一阶段的使用记录还比较有限，孩子在整体成长表现上的变化还需要放在更连续的陪伴中慢慢观察。',
                 ],
-                suggestion='继续保持规律陪伴，帮助宝宝在自然互动中积累更多表达和探索体验。',
+                suggestion='先保持稳定、放松的陪伴节奏，在聊天、共读和游戏中多关注孩子愿意回应的内容，让成长信号在日常互动中慢慢积累起来。',
             ),
             interaction=ReportInsight(
                 observations=[
-                    'AI互动数据已纳入统计，后续会结合提问内容和互动频率补充更具体的交流趋势。',
+                    '从目前有限的互动记录来看，孩子在表达、回应和持续参与上的表现，还需要更多日常互动来继续观察。',
                 ],
-                suggestion='可以多引导宝宝开口提问和表达想法，帮助观察互动兴趣的变化。',
+                suggestion='多采用开放式提问和轮流回应的方式，先接住孩子当下的表达，再在有安全感的互动中慢慢鼓励他多说一点、多回应一点。',
             ),
             playback=ReportInsight(
                 observations=[
-                    '收听与播放数据已完成整理，后续会结合内容偏好生成更具体的使用习惯小结。',
+                    '现阶段可参考的收听记录还不多，孩子对内容类型和收听方式的偏好仍可以在后续陪伴中慢慢看见。',
                 ],
-                suggestion='可以搭配不同主题内容轮换收听，继续观察宝宝对故事和互动内容的偏好。',
+                suggestion='提供不同主题和节奏的内容让孩子自然接触，顺着他愿意停留和重复收听的内容继续延展，逐步观察兴趣和偏好的变化。',
             ),
         )
 
     @staticmethod
-    def _build_report_radar() -> list[ReportRadarPoint]:
-        return [
-            ReportRadarPoint(label='词汇', value=100),
-            ReportRadarPoint(label='情感', value=100),
-            ReportRadarPoint(label='专注力', value=100),
-            ReportRadarPoint(label='想象力', value=100),
-            ReportRadarPoint(label='逻辑', value=100),
-        ]
-
-    @staticmethod
-    def _build_report_metrics() -> list[ReportMetric]:
-        return [
-            ReportMetric(label='口语词汇', value=100, trend='flat'),
-            ReportMetric(label='情感表达', value=100, trend='flat'),
-            ReportMetric(label='专注力', value=100, trend='flat'),
-            ReportMetric(label='想象力', value=100, trend='flat'),
-            ReportMetric(label='逻辑理解', value=100, trend='flat'),
-        ]
-
-    @classmethod
     def _build_default_report_sections(
-            cls,
     ) -> tuple[list[ReportRadarPoint], list[ReportMetric], ReportInsights]:
         return (
-            cls._build_report_radar(),
-            cls._build_report_metrics(),
-            cls._build_report_insights(),
+            [ReportRadarPoint.model_validate(item) for item in ReportService.REPORT_OUTPUT_TEMPLATE['radar']],
+            [ReportMetric.model_validate(item) for item in ReportService.REPORT_OUTPUT_TEMPLATE['metrics']],
+            ReportService._build_report_insights(),
         )
 
     @classmethod
@@ -245,31 +232,26 @@ class ReportService:
             cls,
             *,
             baby_name: str,
-            usage_summary: dict[str, Any],
-            viking_report: str,
+            current_week_usage: dict[str, Any],
+            previous_week_usage: dict[str, Any],
+            current_week_viking_report: str,
+            previous_week_viking_report: str,
     ) -> str:
         output_template = json.dumps(cls.REPORT_OUTPUT_TEMPLATE, ensure_ascii=False)
-        usage_summary_text = json.dumps(usage_summary, ensure_ascii=False)
+        current_week_usage_text = json.dumps(current_week_usage, ensure_ascii=False)
+        previous_week_usage_text = json.dumps(previous_week_usage, ensure_ascii=False)
         return (
-            '你是儿童成长报告分析助手。'
-            '请基于使用统计数据和用户画像摘要，输出一个 JSON 对象，不要输出 Markdown，不要输出解释。'
-            f'JSON 结构必须为：{output_template}'
-            '要求：'
-            '1. value 取值范围 0 到 100。'
-            '2. trend 只能是 up、down、flat。'
-            '3. observations 为简短中文句子数组。'
-            '4. 如果信息不足，请给出保守判断，不要编造细节。'
-            '5. 优先结合使用统计与画像摘要一起判断。'
-            '6. summary / interaction / playback 三个模块的文案风格，请参考儿童成长周报卡片。'
-            '7. summary.observations 聚焦整体成长观察，写 1 到 2 条，每条一句话，语气温和、具体，适合家长阅读。'
-            '8. interaction.observations 聚焦 AI 互动趋势、提问表达、互动活跃度，写 1 到 2 条。'
-            '9. playback.observations 聚焦收听习惯、内容偏好、播放活跃度，写 1 到 2 条。'
-            '10. suggestion 为单句建议，风格要自然、可执行、面向家长。'
-            '11. 如果适合，可以自然使用宝宝称呼；优先使用提供的名字，不要杜撰新名字。'
-            '12. 不要把统计数字生硬罗列成报表，要组织成自然语言，但若关键数字确实有帮助，可以少量引用。'
+            f'输出 JSON 结构：{output_template}'
+            '请结合两周使用数据和两周画像摘要生成结果。'
+            '优先使用输入中的事实，证据不足时保持保守。'
+            'summary 聚焦整体成长观察，interaction 聚焦互动表现，playback 聚焦收听偏好。'
+            '每个 observations 写 1 到 2 条短句；每个 suggestion 只写 1 条建议。'
+            '可以自然使用宝宝称呼，但不要杜撰新名字。'
             f'当前宝宝称呼：{baby_name}\n'
-            f'以下是使用统计数据：\n{usage_summary_text}\n'
-            f'以下是 Viking 画像与事件摘要：\n{viking_report}'
+            f'以下是最近一周的使用统计数据：\n{current_week_usage_text}\n'
+            f'以下是前一周的使用统计数据：\n{previous_week_usage_text}\n'
+            f'以下是最近一周的 Viking 画像与事件摘要：\n{current_week_viking_report}\n'
+            f'以下是前一周的 Viking 画像与事件摘要：\n{previous_week_viking_report}'
         )
 
     async def _build_usage_report(self, *, baby: Baby) -> UsageReport:
@@ -280,22 +262,28 @@ class ReportService:
             end_time=end_time,
         )
 
-        overall_counter, daily_counters = UsageCounter.aggregate_rows(rows, dates)
+        daily_counters = UsageCounter.aggregate_rows(rows, dates)
+        recent_dates, previous_dates = self._split_report_dates(dates)
+        recent_daily_counters = {current_date: daily_counters[current_date] for current_date in recent_dates}
+        previous_daily_counters = {current_date: daily_counters[current_date] for current_date in previous_dates}
+        recent_counter = self._sum_daily_counters(recent_daily_counters)
+        previous_counter = self._sum_daily_counters(previous_daily_counters)
         radar, metrics, insights = await self._build_by_llm(
             baby_id=baby.id,
-            baby_name=baby.name or '宝宝',
-            overall_counter=overall_counter,
-            daily_counters=daily_counters,
+            baby_name=baby.name or '宝贝',
+            recent_counter=recent_counter,
+            recent_daily_counters=recent_daily_counters,
+            previous_counter=previous_counter,
+            previous_daily_counters=previous_daily_counters,
         )
 
         return UsageReport(
             radar=radar,
             metrics=metrics,
             activity_trend=[
-                counter.to_trend_point(current_date)
-                for current_date, counter in daily_counters.items()
+                counter.to_trend_point(current_date) for current_date, counter in recent_daily_counters.items()
             ],
-            play_preferences=overall_counter.to_play_preferences(),
+            play_preferences=recent_counter.to_play_preferences(),
             insights=insights,
         )
 
@@ -326,45 +314,79 @@ class ReportService:
             cls,
             *,
             baby_id: int,
-    ) -> str:
-        start_time, end_time, _ = cls._resolve_report_window()
+    ) -> tuple[str, str]:
+        _, _, dates = cls._resolve_report_window()
+        recent_dates, previous_dates = cls._split_report_dates(dates)
+        if not recent_dates or not previous_dates:
+            return '', ''
 
-        profile_text, event_text = await asyncio.gather(
+        recent_start_time = datetime.combine(recent_dates[0], time.min, tzinfo=timezone.tz_info)
+        recent_end_time = datetime.combine(recent_dates[-1] + timedelta(days=1), time.min, tzinfo=timezone.tz_info)
+        previous_start_time = datetime.combine(previous_dates[0], time.min, tzinfo=timezone.tz_info)
+        previous_end_time = datetime.combine(previous_dates[-1] + timedelta(days=1), time.min, tzinfo=timezone.tz_info)
+
+        recent_profile_text, recent_event_text, previous_profile_text, previous_event_text = await asyncio.gather(
             viking_memory_client.query_profile_memories_text(
                 user_id=str(baby_id),
-                start_time=start_time,
-                end_time=end_time,
+                start_time=recent_start_time,
+                end_time=recent_end_time,
             ),
             viking_memory_client.query_event_memories_text(
                 user_id=str(baby_id),
-                start_time=start_time,
-                end_time=end_time,
+                start_time=recent_start_time,
+                end_time=recent_end_time,
+            ),
+            viking_memory_client.query_profile_memories_text(
+                user_id=str(baby_id),
+                start_time=previous_start_time,
+                end_time=previous_end_time,
+            ),
+            viking_memory_client.query_event_memories_text(
+                user_id=str(baby_id),
+                start_time=previous_start_time,
+                end_time=previous_end_time,
             ),
         )
-        return f"画像摘要：\n{profile_text}\n\n事件摘要：\n{event_text}"
+        return (
+            f"画像摘要：\n{recent_profile_text}\n\n事件摘要：\n{recent_event_text}",
+            f"画像摘要：\n{previous_profile_text}\n\n事件摘要：\n{previous_event_text}",
+        )
 
     @classmethod
     def _build_usage_summary_for_llm(
             cls,
             *,
-            overall_counter: UsageCounter,
-            daily_counters: dict[date, UsageCounter],
+            recent_counter: UsageCounter,
+            recent_daily_counters: dict[date, UsageCounter],
+            previous_counter: UsageCounter,
+            previous_daily_counters: dict[date, UsageCounter],
     ) -> dict[str, Any]:
         return {
-            'report_days': cls.REPORT_DAYS,
-            'overview': {
-                'chat_count': overall_counter.chat_count,
-                'active_count': overall_counter.active_count,
-                'player_count': overall_counter.player_count,
-                'play_preferences': [
-                    item.model_dump()
-                    for item in overall_counter.to_play_preferences()
+            'report_days': cls.REPORT_COMPARE_DAYS,
+            'current_week': {
+                'overview': {
+                    'chat_count': recent_counter.chat_count,
+                    'active_count': recent_counter.active_count,
+                    'player_count': recent_counter.player_count,
+                    'play_preferences': [item.model_dump() for item in recent_counter.to_play_preferences()],
+                },
+                'daily_activity': [
+                    counter.to_trend_point(current_date).model_dump()
+                    for current_date, counter in recent_daily_counters.items()
                 ],
             },
-            'daily_activity': [
-                counter.to_trend_point(current_date).model_dump()
-                for current_date, counter in daily_counters.items()
-            ],
+            'previous_week': {
+                'overview': {
+                    'chat_count': previous_counter.chat_count,
+                    'active_count': previous_counter.active_count,
+                    'player_count': previous_counter.player_count,
+                    'play_preferences': [item.model_dump() for item in previous_counter.to_play_preferences()],
+                },
+                'daily_activity': [
+                    counter.to_trend_point(current_date).model_dump()
+                    for current_date, counter in previous_daily_counters.items()
+                ],
+            },
         }
 
     @classmethod
@@ -372,13 +394,17 @@ class ReportService:
             cls,
             *,
             baby_name: str,
-            usage_summary: dict[str, Any],
-            viking_report: str,
+            current_week_usage: dict[str, Any],
+            previous_week_usage: dict[str, Any],
+            current_week_viking_report: str,
+            previous_week_viking_report: str,
     ) -> str:
         prompt = cls._build_report_prompt(
             baby_name=baby_name,
-            usage_summary=usage_summary,
-            viking_report=viking_report,
+            current_week_usage=current_week_usage,
+            previous_week_usage=previous_week_usage,
+            current_week_viking_report=current_week_viking_report,
+            previous_week_viking_report=previous_week_viking_report,
         )
         return await doubao_provider.chat(
             [
@@ -387,7 +413,7 @@ class ReportService:
             ],
             model_name=DEFAULT_DOUBAO_CHAT_MODEL,
             reasoning_effort='minimal',
-            temperature=0.3,
+            temperature=0.1,
         )
 
     @classmethod
@@ -435,32 +461,56 @@ class ReportService:
             *,
             baby_id: int,
             baby_name: str,
-            overall_counter: UsageCounter,
-            daily_counters: dict[date, UsageCounter],
+            recent_counter: UsageCounter,
+            recent_daily_counters: dict[date, UsageCounter],
+            previous_counter: UsageCounter,
+            previous_daily_counters: dict[date, UsageCounter],
     ) -> tuple[list[ReportRadarPoint], list[ReportMetric], ReportInsights]:
         usage_summary = cls._build_usage_summary_for_llm(
-            overall_counter=overall_counter,
-            daily_counters=daily_counters,
+            recent_counter=recent_counter,
+            recent_daily_counters=recent_daily_counters,
+            previous_counter=previous_counter,
+            previous_daily_counters=previous_daily_counters,
         )
         try:
-            viking_report = await cls._get_viking_report(baby_id=baby_id)
+            current_week_viking_report, previous_week_viking_report = await cls._get_viking_report(baby_id=baby_id)
         except Exception as exc:
             log.warning('failed to query Viking report for LLM analysis, baby_id={}, error={}', baby_id, exc)
-            viking_report = ''
+            current_week_viking_report = ''
+            previous_week_viking_report = ''
 
-        if not viking_report and not overall_counter.has_activity():
+        if not current_week_viking_report and not previous_week_viking_report and not recent_counter.has_activity():
             return cls._build_default_report_sections()
 
         try:
             llm_content = await cls._generate_by_llm(
                 baby_name=baby_name,
-                usage_summary=usage_summary,
-                viking_report=viking_report,
+                current_week_usage=usage_summary['current_week'],
+                previous_week_usage=usage_summary['previous_week'],
+                current_week_viking_report=current_week_viking_report,
+                previous_week_viking_report=previous_week_viking_report,
             )
             return cls._parse_llm_response(llm_content)
         except Exception as exc:
             log.warning('failed to generate LLM report analysis, baby_id={}, error={}', baby_id, exc)
             return cls._build_default_report_sections()
+
+    @classmethod
+    def _split_report_dates(cls, dates: list[date]) -> tuple[list[date], list[date]]:
+        previous_dates = dates[:cls.REPORT_COMPARE_DAYS]
+        recent_dates = dates[cls.REPORT_COMPARE_DAYS:]
+        return recent_dates, previous_dates
+
+    @staticmethod
+    def _sum_daily_counters(daily_counters: dict[date, UsageCounter]) -> UsageCounter:
+        counter = UsageCounter()
+        for item in daily_counters.values():
+            counter.chat_count += item.chat_count
+            counter.active_count += item.active_count
+            counter.player_count += item.player_count
+            for label, count in item.play_preferences.items():
+                counter.play_preferences[label] = counter.play_preferences.get(label, 0) + count
+        return counter
 
     @classmethod
     async def _query_usage_rows(

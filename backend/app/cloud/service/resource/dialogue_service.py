@@ -51,8 +51,12 @@ class CloudDialogueService:
         db: AsyncSession,
         obj: CreateDialogueParam,
     ) -> CloudDialogue:
-        self._validate_create_payload(obj)
-        return await cloud_dialogue_dao.create(db, self._normalize_create_obj(obj))
+        if not obj.title.strip():
+            raise errors.RequestError(msg='名称不能为空')
+        return await cloud_dialogue_dao.create(
+            db,
+            obj.model_copy(update={'content': obj.content.model_dump()}),
+        )
 
     async def update_dialogue(
         self,
@@ -69,12 +73,16 @@ class CloudDialogueService:
         if not payload:
             raise errors.RequestError(msg='更新内容不能为空')
 
-        self._validate_update_payload(payload)
-        return await cloud_dialogue_dao.update(
-            db,
-            pk,
-            self._normalize_update_payload(payload),
-        )
+        if 'title' in payload and payload['title'] is not None and not str(payload['title']).strip():
+            raise errors.RequestError(msg='名称不能为空')
+
+        if 'content' in payload:
+            if payload['content'] is None:
+                raise errors.RequestError(msg='结构化内容不能为空')
+            if hasattr(payload['content'], 'model_dump'):
+                payload['content'] = payload['content'].model_dump()
+
+        return await cloud_dialogue_dao.update(db, pk, payload)
 
     async def delete_dialogue(self, *, db: AsyncSession, pk: int) -> int:
         dialogue = await cloud_dialogue_dao.get(db, pk)
@@ -87,7 +95,7 @@ class CloudDialogueService:
         if not normalized_did:
             raise errors.RequestError(msg='设备 DID 不能为空')
 
-        queue_key = self._random_dialogue_queue_key(normalized_did)
+        queue_key = f'{self.RANDOM_DIALOGUE_QUEUE_PREFIX}:{normalized_did}'
         for force_rebuild in (False, True):
             dialogue_id = await self._pop_random_dialogue_id(
                 db=db,
@@ -100,38 +108,6 @@ class CloudDialogueService:
                 return dialogue
 
         raise errors.NotFoundError(msg='暂无可用对话资源')
-
-    @staticmethod
-    def _normalize_create_obj(obj: CreateDialogueParam) -> CreateDialogueParam:
-        return obj.model_copy(update={'content': obj.content.model_dump()})
-
-    @staticmethod
-    def _normalize_update_payload(payload: dict[str, Any]) -> dict[str, Any]:
-        normalized_payload = dict(payload)
-        content = normalized_payload.get('content')
-        if content is not None and hasattr(content, 'model_dump'):
-            normalized_payload['content'] = content.model_dump()
-        return normalized_payload
-
-    @staticmethod
-    def _validate_create_payload(obj: CreateDialogueParam) -> None:
-        if not obj.title.strip():
-            raise errors.RequestError(msg='名称不能为空')
-
-    @staticmethod
-    def _validate_update_payload(payload: dict[str, Any]) -> None:
-        if 'title' in payload and payload['title'] is not None and not str(payload['title']).strip():
-            raise errors.RequestError(msg='名称不能为空')
-        if 'content' in payload and payload['content'] is None:
-            raise errors.RequestError(msg='结构化内容不能为空')
-
-    @classmethod
-    def _random_dialogue_queue_key(cls, did: str) -> str:
-        return f'{cls.RANDOM_DIALOGUE_QUEUE_PREFIX}:{did}'
-
-    @classmethod
-    def _random_dialogue_lock_key(cls, did: str) -> str:
-        return f'{cls.RANDOM_DIALOGUE_LOCK_PREFIX}:{did}'
 
     async def _pop_random_dialogue_id(
         self,
@@ -161,7 +137,7 @@ class CloudDialogueService:
         queue_key: str,
     ) -> None:
         lock = redis_client.lock(
-            self._random_dialogue_lock_key(did),
+            f'{self.RANDOM_DIALOGUE_LOCK_PREFIX}:{did}',
             timeout=30,
             blocking_timeout=10,
         )
