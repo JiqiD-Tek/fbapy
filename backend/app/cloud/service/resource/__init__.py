@@ -7,5 +7,6 @@
 """
 
 from backend.app.cloud.service.resource.album_service import cloud_album_service as cloud_album_service
+from backend.app.cloud.service.resource.dialogue_service import cloud_dialogue_service as cloud_dialogue_service
 from backend.app.cloud.service.resource.report_service import report_service as report_service
 from backend.app.cloud.service.resource.song_service import cloud_song_service as cloud_song_service

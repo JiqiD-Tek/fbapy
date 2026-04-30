@@ -30,8 +30,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceOrderResponse,
     HuoshanVoiceRenewParam,
     HuoshanVoiceRenewResponse,
-    HuoshanVoiceStatus, HuoshanDualStoryGenerateResult, HuoshanDualStoryRole, HuoshanDualStoryTurn,
-    HuoshanDualStoryUtterance,
+    HuoshanVoiceStatus,
 )
 from backend.app.cloud.service.resource.song_service import cloud_song_service
 from backend.common.providers.ali_oss import oss_client
@@ -650,29 +649,6 @@ class HuoshanVoiceService:
 
     async def get_story_synthesis(self, *, task_id: str) -> HuoshanStorySynthesisResult:
         return await self._get_story_synthesis_task_result(task_id)
-
-    async def synthesize_dual_story(
-            self,
-            obj: HuoshanStoryGenerateParam,
-    ) -> HuoshanDualStoryGenerateResult:
-        log.info(f'Generating dual story: {obj}')
-
-        return HuoshanDualStoryGenerateResult(
-            topic=obj.topic,
-            roles=[
-                HuoshanDualStoryRole(id='role_1', name='角色1', speaker='huoshan_1'),
-                HuoshanDualStoryRole(id='role_2', name='角色2', speaker='huoshan_2'),
-            ],
-            turns=[
-                HuoshanDualStoryTurn(sequence=1, utterances=[
-                    HuoshanDualStoryUtterance(role_id='role_1', text='角色1utterance1', audio_url=''),
-                ]),
-                HuoshanDualStoryTurn(sequence=2, utterances=[
-                    HuoshanDualStoryUtterance(role_id='role_1', text='角色1utterance2', audio_url=''),
-                    HuoshanDualStoryUtterance(role_id='role_2', text='角色2utterance2', audio_url=''),
-                ]),
-            ],
-        )
 
 
 huoshan_voice_service = HuoshanVoiceService()

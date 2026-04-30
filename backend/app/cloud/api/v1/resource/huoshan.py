@@ -8,13 +8,12 @@ from __future__ import annotations
 import asyncio
 import struct
 from contextlib import suppress
-from typing import Annotated, AsyncGenerator, Any, Coroutine
+from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Path, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from backend.app.cloud.schema.resource.huoshan import (
-    HuoshanDualStoryGenerateResult,
     HuoshanStreamASRParam,
     HuoshanStreamASRResult,
     HuoshanStreamTTSParam,
@@ -130,18 +129,6 @@ async def get_huoshan_story_synthesis(
         task_id: str = Path(description='Huoshan task ID'),
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.get_story_synthesis(task_id=task_id)
-    return response_base.success(data=data)
-
-
-@router.post(
-    '/dual_stories/generate',
-    summary='Generate dual story by topic with Huoshan large model',
-    response_model_by_alias=False,
-)
-async def generate_huoshan_dual_story(
-        obj: HuoshanStoryGenerateParam,
-) -> ResponseSchemaModel[HuoshanDualStoryGenerateResult]:
-    data = await huoshan_voice_service.synthesize_dual_story(obj)
     return response_base.success(data=data)
 
 

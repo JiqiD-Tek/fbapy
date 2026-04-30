@@ -139,39 +139,6 @@ class HuoshanStoryGenerateResult(HuoshanSchemaBase):
     error_message: str | None = Field(None, description='Task error message')
 
 
-class HuoshanDualStoryRole(HuoshanSchemaBase):
-    id: str = Field(description='Role ID')
-    name: str = Field(description='Role name')
-    speaker: str = Field(description='Speaker ID')
-
-
-class HuoshanDualStoryUtterance(HuoshanSchemaBase):
-    role_id: str = Field(description='Speaker role ID')
-    text: str = Field(description='Utterance text')
-    audio_url: str | None = Field(None, description='Optional audio URL for this utterance')
-
-
-class HuoshanDualStoryTurn(HuoshanSchemaBase):
-    sequence: int = Field(ge=1, description='Turn sequence')
-    utterances: list[HuoshanDualStoryUtterance] = Field(
-        default_factory=list,
-        min_length=1,
-        description='One or more utterances in the same turn',
-    )
-
-
-class HuoshanDualStoryGenerateResult(HuoshanSchemaBase):
-    topic: str = Field(description='Story topic')
-    roles: list[HuoshanDualStoryRole] = Field(
-        default_factory=list,
-        description='Available roles in this story',
-    )
-    turns: list[HuoshanDualStoryTurn] = Field(
-        default_factory=list,
-        description='Conversation turns',
-    )
-
-
 class HuoshanOpenAPIErrorDetail(HuoshanSchemaBase):
     code: str | None = Field(None, alias='Code', description='Error code')
     message: str | None = Field(None, alias='Message', description='Error message')
