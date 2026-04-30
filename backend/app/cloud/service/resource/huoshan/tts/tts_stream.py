@@ -137,8 +137,6 @@ class TTSStreamService:
                 cls._normalize_text(settings.BYTES_TTS_STREAM_AUDIO_FORMAT)
                 or 'mp3'
             ),
-            'speech_rate': int(settings.BYTES_TTS_STREAM_SPEECH_RATE or 0),
-            'loudness_rate': int(settings.BYTES_TTS_STREAM_LOUDNESS_RATE or 0),
         }
 
     @classmethod
@@ -185,8 +183,8 @@ class TTSStreamService:
             ws_url = stream_config['ws_url']
             resource_id = stream_config['resource_id']
             audio_format = stream_config['audio_format']
-            speech_rate = stream_config['speech_rate']
-            loudness_rate = stream_config['loudness_rate']
+            speech_rate = int(obj.speech_rate)
+            loudness_rate = 0
             project = get_voice_project_for_speaker(speaker)
             if not project.app_id or not project.access_token:
                 raise errors.ServerError(

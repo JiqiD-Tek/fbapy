@@ -113,6 +113,7 @@ class HuoshanStoryGenerateParam(HuoshanSchemaBase):
 class HuoshanStreamTTSParam(HuoshanSchemaBase):
     text: str = Field(min_length=1, max_length=5000, description='TTS text content')
     speaker: str = Field(min_length=1, description='Speaker ID')
+    speech_rate: int = Field(0, description='Speech rate')
 
 
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
