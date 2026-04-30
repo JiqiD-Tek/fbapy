@@ -1,5 +1,4 @@
-from collections.abc import Sequence
-
+import sqlalchemy as sa
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
@@ -32,8 +31,10 @@ class CRUDCloudDialogue(CRUDPlus[CloudDialogue]):
 
         return await self.select_order('id', **filters)
 
-    async def get_all(self, db: AsyncSession) -> Sequence[CloudDialogue]:
-        return await self.select_models(db)
+    async def get_enabled_ids(self, db: AsyncSession) -> list[int]:
+        stmt = sa.select(self.model.id).where(self.model.status == 1).order_by(self.model.id.asc())
+        result = await db.execute(stmt)
+        return [int(pk) for pk in result.scalars().all()]
 
     async def create(self, db: AsyncSession, obj: CreateDialogueParam) -> CloudDialogue:
         return await self.create_model(db, obj, flush=True)

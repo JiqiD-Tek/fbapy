@@ -3,12 +3,14 @@
 Cloud dialogue service.
 """
 
+import random
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_dialogue import cloud_dialogue_dao
 from backend.app.cloud.model import CloudDialogue
+from backend.database.redis import redis_client
 from backend.app.cloud.schema.resource.dialogue import (
     CreateDialogueParam,
     UpdateDialogueParam,
@@ -18,6 +20,9 @@ from backend.common.pagination import paging_data
 
 
 class CloudDialogueService:
+    RANDOM_DIALOGUE_QUEUE_PREFIX = 'fba:dialogue:random:queue'
+    RANDOM_DIALOGUE_LOCK_PREFIX = 'fba:dialogue:random:lock'
+
     @staticmethod
     async def get_dialogue(*, db: AsyncSession, pk: int) -> CloudDialogue:
         dialogue = await cloud_dialogue_dao.get(db, pk)
@@ -77,6 +82,25 @@ class CloudDialogueService:
             raise errors.NotFoundError(msg='对话内容不存在')
         return await cloud_dialogue_dao.delete(db, pk)
 
+    async def get_random_dialogue(self, *, db: AsyncSession, did: str) -> CloudDialogue:
+        normalized_did = str(did or '').strip()
+        if not normalized_did:
+            raise errors.RequestError(msg='设备 DID 不能为空')
+
+        queue_key = self._random_dialogue_queue_key(normalized_did)
+        for force_rebuild in (False, True):
+            dialogue_id = await self._pop_random_dialogue_id(
+                db=db,
+                did=normalized_did,
+                queue_key=queue_key,
+                force_rebuild=force_rebuild,
+            )
+            dialogue = await cloud_dialogue_dao.get(db, dialogue_id)
+            if dialogue is not None and int(dialogue.status or 0) == 1:
+                return dialogue
+
+        raise errors.NotFoundError(msg='暂无可用对话资源')
+
     @staticmethod
     def _normalize_create_obj(obj: CreateDialogueParam) -> CreateDialogueParam:
         return obj.model_copy(update={'content': obj.content.model_dump()})
@@ -100,6 +124,64 @@ class CloudDialogueService:
             raise errors.RequestError(msg='名称不能为空')
         if 'content' in payload and payload['content'] is None:
             raise errors.RequestError(msg='结构化内容不能为空')
+
+    @classmethod
+    def _random_dialogue_queue_key(cls, did: str) -> str:
+        return f'{cls.RANDOM_DIALOGUE_QUEUE_PREFIX}:{did}'
+
+    @classmethod
+    def _random_dialogue_lock_key(cls, did: str) -> str:
+        return f'{cls.RANDOM_DIALOGUE_LOCK_PREFIX}:{did}'
+
+    async def _pop_random_dialogue_id(
+        self,
+        *,
+        db: AsyncSession,
+        did: str,
+        queue_key: str,
+        force_rebuild: bool = False,
+    ) -> int:
+        if force_rebuild:
+            await redis_client.delete(queue_key)
+
+        dialogue_id = await redis_client.lpop(queue_key)
+        if dialogue_id is None:
+            await self._rebuild_random_dialogue_queue(db=db, did=did, queue_key=queue_key)
+            dialogue_id = await redis_client.lpop(queue_key)
+
+        if dialogue_id is None:
+            raise errors.NotFoundError(msg='暂无可用对话资源')
+        return int(dialogue_id)
+
+    async def _rebuild_random_dialogue_queue(
+        self,
+        *,
+        db: AsyncSession,
+        did: str,
+        queue_key: str,
+    ) -> None:
+        lock = redis_client.lock(
+            self._random_dialogue_lock_key(did),
+            timeout=30,
+            blocking_timeout=10,
+        )
+        await lock.acquire()
+        try:
+            if await redis_client.llen(queue_key):
+                return
+
+            dialogue_ids = await cloud_dialogue_dao.get_enabled_ids(db)
+            if not dialogue_ids:
+                return
+
+            random.shuffle(dialogue_ids)
+            pipe = redis_client.pipeline(transaction=True)
+            pipe.delete(queue_key)
+            pipe.rpush(queue_key, *dialogue_ids)
+            await pipe.execute()
+        finally:
+            if await lock.owned():
+                await lock.release()
 
 
 cloud_dialogue_service: CloudDialogueService = CloudDialogueService()

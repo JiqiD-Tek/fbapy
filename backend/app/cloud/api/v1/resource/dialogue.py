@@ -7,6 +7,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
+from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.schema.resource.dialogue import (
     CreateDialogueParam,
     GetDialogueDetail,
@@ -15,10 +16,20 @@ from backend.app.cloud.schema.resource.dialogue import (
 from backend.app.cloud.service.resource.dialogue_service import cloud_dialogue_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+@router.get('/random', summary='随机获取对话详情')
+async def get_random_dialogue(
+    db: CurrentSession,
+    device: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[GetDialogueDetail]:
+    data = await cloud_dialogue_service.get_random_dialogue(db=db, did=device.did)
+    return response_base.success(data=data)
 
 
 @router.get('/{pk}', summary='获取对话详情', dependencies=[DependsJwtAuth])
