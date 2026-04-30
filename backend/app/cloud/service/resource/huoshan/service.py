@@ -77,11 +77,14 @@ class HuoshanVoiceService:
         self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
 
     @classmethod
-    def _attach_voice_remark(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
-        speaker_remark = get_voice_name(status.speaker_id)
-        if speaker_remark is None:
+    def _attach_voice_alias(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
+        if str(status.speaker_alias or '').strip():
             return status
-        return status.model_copy(update={'speaker_remark': speaker_remark}, deep=True)
+
+        speaker_alias = get_voice_name(status.speaker_id)
+        if speaker_alias is None:
+            return status
+        return status.model_copy(update={'speaker_alias': speaker_alias}, deep=True)
 
     @staticmethod
     def _resolve_client_config() -> HuoshanOpenAPIConfig:
@@ -104,8 +107,8 @@ class HuoshanVoiceService:
                 or HuoshanLongTextTTSClient.infer_query_resource_id(resource_id)
         )
         return HuoshanLongTextTTSConfig(
-            app_id=project.appid,
-            access_key=project.token,
+            app_id=project.app_id,
+            access_key=project.access_token,
             resource_id=resource_id,
             query_resource_id=query_resource_id,
             submit_url=settings.BYTES_TTS_LONG_SUBMIT_URL,
@@ -323,7 +326,7 @@ class HuoshanVoiceService:
             if status.speaker_id == speaker:
                 if status.state not in ('Success', 'Active'):
                     raise errors.RequestError(msg=f'Voice clone is not available, current state={status.state}')
-                return self._attach_voice_remark(status)
+                return self._attach_voice_alias(status)
         raise errors.NotFoundError(msg='Voice clone does not exist')
 
     @classmethod
@@ -375,7 +378,7 @@ class HuoshanVoiceService:
             query.state = 'Success'
 
         result = await self._list_voice_status_page(query)
-        return [self._attach_voice_remark(status) for status in result.statuses]
+        return [self._attach_voice_alias(status) for status in result.statuses]
 
     async def order_voices(self, obj: HuoshanVoiceOrderParam) -> HuoshanVoiceOrderResponse:
         client = self._create_openapi_client()

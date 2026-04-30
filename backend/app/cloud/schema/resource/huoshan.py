@@ -171,7 +171,6 @@ class HuoshanVoiceStatus(HuoshanSchemaBase):
     expire_time: int | None = Field(None, alias='ExpireTime', description='Expire time')
     order_time: int | None = Field(None, alias='OrderTime', description='Order time')
     speaker_alias: str | None = Field(None, alias='Alias', description='Speaker alias')
-    speaker_remark: str | None = Field(None, description='Local speaker remark')
     available_training_times: int | None = Field(
         None,
         alias='AvailableTrainingTimes',
