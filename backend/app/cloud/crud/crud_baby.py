@@ -12,6 +12,11 @@ class CRUDBaby(CRUDPlus[Baby]):
     async def get(self, db: AsyncSession, pk: int) -> Baby | None:
         return await self.select_model(db, pk)
 
+    async def get_by_device_id(self, db: AsyncSession, *, device_id: int) -> Baby | None:
+        stmt = select(Baby).where(Baby.device_id == device_id).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_device_did(self, db: AsyncSession, *, did: str) -> Baby | None:
         stmt = (
             select(Baby)

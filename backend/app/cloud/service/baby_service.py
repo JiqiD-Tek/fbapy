@@ -38,11 +38,6 @@ class BabyService:
         EventStore.invalidate_baby_id_cache(device.did)
 
     @staticmethod
-    async def _ensure_device_exists(*, db: AsyncSession, device_id: int) -> None:
-        if await device_dao.get(db, device_id) is None:
-            raise errors.NotFoundError(msg='设备不存在')
-
-    @staticmethod
     async def _ensure_user_device_bound(*, db: AsyncSession, user_id: int, device_id: int, msg: str) -> None:
         stmt = (
             select(func.count())
@@ -72,7 +67,6 @@ class BabyService:
             device_id: int,
             baby_id: int,
     ) -> Baby:
-        await BabyService._ensure_device_exists(db=db, device_id=device_id)
         await BabyService._ensure_user_device_bound(
             db=db,
             user_id=user_id,
@@ -100,7 +94,6 @@ class BabyService:
             device_id: int | None = None,
     ) -> dict[str, Any]:
         if device_id is not None:
-            await BabyService._ensure_device_exists(db=db, device_id=device_id)
             await BabyService._ensure_user_device_bound(
                 db=db,
                 user_id=user_id,
@@ -119,13 +112,14 @@ class BabyService:
 
     @staticmethod
     async def create(*, db: AsyncSession, user_id: int, obj: CreateBabyParam) -> Baby:
-        await BabyService._ensure_device_exists(db=db, device_id=obj.device_id)
         await BabyService._ensure_user_device_bound(
             db=db,
             user_id=user_id,
             device_id=obj.device_id,
             msg='请先绑定设备后再创建宝宝',
         )
+        if await baby_dao.get_by_device_id(db, device_id=obj.device_id) is not None:
+            raise errors.ConflictError(msg='该设备已绑定宝宝，请先解绑后再创建')
 
         baby_data = CreateBabyData(
             **obj.model_dump(exclude_none=True),
@@ -146,7 +140,6 @@ class BabyService:
 
     @staticmethod
     async def get_device_babies(*, db: AsyncSession, user_id: int, device_id: int) -> Sequence[Baby]:
-        await BabyService._ensure_device_exists(db=db, device_id=device_id)
         await BabyService._ensure_user_device_bound(
             db=db,
             user_id=user_id,
