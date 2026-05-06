@@ -4,7 +4,7 @@
 
 ## 目录说明
 
-- `deploy/rebuild.sh`: 重新构建并启动 `fba_server` 的部署脚本，支持镜像版本号。
+- `deploy/deploy.sh`: 统一部署入口，提供 `build`、`switch`、`rebuild` 子命令。
 - `deploy/backend/cloud/docker-compose.yml`: 云端部署用 Compose 配置。
 - `deploy/backend/cloud/.env`: 基础设施变量，如端口映射、数据目录、MySQL/Redis/RabbitMQ 等。
 - `deploy/backend/cloud/.env.server`: `fba_server` 运行时环境变量。
@@ -17,25 +17,102 @@
 - 服务器上已准备好 `deploy/backend/cloud/.env` 和 `deploy/backend/cloud/.env.server`。
 - 项目根目录下存在 `Dockerfile`。
 
-## rebuild.sh 用法
+## deploy.sh 用法
+
+统一入口：
+
+```bash
+./deploy/deploy.sh <command> [options]
+```
+
+可用子命令：
+- `build`: 只构建镜像，不影响当前容器。
+- `switch`: 停止当前容器并切换到已构建镜像。
+- `rebuild`: 构建镜像、切换容器，并清理旧镜像。
+
+示例：
+
+```bash
+./deploy/deploy.sh build -v 1.0.0
+./deploy/deploy.sh switch -v 1.0.0
+./deploy/deploy.sh rebuild -v 1.0.0
+```
+
+## build 子命令
 
 默认使用 `latest` 版本：
 
 ```bash
-./deploy/rebuild.sh
+./deploy/deploy.sh build
 ```
 
 指定镜像版本：
 
 ```bash
-./deploy/rebuild.sh -v 1.0.0
-./deploy/rebuild.sh --version v2.1.3
+./deploy/deploy.sh build -v 1.0.0
+./deploy/deploy.sh build --version v2.1.3
 ```
 
-脚本执行流程：
+执行流程：
+1. 构建 `fba_server:${IMAGE_VERSION}` 和 `fba_server:latest` 两个 tag。
+2. 保留当前正在运行的 `fba_server` 容器不变。
+3. 不删除旧镜像。
 
-1. 停止并删除当前 `fba_server` 容器。
-2. 构建 `fba_server:${IMAGE_VERSION}` 和 `fba_server:latest` 两个 tag。
+注意：
+- 该子命令只构建镜像，不会启动新的 `fba_server` 容器。
+- 现有云端 Compose 配置中的 `fba_server` 使用固定 `container_name` 和固定宿主机端口，因此在不停止旧容器的前提下，不能直接再启动一个同名新容器。
+- 如果需要切换到新镜像，请后续执行 `./deploy/deploy.sh switch -v <tag>`。
+
+## switch 子命令
+
+默认切换到 `latest` 版本：
+
+```bash
+./deploy/deploy.sh switch
+```
+
+切换到指定镜像版本：
+
+```bash
+./deploy/deploy.sh switch -v 1.0.0
+./deploy/deploy.sh switch --version v2.1.3
+```
+
+执行流程：
+1. 检查 `fba_server:${IMAGE_VERSION}` 是否已存在。
+2. 停止并删除当前 `fba_server` 容器。
+3. 通过 `deploy/backend/cloud/docker-compose.yml` 启动指定 tag 的 `fba_server`。
+4. 校验新容器是否成功启动。
+
+典型流程：
+
+```bash
+./deploy/deploy.sh build -v 1.0.0
+./deploy/deploy.sh switch -v 1.0.0
+```
+
+注意：
+- `switch` 不重新构建镜像，只切换到已经构建好的 tag。
+- 如果目标镜像不存在，脚本会直接退出，并提示先执行 `./deploy/deploy.sh build -v <tag>`。
+
+## rebuild 子命令
+
+默认使用 `latest` 版本：
+
+```bash
+./deploy/deploy.sh rebuild
+```
+
+指定镜像版本：
+
+```bash
+./deploy/deploy.sh rebuild -v 1.0.0
+./deploy/deploy.sh rebuild --version v2.1.3
+```
+
+执行流程：
+1. 构建 `fba_server:${IMAGE_VERSION}` 和 `fba_server:latest` 两个 tag。
+2. 停止并删除当前 `fba_server` 容器。
 3. 通过 `deploy/backend/cloud/docker-compose.yml` 启动 `fba_server`。
 4. 校验容器启动状态。
 5. 清理旧镜像和悬空镜像。
