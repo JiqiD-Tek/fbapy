@@ -30,6 +30,13 @@ class CreateBabyParam(BabySchemaBase):
     device_id: int = Field(description='已绑定设备 ID')
 
 
+class CreateBabyData(CreateBabyParam):
+    """创建宝宝入库数据"""
+
+    user_id: int = Field(description='用户 ID')
+    sex: int = Field(0, description='性别(0未知 1男 2女)')
+
+
 class UpdateBabyParam(SchemaBase):
     """更新宝宝参数"""
 

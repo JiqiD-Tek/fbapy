@@ -1,12 +1,11 @@
 from collections.abc import Sequence
-from typing import Any
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import Baby, Device
-from backend.app.cloud.schema.baby import UpdateBabyParam
+from backend.app.cloud.schema.baby import CreateBabyData, UpdateBabyParam
 
 
 class CRUDBaby(CRUDPlus[Baby]):
@@ -65,7 +64,7 @@ class CRUDBaby(CRUDPlus[Baby]):
         result = await db.execute(stmt)
         return result.scalars().all()
 
-    async def create(self, db: AsyncSession, obj: dict[str, Any]) -> Baby:
+    async def create(self, db: AsyncSession, obj: CreateBabyData) -> Baby:
         return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateBabyParam) -> int:

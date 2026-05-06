@@ -16,7 +16,7 @@ from backend.app.cloud.crud.crud_baby import baby_dao
 from backend.app.cloud.crud.device.crud_device import device_dao
 from backend.app.cloud.model import Baby
 from backend.app.cloud.model.m2m import user_device
-from backend.app.cloud.schema.baby import CreateBabyParam, DeviceBabyParam, UpdateBabyParam
+from backend.app.cloud.schema.baby import CreateBabyData, CreateBabyParam, DeviceBabyParam, UpdateBabyParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 
@@ -127,9 +127,10 @@ class BabyService:
             msg='请先绑定设备后再创建宝宝',
         )
 
-        baby_data = obj.model_dump(exclude={'device_id'}, exclude_none=True)
-        baby_data['user_id'] = user_id
-        baby_data['device_id'] = obj.device_id
+        baby_data = CreateBabyData(
+            **obj.model_dump(exclude_none=True),
+            user_id=user_id,
+        )
         baby = await baby_dao.create(db, baby_data)
         await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
         return baby
