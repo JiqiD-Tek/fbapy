@@ -56,6 +56,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 from backend.plugin.email.utils.send import send_email
 from backend.utils.limiter import RateLimiter
+from backend.utils.timezone import timezone
 
 router = APIRouter()
 
@@ -321,7 +322,16 @@ async def fba_token(
     quota = 600
 
     baby = await baby_service.get_by_device_did(db=db, did=device.did)
-    payload = {'mac': device.mac, 'did': device.did, 'baby_id': baby.id if baby is not None else 0}
+
+    now = timezone.now()
+    expire_time = now + datetime.timedelta(seconds=quota)
+    payload = {
+        'mac': device.mac, 'did': device.did, 'sn': device.sn, 'model': device.model,
+        'baby_id': baby.id if baby is not None else 0,
+        'iat': int(timezone.to_utc(now).timestamp()),
+        'exp': int(timezone.to_utc(expire_time).timestamp()),
+    }
+
     token = jwt_encode(payload=payload)
 
     token = FbaToken(
