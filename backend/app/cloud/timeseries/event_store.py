@@ -4,7 +4,6 @@ import asyncio
 import json
 import uuid
 
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
@@ -12,6 +11,7 @@ import cachebox
 
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.timeseries.js61_event import JS61EventTable
+from backend.app.cloud.timeseries.mqtt_event import MQTTEventRoute, parse_mqtt_topic
 from backend.common.log import log
 from backend.database.db import async_db_session
 from backend.database.tsdb import TSDBTable, quote_identifier, quote_value, tsdb_client
@@ -19,16 +19,6 @@ from backend.utils.timezone import timezone
 
 if TYPE_CHECKING:
     from backend.common.mqtt_broker import MQTTMessageContext
-
-
-@dataclass(frozen=True, slots=True)
-class EventRoute:
-    """Parsed routing metadata from an MQTT device event topic."""
-
-    model: str
-    did: str
-    direction: str
-    category: str
 
 
 class EventStore:
@@ -109,19 +99,6 @@ class EventStore:
             return None
 
         return model_key, table
-
-    @classmethod
-    def _parse_message_topic(cls, topic: str) -> EventRoute | None:
-        parts = [segment.strip() for segment in topic.split('/') if segment.strip()]
-        if len(parts) < 4:
-            return None
-
-        return EventRoute(
-            model=parts[0].lower(),
-            did=parts[1],
-            direction=parts[2],
-            category=parts[3],
-        )
 
     @classmethod
     def _serialize_message_payload(cls, topic: str, payload: object) -> str:
@@ -209,7 +186,7 @@ class EventStore:
         }
 
     @classmethod
-    def _build_insert_values(cls, message_ctx: MQTTMessageContext, route: EventRoute) -> dict[str, object]:
+    def _build_insert_values(cls, message_ctx: MQTTMessageContext, route: MQTTEventRoute) -> dict[str, object]:
         return {
             'ts': int(message_ctx.timestamp * 1000),
             'event_id': uuid.uuid4().hex,
@@ -260,7 +237,7 @@ class EventStore:
             log.debug('TSDB is not ready, skipping message insert')
             return
 
-        route = cls._parse_message_topic(message_ctx.topic)
+        route = parse_mqtt_topic(message_ctx.topic)
         if route is None:
             log.debug(f'invalid message topic, topic={message_ctx.topic}')
             return

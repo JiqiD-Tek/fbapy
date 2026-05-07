@@ -213,7 +213,7 @@ async def mqtt_login(
             return {'result': 'deny'}
     else:
         try:
-            jwt_decode(auth.password)
+            jwt_decode(token=auth.password)
         except errors.TokenError:
             return {'result': 'deny'}
 

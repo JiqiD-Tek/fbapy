@@ -23,7 +23,9 @@ import paho.mqtt.client as mqtt
 from jose import jwt
 from paho.mqtt.matcher import MQTTMatcher
 
+from backend.app.cloud.timeseries.device_state import DeviceStateStore
 from backend.app.cloud.timeseries.event_store import EventStore
+from backend.app.cloud.timeseries.mqtt_event import parse_mqtt_topic, normalize_payload, is_stateful_event
 from backend.common.log import log
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
@@ -660,7 +662,23 @@ async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroke
 async def on_message(message_ctx: MQTTMessageContext) -> None:
     """全局消息处理回调示例。"""
     log.debug(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
+    route = parse_mqtt_topic(message_ctx.topic)
+    if route is None:
+        return
+
+    payload = normalize_payload(message_ctx.payload)
+
     try:
         await EventStore.insert(message_ctx)
-    except Exception as e:
-        log.debug(f'保存消息失败: {e}', exc_info=True)
+    except Exception as exc:
+        log.debug(f'保存历史消息失败: {exc}', exc_info=True)
+
+    if is_stateful_event(route):
+        try:
+            await DeviceStateStore.update(
+                route=route,
+                payload=payload,
+                timestamp=message_ctx.timestamp,
+            )
+        except Exception as exc:
+            log.debug(f'保存设备状态失败: {exc}', exc_info=True)

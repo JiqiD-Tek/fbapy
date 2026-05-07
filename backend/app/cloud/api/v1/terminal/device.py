@@ -12,6 +12,7 @@ from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import GetDeviceDetail, UpdateDeviceParam
+from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
@@ -68,6 +69,18 @@ async def get_device(
 ) -> ResponseSchemaModel[GetDeviceDetail]:
     data = await device_service.get(db=db, user_id=request.user.id, pk=pk)
     return response_base.success(data=data)
+
+
+@router.get('/{pk}/state', summary='获取设备当前状态', dependencies=[DependsJwtAuth])
+async def get_device_state(
+        request: Request,
+        db: CurrentSession,
+        pk: Annotated[int, Path(description='设备 ID')],
+) -> ResponseSchemaModel[GetDeviceStateDetail | None]:
+    data = await device_service.get_state(db=db, user_id=request.user.id, pk=pk)
+    if data is None:
+        return response_base.success(data=None)
+    return response_base.success(data=GetDeviceStateDetail.model_validate(data))
 
 
 @router.get('/{pk}/babies', summary='获取设备绑定的宝宝列表', dependencies=[DependsJwtAuth])
