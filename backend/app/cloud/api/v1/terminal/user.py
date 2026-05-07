@@ -34,7 +34,6 @@ async def get_cloud_users_paginated(
 ) -> ResponseSchemaModel[PageData[GetUserInfoDetail]]:
     page_data = await user_service.get_list(
         db=db,
-        user_id=request.user.id,
         unionid=unionid,
         username=username,
         nickname=nickname,

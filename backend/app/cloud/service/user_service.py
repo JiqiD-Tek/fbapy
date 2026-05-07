@@ -20,7 +20,6 @@ class UserService:
     async def get_list(
         *,
         db: AsyncSession,
-        user_id: int,
         unionid: str | None = None,
         username: str | None = None,
         nickname: str | None = None,
@@ -28,7 +27,6 @@ class UserService:
         email: str | None = None,
     ) -> dict[str, Any]:
         user_select = await user_dao.get_select(
-            user_id=user_id,
             unionid=unionid,
             username=username,
             nickname=nickname,

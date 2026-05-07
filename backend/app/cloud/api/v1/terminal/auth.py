@@ -9,7 +9,7 @@
 import datetime
 import secrets
 import uuid
-
+import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
@@ -50,7 +50,7 @@ from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth, verify_device_credentials
 from backend.common.security.jwt import DependsJwtAuth, DependsSuperUser
-from backend.common.security.jwt import jwt_encode
+from backend.common.security.jwt import jwt_encode, jwt_decode
 from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
@@ -59,6 +59,7 @@ from backend.utils.limiter import RateLimiter
 from backend.utils.timezone import timezone
 
 router = APIRouter()
+MAC_REGEX = re.compile(r'^(?:[0-9A-F]{2}[:-]){5}[0-9A-F]{2}$', re.I)
 
 
 @router.get(
@@ -205,10 +206,16 @@ async def mqtt_login(
         request: Request,
         auth: MQTTAuthParam,
 ) -> dict:
-    try:
-        verify_device_credentials(mac=auth.username, did=auth.password)
-    except errors.CustomError:
-        return {'result': 'deny'}
+    if MAC_REGEX.fullmatch(auth.username):
+        try:
+            verify_device_credentials(mac=auth.username, did=auth.password)
+        except errors.CustomError:
+            return {'result': 'deny'}
+    else:
+        try:
+            jwt_decode(auth.password)
+        except errors.TokenError:
+            return {'result': 'deny'}
 
     return {'result': 'allow', 'is_superuser': False}
 
