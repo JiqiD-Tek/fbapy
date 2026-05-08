@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import Field
@@ -47,6 +48,26 @@ class ActivityTrendPoint(SchemaBase):
 class PlayPreferenceStat(SchemaBase):
     label: str = Field(description='Play preference label')
     count: int = Field(0, description='Play preference count')
+
+
+class UsagePreviewOverview(SchemaBase):
+    chat_count: int = Field(0, description='AI interaction count')
+    active_count: int = Field(0, description='Heartbeat count')
+    player_count: int = Field(0, description='Player event count')
+    play_preferences: list[PlayPreferenceStat] = Field(default_factory=list, description='Play preference summary')
+
+
+class UsagePreviewSection(SchemaBase):
+    overview: UsagePreviewOverview = Field(default_factory=UsagePreviewOverview, description='Section overview')
+    daily_activity: list[ActivityTrendPoint] = Field(default_factory=list, description='Daily activity trend')
+
+
+class UsageReportPreview(SchemaBase):
+    baby_id: int = Field(description='Baby id')
+    start_time: datetime = Field(description='Report window start time')
+    end_time: datetime = Field(description='Report window end time')
+    current_week: UsagePreviewSection = Field(default_factory=UsagePreviewSection, description='Current week preview')
+    previous_week: UsagePreviewSection = Field(default_factory=UsagePreviewSection, description='Previous week preview')
 
 
 class UsageReport(SchemaBase):

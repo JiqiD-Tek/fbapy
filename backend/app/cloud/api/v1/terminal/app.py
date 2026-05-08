@@ -21,9 +21,6 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
-# =============================
-# 获取单个应用
-# =============================
 @router.get(
     '/{pk}',
     summary='获取应用详情',
@@ -36,9 +33,6 @@ async def get_app(
     return response_base.success(data=data)
 
 
-# =============================
-# 分页获取所有应用
-# =============================
 @router.get(
     '',
     summary='分页获取应用列表',
@@ -48,15 +42,19 @@ async def get_app_paginated(
     db: CurrentSession,
     name: Annotated[str | None, Query(description='应用名称')] = None,
     package_name: Annotated[str | None, Query(description='包名')] = None,
+    market_code: Annotated[str | None, Query(description='市场区域编码')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetAppDetail]]:
-    page_data = await app_service.get_list(db=db, name=name, package_name=package_name, status=status)
+    page_data = await app_service.get_list(
+        db=db,
+        name=name,
+        package_name=package_name,
+        market_code=market_code,
+        status=status,
+    )
     return response_base.success(data=page_data)
 
 
-# =============================
-# 创建应用
-# =============================
 @router.post(
     '',
     summary='创建应用',
@@ -70,9 +68,6 @@ async def create_app(
     return response_base.success(data=app)
 
 
-# =============================
-# 更新应用
-# =============================
 @router.put(
     '/{pk}',
     summary='更新应用',
@@ -89,9 +84,6 @@ async def update_app(
     return response_base.fail()
 
 
-# =============================
-# 删除应用
-# =============================
 @router.delete(
     '/{pk}',
     summary='删除应用',

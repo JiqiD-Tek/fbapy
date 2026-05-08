@@ -99,6 +99,7 @@ class CozeToken(SchemaBase):
     expires_in: int = Field(description='令牌过期时间')
     ttl: int = Field(description='令牌剩余时间')
     bot_id: str = Field(description='聊天机器人 ID')
+    tw_bot_id: str = Field(description='聊天机器人 ID')
 
 
 class LivekitToken(SchemaBase):

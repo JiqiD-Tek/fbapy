@@ -13,7 +13,7 @@ import json
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,9 @@ from backend.app.cloud.schema.resource.report import (
     ReportMetric,
     ReportRadarPoint,
     UsageReport,
+    UsageReportPreview,
+    UsagePreviewOverview,
+    UsagePreviewSection,
 )
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.timeseries.event_store import event_store
@@ -33,7 +36,11 @@ from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
 from backend.common.providers.viking_memory import viking_memory_client
+from backend.common.schema import SchemaBase
+from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
+
+CacheModelT = TypeVar('CacheModelT', bound=SchemaBase)
 
 
 @dataclass(slots=True)
@@ -104,9 +111,6 @@ class UsageCounter:
             if play_preference:
                 self.play_preferences[play_preference] = self.play_preferences.get(play_preference, 0) + 1
 
-    def has_activity(self) -> bool:
-        return (self.chat_count + self.active_count + self.player_count) > 0
-
     def to_trend_point(self, current_date: date) -> ActivityTrendPoint:
         return ActivityTrendPoint(
             date=current_date.isoformat(),
@@ -137,12 +141,6 @@ class UsageCounter:
             daily_counters[event_date].add(service, play_preference=play_preference)
 
         return daily_counters
-
-
-@dataclass(slots=True)
-class ReportCacheEntry:
-    expires_at: datetime
-    report: UsageReport
 
 
 class ReportService:
@@ -183,8 +181,10 @@ class ReportService:
         },
     }
 
-    _usage_cache: ClassVar[dict[int, ReportCacheEntry]] = {}
-    _usage_cache_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
+    USAGE_CACHE_PREFIX: ClassVar[str] = 'fba:report:usage'
+    PREVIEW_CACHE_PREFIX: ClassVar[str] = 'fba:report:preview'
+    _usage_report_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
+    _usage_preview_lock: ClassVar[asyncio.Lock] = asyncio.Lock()
 
     @classmethod
     def _resolve_report_window(cls) -> tuple[datetime, datetime, list[date]]:
@@ -194,6 +194,63 @@ class ReportService:
         start_time = datetime.combine(start_date, time.min, tzinfo=timezone.tz_info)
         dates = [start_date + timedelta(days=offset) for offset in range(cls.REPORT_DAYS)]
         return start_time, end_time, dates
+
+    @classmethod
+    def _usage_preview_cache_key(cls, baby_id: int) -> str:
+        return f'{cls.PREVIEW_CACHE_PREFIX}:{baby_id}'
+
+    @classmethod
+    def _usage_report_cache_key(cls, baby_id: int) -> str:
+        return f'{cls.USAGE_CACHE_PREFIX}:{baby_id}'
+
+    @staticmethod
+    def _resolve_cache_ttl_seconds() -> int:
+        now = timezone.now()
+        expires_at = datetime.combine(now.date() + timedelta(days=1), time.min, tzinfo=timezone.tz_info)
+        return max(int((expires_at - now).total_seconds()), 60)
+
+    @classmethod
+    async def _get_cached_model(
+            cls,
+            *,
+            key: str,
+            baby_id: int,
+            label: str,
+            model_cls: type[CacheModelT],
+    ) -> CacheModelT | None:
+        try:
+            payload = await redis_client.get(key)
+        except Exception as exc:
+            log.warning('failed to read {} cache, baby_id={}, error={}', label, baby_id, exc)
+            return None
+
+        if not payload:
+            return None
+
+        try:
+            return model_cls.model_validate_json(payload)
+        except Exception as exc:
+            log.warning('failed to parse {} cache, baby_id={}, error={}', label, baby_id, exc)
+            return None
+
+    @classmethod
+    async def _set_cached_model(
+            cls,
+            *,
+            key: str,
+            baby_id: int,
+            label: str,
+            value: CacheModelT,
+    ) -> CacheModelT:
+        try:
+            await redis_client.set(
+                key,
+                value.model_dump_json(),
+                ex=cls._resolve_cache_ttl_seconds(),
+            )
+        except Exception as exc:
+            log.warning('failed to write {} cache, baby_id={}, error={}', label, baby_id, exc)
+        return value
 
     @staticmethod
     def _build_report_insights() -> ReportInsights:
@@ -227,6 +284,43 @@ class ReportService:
             ReportService._build_report_insights(),
         )
 
+    @staticmethod
+    def _build_preview_overview(counter: UsageCounter) -> UsagePreviewOverview:
+        return UsagePreviewOverview(
+            chat_count=counter.chat_count,
+            active_count=counter.active_count,
+            player_count=counter.player_count,
+            play_preferences=counter.to_play_preferences(),
+        )
+
+    @classmethod
+    def _build_preview_section(cls, daily_counters: dict[date, UsageCounter]) -> UsagePreviewSection:
+        counter = cls._sum_daily_counters(daily_counters)
+        return UsagePreviewSection(
+            overview=cls._build_preview_overview(counter),
+            daily_activity=[
+                item.to_trend_point(current_date)
+                for current_date, item in daily_counters.items()
+            ],
+        )
+
+    @staticmethod
+    def _section_has_activity(section: UsagePreviewSection) -> bool:
+        overview = section.overview
+        return (overview.chat_count + overview.active_count + overview.player_count) > 0
+
+    @staticmethod
+    def _section_to_llm_usage(section: UsagePreviewSection) -> dict[str, Any]:
+        return {
+            'overview': {
+                'chat_count': section.overview.chat_count,
+                'active_count': section.overview.active_count,
+                'player_count': section.overview.player_count,
+                'play_preferences': [item.model_dump() for item in section.overview.play_preferences],
+            },
+            'daily_activity': [item.model_dump() for item in section.daily_activity],
+        }
+
     @classmethod
     def _build_report_prompt(
             cls,
@@ -254,60 +348,43 @@ class ReportService:
             f'以下是前一周的 Viking 画像与事件摘要：\n{previous_week_viking_report}'
         )
 
-    async def _build_usage_report(self, *, baby: Baby) -> UsageReport:
+    async def _build_usage_report(self, *, baby: Baby, preview: UsageReportPreview) -> UsageReport:
+        radar, metrics, insights = await self._build_by_llm(
+            baby_id=baby.id,
+            baby_name=baby.name or '宝贝',
+            current_week_usage=self._section_to_llm_usage(preview.current_week),
+            previous_week_usage=self._section_to_llm_usage(preview.previous_week),
+            has_activity=self._section_has_activity(preview.current_week) or self._section_has_activity(
+                preview.previous_week),
+        )
+
+        return UsageReport(
+            radar=radar,
+            metrics=metrics,
+            activity_trend=[item.model_copy(deep=True) for item in preview.current_week.daily_activity],
+            play_preferences=[item.model_copy(deep=True) for item in preview.current_week.overview.play_preferences],
+            insights=insights,
+        )
+
+    async def _build_usage_preview(self, *, baby: Baby) -> UsageReportPreview:
         start_time, end_time, dates = self._resolve_report_window()
         rows = await self._query_usage_rows(
             baby_id=baby.id,
             start_time=start_time,
             end_time=end_time,
         )
-
         daily_counters = UsageCounter.aggregate_rows(rows, dates)
         recent_dates, previous_dates = self._split_report_dates(dates)
         recent_daily_counters = {current_date: daily_counters[current_date] for current_date in recent_dates}
         previous_daily_counters = {current_date: daily_counters[current_date] for current_date in previous_dates}
-        recent_counter = self._sum_daily_counters(recent_daily_counters)
-        previous_counter = self._sum_daily_counters(previous_daily_counters)
-        radar, metrics, insights = await self._build_by_llm(
+
+        return UsageReportPreview(
             baby_id=baby.id,
-            baby_name=baby.name or '宝贝',
-            recent_counter=recent_counter,
-            recent_daily_counters=recent_daily_counters,
-            previous_counter=previous_counter,
-            previous_daily_counters=previous_daily_counters,
+            start_time=start_time,
+            end_time=end_time,
+            current_week=self._build_preview_section(recent_daily_counters),
+            previous_week=self._build_preview_section(previous_daily_counters),
         )
-
-        return UsageReport(
-            radar=radar,
-            metrics=metrics,
-            activity_trend=[
-                counter.to_trend_point(current_date) for current_date, counter in recent_daily_counters.items()
-            ],
-            play_preferences=recent_counter.to_play_preferences(),
-            insights=insights,
-        )
-
-    @classmethod
-    def _get_cached_usage_report(cls, baby_id: int) -> UsageReport | None:
-        cached_entry = cls._usage_cache.get(baby_id)
-        if cached_entry is None:
-            return None
-
-        if timezone.now() >= cached_entry.expires_at:
-            cls._usage_cache.pop(baby_id, None)
-            return None
-
-        return cached_entry.report.model_copy(deep=True)
-
-    @classmethod
-    def _set_cached_usage_report(cls, baby_id: int, report: UsageReport) -> UsageReport:
-        tomorrow = timezone.now().date() + timedelta(days=1)
-        expires_at = datetime.combine(tomorrow, time.min, tzinfo=timezone.tz_info)
-        cls._usage_cache[baby_id] = ReportCacheEntry(
-            expires_at=expires_at,
-            report=report.model_copy(deep=True),
-        )
-        return report
 
     @classmethod
     async def _get_viking_report(
@@ -351,43 +428,6 @@ class ReportService:
             f"画像摘要：\n{recent_profile_text}\n\n事件摘要：\n{recent_event_text}",
             f"画像摘要：\n{previous_profile_text}\n\n事件摘要：\n{previous_event_text}",
         )
-
-    @classmethod
-    def _build_usage_summary_for_llm(
-            cls,
-            *,
-            recent_counter: UsageCounter,
-            recent_daily_counters: dict[date, UsageCounter],
-            previous_counter: UsageCounter,
-            previous_daily_counters: dict[date, UsageCounter],
-    ) -> dict[str, Any]:
-        return {
-            'report_days': cls.REPORT_COMPARE_DAYS,
-            'current_week': {
-                'overview': {
-                    'chat_count': recent_counter.chat_count,
-                    'active_count': recent_counter.active_count,
-                    'player_count': recent_counter.player_count,
-                    'play_preferences': [item.model_dump() for item in recent_counter.to_play_preferences()],
-                },
-                'daily_activity': [
-                    counter.to_trend_point(current_date).model_dump()
-                    for current_date, counter in recent_daily_counters.items()
-                ],
-            },
-            'previous_week': {
-                'overview': {
-                    'chat_count': previous_counter.chat_count,
-                    'active_count': previous_counter.active_count,
-                    'player_count': previous_counter.player_count,
-                    'play_preferences': [item.model_dump() for item in previous_counter.to_play_preferences()],
-                },
-                'daily_activity': [
-                    counter.to_trend_point(current_date).model_dump()
-                    for current_date, counter in previous_daily_counters.items()
-                ],
-            },
-        }
 
     @classmethod
     async def _generate_by_llm(
@@ -461,17 +501,10 @@ class ReportService:
             *,
             baby_id: int,
             baby_name: str,
-            recent_counter: UsageCounter,
-            recent_daily_counters: dict[date, UsageCounter],
-            previous_counter: UsageCounter,
-            previous_daily_counters: dict[date, UsageCounter],
+            current_week_usage: dict[str, Any],
+            previous_week_usage: dict[str, Any],
+            has_activity: bool,
     ) -> tuple[list[ReportRadarPoint], list[ReportMetric], ReportInsights]:
-        usage_summary = cls._build_usage_summary_for_llm(
-            recent_counter=recent_counter,
-            recent_daily_counters=recent_daily_counters,
-            previous_counter=previous_counter,
-            previous_daily_counters=previous_daily_counters,
-        )
         try:
             current_week_viking_report, previous_week_viking_report = await cls._get_viking_report(baby_id=baby_id)
         except Exception as exc:
@@ -479,14 +512,14 @@ class ReportService:
             current_week_viking_report = ''
             previous_week_viking_report = ''
 
-        if not current_week_viking_report and not previous_week_viking_report and not recent_counter.has_activity():
+        if not current_week_viking_report and not previous_week_viking_report and not has_activity:
             return cls._build_default_report_sections()
 
         try:
             llm_content = await cls._generate_by_llm(
                 baby_name=baby_name,
-                current_week_usage=usage_summary['current_week'],
-                previous_week_usage=usage_summary['previous_week'],
+                current_week_usage=current_week_usage,
+                previous_week_usage=previous_week_usage,
                 current_week_viking_report=current_week_viking_report,
                 previous_week_viking_report=previous_week_viking_report,
             )
@@ -533,6 +566,35 @@ class ReportService:
             log.warning('failed to query TSDB usage rows, baby_id={}, error={}', baby_id, exc)
             return []
 
+    async def _get_or_build_usage_preview(self, *, baby: Baby) -> UsageReportPreview:
+        cache_key = self._usage_preview_cache_key(baby.id)
+        cached_preview = await self._get_cached_model(
+            key=cache_key,
+            baby_id=baby.id,
+            label='usage preview',
+            model_cls=UsageReportPreview,
+        )
+        if cached_preview is not None:
+            return cached_preview
+
+        async with self._usage_preview_lock:
+            cached_preview = await self._get_cached_model(
+                key=cache_key,
+                baby_id=baby.id,
+                label='usage preview',
+                model_cls=UsageReportPreview,
+            )
+            if cached_preview is not None:
+                return cached_preview
+
+            preview = await self._build_usage_preview(baby=baby)
+            return await self._set_cached_model(
+                key=cache_key,
+                baby_id=baby.id,
+                label='usage preview',
+                value=preview,
+            )
+
     async def get_usage_report(
             self,
             *,
@@ -544,17 +606,47 @@ class ReportService:
         if baby is None:
             raise errors.NotFoundError(msg='宝宝不存在')
 
-        cached_report = self._get_cached_usage_report(baby_id)
+        cache_key = self._usage_report_cache_key(baby_id)
+        cached_report = await self._get_cached_model(
+            key=cache_key,
+            baby_id=baby_id,
+            label='usage report',
+            model_cls=UsageReport,
+        )
         if cached_report is not None:
             return cached_report
 
-        async with self._usage_cache_lock:
-            cached_report = self._get_cached_usage_report(baby_id)
+        async with self._usage_report_lock:
+            cached_report = await self._get_cached_model(
+                key=cache_key,
+                baby_id=baby_id,
+                label='usage report',
+                model_cls=UsageReport,
+            )
             if cached_report is not None:
                 return cached_report
 
-            report = await self._build_usage_report(baby=baby)
-            return self._set_cached_usage_report(baby_id, report)
+            preview = await self._get_or_build_usage_preview(baby=baby)
+            report = await self._build_usage_report(baby=baby, preview=preview)
+            return await self._set_cached_model(
+                key=cache_key,
+                baby_id=baby_id,
+                label='usage report',
+                value=report,
+            )
+
+    async def get_usage_preview(
+            self,
+            *,
+            db: AsyncSession,
+            user_id: int,
+            baby_id: int,
+    ) -> UsageReportPreview:
+        baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
+        if baby is None:
+            raise errors.NotFoundError(msg='宝宝不存在')
+
+        return await self._get_or_build_usage_preview(baby=baby)
 
 
 report_service: ReportService = ReportService()

@@ -283,6 +283,7 @@ async def coze_token(
         expires_in=oauth_token.expires_in,
         ttl=quota,
         bot_id=settings.COZE_BOT_ID,
+        tw_bot_id="7637473092688134179",  # 台湾版本音色差异
     )
     return response_base.success(data=token)
 

@@ -35,8 +35,7 @@ class AppService:
     @staticmethod
     async def get_all(*, db: AsyncSession) -> Sequence[App]:
         """获取所有应用"""
-        apps = await app_dao.get_all(db)
-        return apps
+        return await app_dao.get_all(db)
 
     @staticmethod
     async def get_list(
@@ -44,12 +43,14 @@ class AppService:
         db: AsyncSession,
         name: str | None = None,
         package_name: str | None = None,
+        market_code: str | None = None,
         status: int | None = None,
     ) -> dict[str, Any]:
         """获取应用列表（支持分页和查询条件）"""
         app_select = await app_dao.get_select(
             name=name,
             package_name=package_name,
+            market_code=market_code,
             status=status,
         )
         return await paging_data(db, app_select)
@@ -62,18 +63,13 @@ class AppService:
     @staticmethod
     async def update(*, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         """更新应用"""
-        app = await app_dao.get(db, pk)
-        if not app:
-            raise errors.NotFoundError(msg='应用不存在')
-
-        count = await app_dao.update(db, pk, obj)
-        return count
+        await AppService.get(db=db, pk=pk)
+        return await app_dao.update(db, pk, obj)
 
     @staticmethod
     async def delete(*, db: AsyncSession, pk: int) -> int:
         """批量删除应用"""
-        count = await app_dao.delete(db, pk)
-        return count
+        return await app_dao.delete(db, pk)
 
 
 app_service: AppService = AppService()

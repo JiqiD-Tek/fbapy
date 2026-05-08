@@ -86,8 +86,7 @@ class EventStore:
             log.debug(f'skip TSDB {action} because TSDB client is not enabled')
             return False
         if not tsdb_client.ready:
-            detail = f', last_error={tsdb_client.last_error}' if tsdb_client.last_error else ''
-            log.debug(f'skip TSDB {action} because TSDB client is not ready{detail}')
+            log.debug(f'skip TSDB {action} because TSDB client is not ready')
             return False
 
         return True
@@ -158,13 +157,14 @@ class EventStore:
     def _build_query_filters(
             cls,
             *,
+            baby_id: int,
             start_time: datetime | None,
             end_time: datetime | None,
             direction: str | None,
             category: str | None,
             service: str | None,
     ) -> list[str]:
-        filters: list[str] = []
+        filters: list[str] = [f'{quote_identifier("baby_id")} = {quote_value(str(baby_id))}']
 
         if start_time is not None:
             filters.append(f'ts >= {int(start_time.timestamp() * 1000)}')
@@ -184,9 +184,9 @@ class EventStore:
         return filters
 
     @classmethod
-    def _build_insert_tags(cls, *, baby_id: int) -> dict[str, int]:
+    def _build_insert_tags(cls, *, baby_id: int) -> dict[str, str]:
         return {
-            'baby_id': baby_id,
+            'baby_id': str(baby_id),
         }
 
     @classmethod
@@ -212,14 +212,14 @@ class EventStore:
     def _build_query_sql(
             cls,
             *,
-            subtable_name: str,
+            table_name: str,
             selected_columns: str,
             filters: list[str],
             limit: int,
     ) -> str:
         where_sql = f" WHERE {' AND '.join(filters)}" if filters else ''
         return (
-            f'SELECT {selected_columns} FROM {quote_identifier(subtable_name)}'
+            f'SELECT {selected_columns} FROM {quote_identifier(table_name)}'
             f'{where_sql} '
             f'ORDER BY ts DESC LIMIT {limit}'
         )
@@ -282,7 +282,7 @@ class EventStore:
             service: str | None = None,
             limit: int = 10000,
     ) -> list[dict[str, object]]:
-        """Query device event messages from one TSDB subtable."""
+        """Query device event messages from the model stable."""
 
         resolved_table = cls._resolve_model_table(model)
         if resolved_table is None:
@@ -291,11 +291,12 @@ class EventStore:
         if not cls._ensure_tsdb_ready(action='message query'):
             return []
 
-        model_key, table = resolved_table
+        _, table = resolved_table
         range_start, range_end = cls._resolve_time_range(start_time=start_time, end_time=end_time)
         safe_limit = max(1, min(limit, cls.MAX_QUERY_LIMIT))
         column_names, selected_columns = cls._get_selected_columns(table)
         filters = cls._build_query_filters(
+            baby_id=baby_id,
             start_time=range_start,
             end_time=range_end,
             direction=direction,
@@ -304,7 +305,7 @@ class EventStore:
         )
 
         sql = cls._build_query_sql(
-            subtable_name=await cls._resolve_subtable_name(model_key, baby_id),
+            table_name=table.name,
             selected_columns=selected_columns,
             filters=filters,
             limit=safe_limit,

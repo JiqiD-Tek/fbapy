@@ -28,5 +28,6 @@ class App(Base):
     icon: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='应用图标')
     description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='应用描述')
     download_url: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='应用下载地址')
+    market_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='市场区域编码')
     status: Mapped[int] = mapped_column(default=0, comment='状态(0禁用 1启用)')
     remark: Mapped[str | None] = mapped_column(sa.Text, default=None, comment='备注')

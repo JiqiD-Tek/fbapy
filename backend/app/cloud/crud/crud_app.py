@@ -12,15 +12,23 @@ class CRUDApp(CRUDPlus[App]):
     async def get(self, db: AsyncSession, pk: int) -> App | None:
         return await self.select_model(db, pk)
 
-    async def get_select(self, name: str | None, package_name: str | None, status: int | None) -> Select:
-        filters = {}
-
-        if name is not None:
-            filters['name'] = name
-        if package_name is not None:
-            filters['package_name'] = package_name
-        if status is not None:
-            filters['status'] = status
+    async def get_select(
+        self,
+        name: str | None,
+        package_name: str | None,
+        market_code: str | None,
+        status: int | None,
+    ) -> Select:
+        filters = {
+            key: value
+            for key, value in {
+                'name': name,
+                'package_name': package_name,
+                'market_code': market_code,
+                'status': status,
+            }.items()
+            if value is not None
+        }
         return await self.select_order('id', **filters)
 
     async def get_by_name(self, db: AsyncSession, name: str) -> App | None:
