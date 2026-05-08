@@ -85,6 +85,10 @@ class EventStore:
         if not tsdb_client.enabled:
             log.debug(f'skip TSDB {action} because TSDB client is not enabled')
             return False
+        if not tsdb_client.ready:
+            detail = f', last_error={tsdb_client.last_error}' if tsdb_client.last_error else ''
+            log.debug(f'skip TSDB {action} because TSDB client is not ready{detail}')
+            return False
 
         return True
 

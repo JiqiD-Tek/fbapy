@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     CACHE_PUBSUB_MAX_RECONNECT_ATTEMPTS: int = 10  # 最大重连次数
 
     # .env Snowflake
+    SNOWFLAKE_ENABLED: bool = False
     SNOWFLAKE_DATACENTER_ID: int | None = None
     SNOWFLAKE_WORKER_ID: int | None = None
 
@@ -214,12 +215,6 @@ class Settings(BaseSettings):
     IP_LOCATION_REDIS_PREFIX: str = 'fba:ip:location'
     IP_LOCATION_EXPIRE_SECONDS: int = 60 * 60 * 24  # 1 天
 
-    # Weather
-    WEATHER_API_HOST: str = 'mj7p3y7naa.re.qweatherapi.com'
-    WEATHER_API_KEY: str = ''
-    WEATHER_DEFAULT_LOCATION: str = '广州'
-    WEATHER_TIMEOUT_SECONDS: float = 10.0
-
     # Trace ID
     TRACE_ID_REQUEST_HEADER_KEY: str = 'X-Request-ID'
     TRACE_ID_LOG_LENGTH: int = 32  # UUID 长度，必须小于等于 32
@@ -234,7 +229,7 @@ class Settings(BaseSettings):
     )
 
     # 日志（控制台）
-    LOG_STD_LEVEL: str = 'DEBUG'
+    LOG_STD_LEVEL: str = 'INFO'
 
     # 日志（文件）
     LOG_FILE_ACCESS_LEVEL: str = 'INFO'
@@ -338,6 +333,12 @@ class Settings(BaseSettings):
     MASTER_SECRET: str = ''  # 主密钥
     KEY_SALT: str = ''  # 密钥盐
     AUTH_SECRET_MIN_LENGTH: int = 16
+
+    # Weather
+    WEATHER_API_HOST: str = 'mj7p3y7naa.re.qweatherapi.com'
+    WEATHER_API_KEY: str = ''
+    WEATHER_DEFAULT_LOCATION: str = '广州'
+    WEATHER_TIMEOUT_SECONDS: float = 10.0
 
     # SMS
     SMS_ACCESS_KEY_ID: str = ''
@@ -454,8 +455,8 @@ class Settings(BaseSettings):
         """检查环境变量"""
         if values.get('ENVIRONMENT') == 'prod':
             # FastAPI
-            # values['FASTAPI_OPENAPI_URL'] = None
-            # values['FASTAPI_STATIC_FILES'] = False
+            values['FASTAPI_OPENAPI_URL'] = None
+            values['FASTAPI_STATIC_FILES'] = False
 
             # task
             values['CELERY_BROKER'] = 'rabbitmq'
