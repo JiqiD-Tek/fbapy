@@ -65,7 +65,7 @@ MAC_REGEX = re.compile(r'^(?:[0-9A-F]{2}[:-]){5}[0-9A-F]{2}$', re.I)
 @router.get(
     '/captcha',
     summary='获取验证码',
-    dependencies=[DependsDeviceAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+    dependencies=[DependsDeviceAuth],
 )
 async def get_terminal_captcha(
         db: CurrentSession,
@@ -106,7 +106,7 @@ async def get_terminal_captcha(
 @router.post(
     '/login',
     summary='用户登录',
-    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+    dependencies=[],
 )
 async def terminal_login(
         db: CurrentSessionTransaction,
@@ -121,7 +121,7 @@ async def terminal_login(
 @router.post(
     '/mini/login',
     summary='小程序轻量登录注册',
-    dependencies=[Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+    dependencies=[],
 )
 async def mini_login(
         db: CurrentSessionTransaction,
@@ -139,7 +139,7 @@ async def mini_login(
 @router.post(
     '/mini/profile',
     summary='补充小程序用户信息',
-    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+    dependencies=[DependsJwtAuth, ],
 )
 async def mini_profile(
         request: Request,
@@ -157,7 +157,7 @@ async def mini_profile(
 @router.post(
     '/mini/provision/token',
     summary='创建小程序配网 token',
-    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(5, Duration.MINUTE)))],
+    dependencies=[DependsJwtAuth, ],
 )
 async def create_mini_provision_token(
         request: Request,
@@ -173,7 +173,7 @@ async def create_mini_provision_token(
 @router.get(
     '/mini/provision/{token}',
     summary='查询小程序配网结果',
-    dependencies=[DependsJwtAuth, Depends(RateLimiter(Rate(30, Duration.MINUTE)))],
+    dependencies=[DependsJwtAuth, ],
 )
 async def get_mini_provision_status(
         request: Request,
