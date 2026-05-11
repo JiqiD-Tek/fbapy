@@ -41,6 +41,7 @@ from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
 CacheModelT = TypeVar('CacheModelT', bound=SchemaBase)
+ACTIVE_DURATION_SECONDS = 300
 
 
 @dataclass(slots=True)
@@ -115,7 +116,7 @@ class UsageCounter:
         return ActivityTrendPoint(
             date=current_date.isoformat(),
             chat_count=self.chat_count,
-            active_count=self.active_count,
+            duration=self.active_count * ACTIVE_DURATION_SECONDS,
             player_count=self.player_count,
         )
 
@@ -288,7 +289,7 @@ class ReportService:
     def _build_preview_overview(counter: UsageCounter) -> UsagePreviewOverview:
         return UsagePreviewOverview(
             chat_count=counter.chat_count,
-            active_count=counter.active_count,
+            duration=counter.active_count * ACTIVE_DURATION_SECONDS,
             player_count=counter.player_count,
             play_preferences=counter.to_play_preferences(),
         )
@@ -307,14 +308,14 @@ class ReportService:
     @staticmethod
     def _section_has_activity(section: UsagePreviewSection) -> bool:
         overview = section.overview
-        return (overview.chat_count + overview.active_count + overview.player_count) > 0
+        return (overview.chat_count + overview.duration + overview.player_count) > 0
 
     @staticmethod
     def _section_to_llm_usage(section: UsagePreviewSection) -> dict[str, Any]:
         return {
             'overview': {
                 'chat_count': section.overview.chat_count,
-                'active_count': section.overview.active_count,
+                'duration': section.overview.duration,
                 'player_count': section.overview.player_count,
                 'play_preferences': [item.model_dump() for item in section.overview.play_preferences],
             },
