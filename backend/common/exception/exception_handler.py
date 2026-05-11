@@ -8,6 +8,7 @@ from uvicorn.protocols.http.h11_impl import STATUS_PHRASES
 from backend.common.context import ctx
 from backend.common.exception.errors import BaseExceptionError
 from backend.common.i18n import i18n, t
+from backend.common.log import log
 from backend.common.response.response_code import CustomResponseCode, StandardResponseCode
 from backend.common.response.response_schema import response_base
 from backend.core.conf import settings
@@ -86,6 +87,14 @@ def register_exception(app: FastAPI) -> None:  # noqa: C901
         :param exc: HTTP 异常
         :return:
         """
+        log.warning(
+            'HTTP exception captured: status_code={}, method={}, path={}, detail={}',
+            exc.status_code,
+            request.method,
+            request.url.path,
+            exc.detail,
+        )
+
         if settings.ENVIRONMENT == 'dev':
             content = {
                 'code': exc.status_code,
