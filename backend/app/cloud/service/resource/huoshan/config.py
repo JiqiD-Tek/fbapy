@@ -117,6 +117,18 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
                 id='S_RCrqyDOZ1',
                 name='方厚鑫',
             ),
+            VoiceProfile(
+                id='S_fz5jyDOZ1',
+                name='方厚鑫',
+            ),
+            VoiceProfile(
+                id='S_jBziyDOZ1',
+                name='英文女成',
+            ),
+            VoiceProfile(
+                id='S_jz2iyDOZ1',
+                name='英文儿童',
+            ),
         ),
     ),
 )
