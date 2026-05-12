@@ -62,46 +62,16 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.BYTES_TTS_APPID,
         access_token=settings.BYTES_TTS_TOKEN,
         voices=(
-            VoiceProfile(
-                id='S_GKcK2x2X1',
-                name='曲老师',
-            ),
-            VoiceProfile(
-                id='S_EKcK2x2X1',
-                name='虾球',
-            ),
-            VoiceProfile(
-                id='S_DKcK2x2X1',
-                name='米粒',
-            ),
-            VoiceProfile(
-                id='S_CKcK2x2X1',
-                name='旁白',
-            ),
-            VoiceProfile(
-                id='S_BKcK2x2X1',
-                name='珍棒',
-            ),
-            VoiceProfile(
-                id='S_AKcK2x2X1',
-                name='珍居',
-            ),
-            VoiceProfile(
-                id='S_zKcK2x2X1',
-                name='凯叔',
-            ),
-            VoiceProfile(
-                id='S_yKcK2x2X1',
-                name='成男温柔',
-            ),
-            VoiceProfile(
-                id='S_xKcK2x2X1',
-                name='成女温柔',
-            ),
-            VoiceProfile(
-                id='S_FKcK2x2X1',
-                name='成女活泼',
-            ),
+            VoiceProfile(id='S_GKcK2x2X1', name='曲老师', ),
+            VoiceProfile(id='S_EKcK2x2X1', name='虾球', ),
+            VoiceProfile(id='S_DKcK2x2X1', name='米粒', ),
+            VoiceProfile(id='S_CKcK2x2X1', name='旁白', ),
+            VoiceProfile(id='S_BKcK2x2X1', name='珍棒', ),
+            VoiceProfile(id='S_AKcK2x2X1', name='珍居', ),
+            VoiceProfile(id='S_zKcK2x2X1', name='凯叔', ),
+            VoiceProfile(id='S_yKcK2x2X1', name='成男温柔', ),
+            VoiceProfile(id='S_xKcK2x2X1', name='成女温柔', ),
+            VoiceProfile(id='S_FKcK2x2X1', name='成女活泼', ),
         ),
     ),
     _build_project(
@@ -109,26 +79,11 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.JS61_BYTES_TTS_APPID,
         access_token=settings.JS61_BYTES_TTS_TOKEN,
         voices=(
-            VoiceProfile(
-                id='S_7V2ryDOZ1',
-                name='汤普森爸爸',
-            ),
-            VoiceProfile(
-                id='S_RCrqyDOZ1',
-                name='方厚鑫',
-            ),
-            VoiceProfile(
-                id='S_fz5jyDOZ1',
-                name='方厚鑫',
-            ),
-            VoiceProfile(
-                id='S_jBziyDOZ1',
-                name='英文女成',
-            ),
-            VoiceProfile(
-                id='S_jz2iyDOZ1',
-                name='英文儿童',
-            ),
+            VoiceProfile(id='S_7V2ryDOZ1', name='汤普森爸爸', ),
+            VoiceProfile(id='S_RCrqyDOZ1', name='方厚鑫', ),
+            VoiceProfile(id='S_fz5jyDOZ1', name='英文男成', ),
+            VoiceProfile(id='S_jBziyDOZ1', name='英文女成', ),
+            VoiceProfile(id='S_jz2iyDOZ1', name='英文儿童', ),
         ),
     ),
 )
