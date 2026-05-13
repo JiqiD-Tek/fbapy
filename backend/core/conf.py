@@ -379,18 +379,16 @@ class Settings(BaseSettings):
     COZE_BOT_ID: str = ''
 
     # MQTT
-    MQTT_HOST: str = '10.240.225.23'
+    MQTT_HOST: str = ''
     MQTT_PORT: int = 1883
-    MQTT_USERNAME: str = 'admin'
+    MQTT_USERNAME: str = ''
     MQTT_JWT_SECRET: str = ''
     MQTT_PASSWORD: str = ''
     MQTT_UP_TOPICS: list[str] = [
-        '$share/group/k11/+/up/status',
+        '$share/group/k11/+/up/event',
         '$share/group/k11/+/up/property',
-        '$share/group/k11/+/up/ack',
-        '$share/group/js61/+/up/status',
+        '$share/group/js61/+/up/event',
         '$share/group/js61/+/up/property',
-        '$share/group/js61/+/up/ack',
     ]
 
     # 微软 大模型

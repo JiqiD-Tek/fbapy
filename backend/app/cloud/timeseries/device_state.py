@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 
 from dataclasses import asdict, dataclass, replace
 from typing import Any, ClassVar
@@ -15,24 +14,23 @@ from backend.database.redis import redis_client
 class DeviceStateSnapshot:
     did: str
     model: str
-    timestamp: float
-    online: bool | None = None
-    battery: int | float | None = None
-    volume: int | float | None = None
-    storage: int | float | str | None = None
-    sleep_duration: int | float | None = None
-    sleep_song_count: int | None = None
-    play_mode: str | None = None
+    timestamp: int
+    online: int | None = None
+    battery: int | None = None
+    volume: int | None = None
+    storage_total: int | None = None
+    storage_used: int | None = None
+    sleep_mode: int | None = None
+    sleep_value: int | None = None
+    repeat_mode: int | None = None
 
 
 class DeviceStateStore:
     STATE_REDIS_PREFIX: ClassVar[str] = 'fba:device:state'
     STATE_TTL_SECONDS: ClassVar[int] = 60 * 60 * 24
     STATE_FIELDS: ClassVar[tuple[str, ...]] = (
-        'online', 'battery', 'volume', 'storage', 'sleep_duration', 'sleep_song_count', 'play_mode',
+        'online', 'battery', 'volume', 'storage_total', 'storage_used', 'sleep_mode', 'sleep_value', 'repeat_mode',
     )
-    TRUE_VALUES: ClassVar[frozenset[str]] = frozenset({'1', 'true', 'yes', 'on', 'online'})
-    FALSE_VALUES: ClassVar[frozenset[str]] = frozenset({'0', 'false', 'no', 'off', 'offline'})
 
     @classmethod
     def _cache_key(cls, did: str) -> str:
@@ -52,51 +50,10 @@ class DeviceStateStore:
         return payload
 
     @classmethod
-    def _coerce_bool(cls, value: Any) -> bool | None:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)) and value in {0, 1}:
-            return bool(value)
-        if isinstance(value, str):
-            text = value.strip().lower()
-            if text in cls.TRUE_VALUES:
-                return True
-            if text in cls.FALSE_VALUES:
-                return False
-        return None
-
-    @staticmethod
-    def _coerce_number(value: Any) -> int | float | None:
-        if value is None or isinstance(value, bool):
-            return None
-        if isinstance(value, (int, float)):
-            return value
-        if isinstance(value, str):
-            text = value.strip()
-            if not text:
-                return None
-            if re.fullmatch(r'[-+]?\d+', text):
-                return int(text)
-            if re.fullmatch(r'[-+]?(?:\d+\.\d*|\d*\.\d+)', text):
-                return float(text)
-        return None
-
-    @classmethod
-    def _coerce_storage(cls, value: Any) -> int | float | str | None:
-        number = cls._coerce_number(value)
-        if number is not None:
-            return number
-        if isinstance(value, str):
-            text = value.strip()
-            return text or None
-        return None
-
-    @classmethod
     def _coerce_int(cls, value: Any) -> int | None:
-        number = cls._coerce_number(value)
-        if number is None:
+        if value is None:
             return None
-        return int(number)
+        return int(value)
 
     @staticmethod
     def _coerce_text(value: Any) -> str | None:
@@ -106,32 +63,60 @@ class DeviceStateStore:
         return text or None
 
     @classmethod
+    def _resolve_storage_state(
+            cls,
+            payload: dict[str, Any],
+    ) -> tuple[int | str | None, int | str | None]:
+        storage_payload = payload.get('storage')
+        if isinstance(storage_payload, dict):
+            storage_total = cls._coerce_int(storage_payload.get('total'))
+            storage_used = cls._coerce_int(storage_payload.get('used'))
+            if storage_total is not None or storage_used is not None:
+                return storage_total, storage_used
+
+        return None, None
+
+    @classmethod
+    def _resolve_sleep_state(cls, payload: dict[str, Any]) -> tuple[int | None, int | None]:
+        sleep_payload = payload.get('sleep')
+        if isinstance(sleep_payload, dict):
+            sleep_mode = cls._coerce_int(sleep_payload.get('mode'))
+            sleep_value = cls._coerce_int(sleep_payload.get('value'))
+            if sleep_mode is not None or sleep_value is not None:
+                return sleep_mode, sleep_value
+
+        return None, None
+
+    @classmethod
     def _extract_state_patch(cls, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {}
 
         patch: dict[str, Any] = {}
 
-        if (online := cls._coerce_bool(payload.get('online'))) is not None:
+        if (online := cls._coerce_int(payload.get('online'))) is not None:
             patch['online'] = online
 
-        if (battery := cls._coerce_number(payload.get('battery'))) is not None:
+        if (battery := cls._coerce_int(payload.get('battery'))) is not None:
             patch['battery'] = battery
 
-        if (volume := cls._coerce_number(payload.get('volume'))) is not None:
+        if (volume := cls._coerce_int(payload.get('volume'))) is not None:
             patch['volume'] = volume
 
-        if (storage := cls._coerce_storage(payload.get('storage'))) is not None:
-            patch['storage'] = storage
+        storage_total, storage_used = cls._resolve_storage_state(payload)
+        if storage_total is not None:
+            patch['storage_total'] = storage_total
+        if storage_used is not None:
+            patch['storage_used'] = storage_used
 
-        if (sleep_duration := cls._coerce_number(payload.get('sleep_duration'))) is not None:
-            patch['sleep_duration'] = sleep_duration
+        sleep_mode, sleep_value = cls._resolve_sleep_state(payload)
+        if sleep_mode is not None:
+            patch['sleep_mode'] = sleep_mode
+        if sleep_value is not None:
+            patch['sleep_value'] = sleep_value
 
-        if (sleep_song_count := cls._coerce_int(payload.get('sleep_song_count'))) is not None:
-            patch['sleep_song_count'] = sleep_song_count
-
-        if (play_mode := cls._coerce_text(payload.get('play_mode'))) is not None:
-            patch['play_mode'] = play_mode
+        if (repeat_mode := cls._coerce_int(payload.get('repeat_mode'))) is not None:
+            patch['repeat_mode'] = repeat_mode
 
         return patch
 
@@ -142,21 +127,25 @@ class DeviceStateStore:
 
         did = cls._coerce_text(data.get('did'))
         model = cls._coerce_text(data.get('model'))
-        timestamp = cls._coerce_number(data.get('timestamp'))
+        timestamp = cls._coerce_int(data.get('timestamp'))
         if did is None or model is None or timestamp is None:
             return None
+
+        storage_total, storage_used = cls._resolve_storage_state(data)
+        sleep_mode, sleep_value = cls._resolve_sleep_state(data)
 
         return DeviceStateSnapshot(
             did=did,
             model=model,
-            timestamp=float(timestamp),
-            online=cls._coerce_bool(data.get('online')),
-            battery=cls._coerce_number(data.get('battery')),
-            volume=cls._coerce_number(data.get('volume')),
-            storage=cls._coerce_storage(data.get('storage')),
-            sleep_duration=cls._coerce_number(data.get('sleep_duration')),
-            sleep_song_count=cls._coerce_int(data.get('sleep_song_count')),
-            play_mode=cls._coerce_text(data.get('play_mode')),
+            timestamp=timestamp,
+            online=cls._coerce_int(data.get('online')),
+            battery=cls._coerce_int(data.get('battery')),
+            volume=cls._coerce_int(data.get('volume')),
+            storage_total=storage_total,
+            storage_used=storage_used,
+            sleep_mode=sleep_mode,
+            sleep_value=sleep_value,
+            repeat_mode=cls._coerce_int(data.get('repeat_mode')),
         )
 
     @classmethod

@@ -29,10 +29,6 @@ def parse_mqtt_topic(topic: str) -> MQTTEventRoute | None:
     )
 
 
-def is_stateful_event(route: MQTTEventRoute) -> bool:
-    return route.direction == 'up' and route.category in {'status', 'property'}
-
-
 def normalize_payload(payload: Any) -> Any:
     if payload is None or isinstance(payload, (dict, list, str, int, float, bool)):
         return payload

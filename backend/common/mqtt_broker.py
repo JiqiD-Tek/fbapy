@@ -662,23 +662,24 @@ async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroke
 async def on_message(message_ctx: MQTTMessageContext) -> None:
     """全局消息处理回调示例。"""
     log.debug(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
+
     route = parse_mqtt_topic(message_ctx.topic)
-    if route is None:
+    if route is None or route.direction != 'up':
         return
 
-    payload = normalize_payload(message_ctx.payload)
-
-    try:
-        await EventStore.insert(message_ctx)
-    except Exception as exc:
-        log.debug(f'保存历史消息失败: {exc}', exc_info=True)
-
-    if is_stateful_event(route):
+    if route.category == "property":
         try:
+            payload = normalize_payload(message_ctx.payload)
             await DeviceStateStore.update(
                 route=route,
                 payload=payload,
                 timestamp=message_ctx.timestamp,
             )
         except Exception as exc:
-            log.debug(f'保存设备状态失败: {exc}', exc_info=True)
+            log.debug(f'更新设备状态失败: {exc}', exc_info=True)
+
+    if route.category in {"event", "property", }:
+        try:
+            await EventStore.insert(message_ctx)
+        except Exception as exc:
+            log.debug(f'保存历史消息失败: {exc}', exc_info=True)
