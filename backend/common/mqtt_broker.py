@@ -25,7 +25,7 @@ from paho.mqtt.matcher import MQTTMatcher
 
 from backend.app.cloud.timeseries.device_state import DeviceStateStore
 from backend.app.cloud.timeseries.event_store import EventStore
-from backend.app.cloud.timeseries.mqtt_event import parse_mqtt_topic, normalize_payload, is_stateful_event
+from backend.app.cloud.timeseries.mqtt_event import parse_mqtt_topic, normalize_payload
 from backend.common.log import log
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
