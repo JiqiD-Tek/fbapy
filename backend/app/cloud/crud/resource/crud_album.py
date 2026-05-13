@@ -15,7 +15,7 @@ class CRUDCloudAlbum(CRUDPlus[CloudAlbum]):
     async def get_select(
         self,
         title: str | None,
-        content_type: str | None,
+        content_type: int | None,
         status: int | None,
     ) -> Select:
         filters = {}

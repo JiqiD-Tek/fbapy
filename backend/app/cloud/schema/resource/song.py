@@ -1,4 +1,4 @@
-﻿# -*- coding: UTF-8 -*-
+# -*- coding: UTF-8 -*-
 """
 @Project : fbapy
 @File    : song.py
@@ -22,7 +22,7 @@ class SongSchemaBase(SchemaBase):
     play_url: str | None = Field(None, description='播放地址')
     artist: str | None = Field(None, description='歌手/主播')
     content: str | None = Field(None, description='歌曲/故事内容')
-    content_type: ContentType | None = Field(None, description='内容类型：儿歌、故事、哄睡')
+    content_type: ContentType | None = Field(None, description='内容类型：1儿歌 2故事 3哄睡')
     duration: int = Field(default=0, description='时长(秒)')
     track_no: int = Field(default=0, description='曲目序号')
     status: int = Field(default=1, description='状态(0禁用 1启用)')
@@ -41,7 +41,7 @@ class UpdateSongParam(SchemaBase):
     play_url: str | None = Field(None, description='播放地址')
     artist: str | None = Field(None, description='歌手/主播')
     content: str | None = Field(None, description='歌曲/故事内容')
-    content_type: ContentType | None = Field(None, description='内容类型：儿歌、故事、哄睡')
+    content_type: ContentType | None = Field(None, description='内容类型：1儿歌 2故事 3哄睡')
     duration: int | None = Field(None, description='时长(秒)')
     track_no: int | None = Field(None, description='曲目序号')
     status: int | None = Field(None, description='状态(0禁用 1启用)')

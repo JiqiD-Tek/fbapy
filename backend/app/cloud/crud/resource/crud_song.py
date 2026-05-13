@@ -16,7 +16,7 @@ class CRUDCloudSong(CRUDPlus[CloudSong]):
         self,
         title: str | None,
         album_id: int | None,
-        content_type: str | None,
+        content_type: int | None,
         status: int | None,
     ) -> Select:
         filters = {}
@@ -47,7 +47,7 @@ class CRUDCloudSong(CRUDPlus[CloudSong]):
     async def count_by_album_id(self, db: AsyncSession, album_id: int) -> int:
         return await self.count(db, album_id=album_id)
 
-    async def update_content_type_by_album_id(self, db: AsyncSession, *, album_id: int, content_type: str) -> int:
+    async def update_content_type_by_album_id(self, db: AsyncSession, *, album_id: int, content_type: int) -> int:
         return await self.update_model_by_column(
             db,
             {'content_type': content_type},

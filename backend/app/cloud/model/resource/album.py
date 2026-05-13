@@ -20,7 +20,7 @@ class CloudAlbum(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     title: Mapped[str] = mapped_column(sa.String(256), index=True, comment='专辑标题')
-    content_type: Mapped[str] = mapped_column(sa.String(32), index=True, comment='内容类型：儿歌、故事、哄睡')
+    content_type: Mapped[int] = mapped_column(sa.SmallInteger, index=True, comment='内容类型：1儿歌 2故事 3哄睡')
 
     subtitle: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='专辑副标题')
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='专辑封面地址')

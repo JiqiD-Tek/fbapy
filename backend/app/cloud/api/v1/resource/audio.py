@@ -44,7 +44,7 @@ async def get_album(
 async def get_album_paginated(
     db: CurrentSession,
     title: Annotated[str | None, Query(description='专辑标题')] = None,
-    content_type: Annotated[ContentType | None, Query(description='内容类型')] = None,
+    content_type: Annotated[ContentType | None, Query(description='内容类型：1儿歌 2故事 3哄睡')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetAlbumDetail]]:
     page_data = await cloud_album_service.get_album_list(
@@ -102,7 +102,7 @@ async def get_song_paginated(
     db: CurrentSession,
     title: Annotated[str | None, Query(description='歌曲标题')] = None,
     album_id: Annotated[int | None, Query(description='本地专辑 ID')] = None,
-    content_type: Annotated[ContentType | None, Query(description='内容类型')] = None,
+    content_type: Annotated[ContentType | None, Query(description='内容类型：1儿歌 2故事 3哄睡')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetSongDetail]]:
     page_data = await cloud_song_service.get_song_list(

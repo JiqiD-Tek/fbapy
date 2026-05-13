@@ -20,7 +20,7 @@ class CloudSong(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     title: Mapped[str] = mapped_column(sa.String(256), index=True, comment='歌曲标题')
-    content_type: Mapped[str] = mapped_column(sa.String(32), index=True, comment='内容类型：儿歌、故事、哄睡')
+    content_type: Mapped[int] = mapped_column(sa.SmallInteger, index=True, comment='内容类型：1儿歌 2故事 3哄睡')
     album_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='本地专辑 ID')
 
     subtitle: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='歌曲副标题')
