@@ -247,7 +247,7 @@ class TSDBClient:
             'url': self.endpoint,
             'user': settings.TSDB_USER,
             'password': settings.TSDB_PASSWORD,
-            'timeout': settings.TSDB_REQUEST_TIMEOUT_SECONDS,
+            'timeout': settings.TSDB_TIMEOUT_SECONDS,
         }
         if database:
             kwargs['database'] = database

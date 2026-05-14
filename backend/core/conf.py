@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     TSDB_USER: str = 'root'
     TSDB_PASSWORD: str = ''
     TSDB_DATABASE: str = 'fba'
-    TSDB_REQUEST_TIMEOUT_SECONDS: float = 10.0
+    TSDB_TIMEOUT_SECONDS: float = 10.0
     TSDB_KEEP_DAYS: int = 90
     TSDB_MAX_CONCURRENCY: int = 1
 

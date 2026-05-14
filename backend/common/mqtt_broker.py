@@ -24,9 +24,9 @@ import paho.mqtt.client as mqtt
 from jose import jwt
 from paho.mqtt.matcher import MQTTMatcher
 
-from backend.app.cloud.timeseries.device_state import DeviceStateStore
+from backend.app.cloud.timeseries.state_store import StateStore
 from backend.app.cloud.timeseries.event_store import EventStore
-from backend.app.cloud.timeseries.mqtt_event import parse_mqtt_topic, normalize_payload
+from backend.app.cloud.timeseries.mqtt_route import normalize_mqtt_payload, parse_mqtt_topic
 from backend.common.log import log
 from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
 from backend.core.conf import settings
@@ -736,8 +736,8 @@ async def on_message(message_ctx: MQTTMessageContext) -> None:
 
     if route.category == 'property':
         try:
-            payload = normalize_payload(message_ctx.payload)
-            await DeviceStateStore.update(
+            payload = normalize_mqtt_payload(message_ctx.payload)
+            await StateStore.update(
                 route=route,
                 payload=payload,
                 timestamp=message_ctx.timestamp,

@@ -18,7 +18,7 @@ from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.device.device import UpdateDeviceParam
 from backend.app.cloud.schema.device.device_usage import CreateDeviceUsageParam, UpdateDeviceUsageParam, UsageStatus
-from backend.app.cloud.timeseries.device_state import DeviceStateStore
+from backend.app.cloud.timeseries.state_store import StateStore
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.common.response.response_code import CustomErrorCode
@@ -138,7 +138,7 @@ class DeviceService:
     @staticmethod
     async def get_state(*, db: AsyncSession, user_id: int, pk: int) -> dict[str, Any] | None:
         device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
-        return await DeviceStateStore.get(device.did)
+        return await StateStore.get(device.did)
 
     @staticmethod
     async def update(*, db: AsyncSession, user_id: int, pk: int, obj: UpdateDeviceParam) -> int:

@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 import cachebox
 
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.timeseries.js61_event import JS61EventTable
-from backend.app.cloud.timeseries.mqtt_event import MQTTEventRoute, parse_mqtt_topic
+from backend.app.cloud.timeseries.model.js61_event import JS61EventTable
+from backend.app.cloud.timeseries.mqtt_route import MQTTEventRoute, parse_mqtt_topic
 from backend.common._queue import batch_dequeue
 from backend.common.log import log
 from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
@@ -199,7 +199,6 @@ class EventStore:
             baby_id: int,
             start_time: datetime | None,
             end_time: datetime | None,
-            direction: str | None,
             category: str | None,
             service: str | None,
     ) -> list[str]:
@@ -211,7 +210,6 @@ class EventStore:
             filters.append(f'ts <= {int(end_time.timestamp() * 1000)}')
 
         for field_name, field_value in (
-                ('direction', direction),
                 ('category', category),
                 ('service', service),
         ):
@@ -234,7 +232,6 @@ class EventStore:
             'ts': int(message_ctx.timestamp * 1000),
             'event_id': uuid.uuid4().hex,
             'did': route.did,
-            'direction': route.direction,
             'category': route.category,
             'service': cls._resolve_service_name(message_ctx.payload),
             'topic': message_ctx.topic,
@@ -395,7 +392,6 @@ class EventStore:
             baby_id: int,
             start_time: datetime | str | None = None,
             end_time: datetime | str | None = None,
-            direction: str | None = None,
             category: str | None = None,
             service: str | None = None,
             limit: int = 10000,
@@ -417,7 +413,6 @@ class EventStore:
             baby_id=baby_id,
             start_time=range_start,
             end_time=range_end,
-            direction=direction,
             category=category,
             service=service,
         )

@@ -20,7 +20,6 @@ class TSDBEventDetail(SchemaBase):
     ts: datetime | str | int | None = Field(None, description='事件时间')
     event_id: str | None = Field(None, description='事件 ID')
     did: str | None = Field(None, description='设备 DID')
-    direction: str | None = Field(None, description='消息方向')
     category: str | None = Field(None, description='事件分类')
     service: str | None = Field(None, description='服务来源')
     topic: str | None = Field(None, description='MQTT topic')

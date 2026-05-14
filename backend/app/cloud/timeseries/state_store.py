@@ -5,13 +5,13 @@ import json
 from dataclasses import asdict, dataclass, replace
 from typing import Any, ClassVar
 
-from backend.app.cloud.timeseries.mqtt_event import MQTTEventRoute
+from backend.app.cloud.timeseries.mqtt_route import MQTTEventRoute
 from backend.common.log import log
 from backend.database.redis import redis_client
 
 
 @dataclass(frozen=True, slots=True)
-class DeviceStateSnapshot:
+class StateSnapshot:
     did: str
     model: str
     timestamp: int
@@ -25,7 +25,7 @@ class DeviceStateSnapshot:
     repeat_mode: int | None = None
 
 
-class DeviceStateStore:
+class StateStore:
     STATE_REDIS_PREFIX: ClassVar[str] = 'fba:device:state'
     STATE_TTL_SECONDS: ClassVar[int] = 60 * 60 * 24
     STATE_FIELDS: ClassVar[tuple[str, ...]] = (
@@ -121,7 +121,7 @@ class DeviceStateStore:
         return patch
 
     @classmethod
-    def _deserialize_snapshot(cls, data: Any) -> DeviceStateSnapshot | None:
+    def _deserialize_snapshot(cls, data: Any) -> StateSnapshot | None:
         if not isinstance(data, dict):
             return None
 
@@ -134,7 +134,7 @@ class DeviceStateStore:
         storage_total, storage_used = cls._resolve_storage_state(data)
         sleep_mode, sleep_value = cls._resolve_sleep_state(data)
 
-        return DeviceStateSnapshot(
+        return StateSnapshot(
             did=did,
             model=model,
             timestamp=timestamp,
@@ -154,12 +154,12 @@ class DeviceStateStore:
             *,
             did: str,
             model: str,
-            current: DeviceStateSnapshot | None,
+            current: StateSnapshot | None,
             patch: dict[str, Any],
             timestamp: float | None,
-    ) -> DeviceStateSnapshot:
+    ) -> StateSnapshot:
         resolved_timestamp = float(timestamp) if timestamp is not None else (current.timestamp if current else 0.0)
-        base = current or DeviceStateSnapshot(
+        base = current or StateSnapshot(
             did=did,
             model=model.lower(),
             timestamp=resolved_timestamp,
@@ -173,7 +173,7 @@ class DeviceStateStore:
         )
 
     @classmethod
-    async def _load_snapshot(cls, did: str) -> DeviceStateSnapshot | None:
+    async def _load_snapshot(cls, did: str) -> StateSnapshot | None:
         raw = await redis_client.get(cls._cache_key(did))
         if not raw:
             return None

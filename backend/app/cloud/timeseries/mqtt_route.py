@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+VALID_MQTT_DIRECTIONS = frozenset({'up', 'down'})
+VALID_MQTT_CATEGORIES = frozenset({'event', 'property'})
+
 
 @dataclass(frozen=True, slots=True)
 class MQTTEventRoute:
@@ -21,15 +24,20 @@ def parse_mqtt_topic(topic: str) -> MQTTEventRoute | None:
     if not model or not did or not direction or not category:
         return None
 
+    if direction not in VALID_MQTT_DIRECTIONS:
+        return None
+    if category not in VALID_MQTT_CATEGORIES:
+        return None
+
     return MQTTEventRoute(
         model=model.lower(),
         did=did,
-        direction=direction.lower(),
-        category=category.lower(),
+        direction=direction,
+        category=category,
     )
 
 
-def normalize_payload(payload: Any) -> Any:
+def normalize_mqtt_payload(payload: Any) -> Any:
     if payload is None or isinstance(payload, (dict, list, str, int, float, bool)):
         return payload
     return str(payload)
