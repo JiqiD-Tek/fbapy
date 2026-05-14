@@ -16,6 +16,7 @@ from starlette_context.middleware import ContextMiddleware
 from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
+from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.cache.pubsub import cache_pubsub_manager
 from backend.common.exception.exception_handler import register_exception
 from backend.common.lifespan import lifespan_manager
@@ -27,7 +28,7 @@ from backend.core.conf import settings
 from backend.core.path_conf import STATIC_DIR, UPLOAD_DIR
 from backend.database.db import create_tables
 from backend.database.redis import redis_client
-from backend.database.tsdb import tsdb_client
+from backend.database.tsdb import tsdb
 from backend.middleware.access_middleware import AccessMiddleware
 from backend.middleware.i18n_middleware import I18nMiddleware
 from backend.middleware.jwt_auth_middleware import JwtAuthMiddleware
@@ -57,7 +58,7 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     await redis_client.init()
 
     # 初始化 TSDB
-    await tsdb_client.init()
+    await tsdb.init()
 
     # 初始化 snowflake 节点
     if settings.SNOWFLAKE_ENABLED or settings.DATABASE_PK_MODE == 'snowflake':
@@ -69,6 +70,9 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 启动缓存 Pub/Sub 监听器
     cache_pubsub_manager.start_listener()
 
+    # 启动 TSDB 批量写入器
+    await EventStore.start()
+
     # 初始化mqtt连接
     await init_mqtt()
 
@@ -76,6 +80,9 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 关闭 mqtt 连接
     await close_mqtt()
+
+    # 关闭 TSDB 批量写入器
+    await EventStore.shutdown()
 
     # 停止缓存 Pub/Sub 监听器
     await cache_pubsub_manager.stop_listener()
@@ -85,7 +92,7 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
         await snowflake.shutdown()
 
     # 关闭 TSDB 连接
-    await tsdb_client.aclose()
+    await tsdb.aclose()
 
     # 关闭 redis 连接
     await redis_client.aclose()

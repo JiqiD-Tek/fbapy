@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : insight_service.py
+@File    : analytics_service.py
 @Author  : OpenAI
 @Date    : 2026/04/23
 """
@@ -16,19 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.device_service import device_service
-from backend.app.cloud.schema.insight import (
+from backend.app.cloud.schema.analytics import (
     TSDBEventDetail,
-    TSDBInsightDetail,
-    VikingInsightDetail,
+    TSDBAnalyticsDetail,
+    VikingAnalyticsDetail,
     VikingMemorySectionDetail,
 )
-from backend.app.cloud.timeseries.event_store import event_store
+from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.providers.viking_memory import viking_memory_client
-from backend.database.tsdb import tsdb_client
+from backend.database.tsdb import tsdb
 
 
-class InsightService:
+class AnalyticsService:
     """Aggregate baby-related TSDB and Viking data."""
 
     @staticmethod
@@ -109,7 +109,7 @@ class InsightService:
             assistant_id: str | None = None,
             start_time: datetime | str | int | float | None = None,
             end_time: datetime | str | int | float | None = None,
-    ) -> VikingInsightDetail:
+    ) -> VikingAnalyticsDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
         if baby.device_id is None:
             raise errors.RequestError(msg='宝宝未绑定设备')
@@ -133,7 +133,7 @@ class InsightService:
             ),
         )
 
-        return VikingInsightDetail(
+        return VikingAnalyticsDetail(
             enabled=viking_memory_client.enabled,
             events=viking_event_result,
             profiles=viking_profile_result,
@@ -151,14 +151,14 @@ class InsightService:
             category: str | None,
             service: str | None,
             limit: int,
-    ) -> TSDBInsightDetail:
+    ) -> TSDBAnalyticsDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
         if baby.device_id is None:
             raise errors.RequestError(msg='宝宝未绑定设备')
 
         device = await device_service.get(db=db, user_id=user_id, pk=baby.device_id)
         try:
-            rows = await event_store.query(
+            rows = await EventStore.query(
                 model=device.model,
                 baby_id=baby_id,
                 start_time=start_time,
@@ -169,19 +169,19 @@ class InsightService:
                 limit=limit,
             )
             items = [TSDBEventDetail.model_validate(row) for row in rows]
-            return TSDBInsightDetail(
-                enabled=tsdb_client.enabled,
-                ready=tsdb_client.ready,
+            return TSDBAnalyticsDetail(
+                enabled=tsdb.enabled,
+                ready=tsdb.read_ready,
                 error=None,
                 items=items,
             )
         except Exception as exc:
-            return TSDBInsightDetail(
-                enabled=tsdb_client.enabled,
-                ready=tsdb_client.ready,
+            return TSDBAnalyticsDetail(
+                enabled=tsdb.enabled,
+                ready=tsdb.read_ready,
                 error=str(exc),
                 items=[],
             )
 
 
-insight_service = InsightService()
+analytics_service = AnalyticsService()

@@ -31,7 +31,7 @@ from backend.app.cloud.schema.resource.report import (
     UsagePreviewSection,
 )
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.timeseries.event_store import event_store
+from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
@@ -556,7 +556,7 @@ class ReportService:
             model: str = 'js61',
     ) -> list[dict[str, Any]]:
         try:
-            return await event_store.query(
+            return await EventStore.query(
                 model=model,
                 baby_id=baby_id,
                 start_time=start_time,

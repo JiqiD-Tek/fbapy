@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : insight.py
+@File    : analytics.py
 @Author  : OpenAI
 @Date    : 2026/04/23
 """
@@ -27,8 +27,8 @@ class TSDBEventDetail(SchemaBase):
     payload: str | None = Field(None, description='事件负载')
 
 
-class TSDBInsightDetail(SchemaBase):
-    """TSDB insight section."""
+class TSDBAnalyticsDetail(SchemaBase):
+    """TSDB analytics section."""
 
     enabled: bool = Field(description='TSDB 是否启用')
     ready: bool = Field(description='TSDB 是否已就绪')
@@ -45,8 +45,8 @@ class VikingMemorySectionDetail(SchemaBase):
     text: str = Field('', description='格式化后的文本结果')
 
 
-class VikingInsightDetail(SchemaBase):
-    """Viking memory insight section."""
+class VikingAnalyticsDetail(SchemaBase):
+    """Viking memory analytics section."""
 
     enabled: bool = Field(description='Viking Memory 是否启用')
     events: VikingMemorySectionDetail = Field(description='事件记忆')

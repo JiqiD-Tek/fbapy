@@ -169,8 +169,8 @@ class TSDBClient:
 
     def __init__(self, *, metadata: TSDBMetaData | None = None) -> None:
         self.metadata = metadata or TSDBBase.metadata
-        self._connections: dict[str | None, Any] = {}
-        self._lock = asyncio.Lock()
+        self._execute_semaphore = asyncio.Semaphore(settings.TSDB_MAX_CONCURRENCY)
+        self._ready = False
 
     @property
     def enabled(self) -> bool:
@@ -182,7 +182,7 @@ class TSDBClient:
 
     @property
     def ready(self) -> bool:
-        return bool(self._connections)
+        return self._ready
 
     @property
     def endpoint(self) -> str:
@@ -198,6 +198,7 @@ class TSDBClient:
             await self.ping()
             await self.create_database()
             await self.create_all()
+            self._ready = True
             log.info('TSDB initialized via taospy-rest at {}/{}', self.endpoint, self.database)
         except Exception as exc:
             log.error('TSDB initialization failed: {}', exc)
@@ -205,20 +206,14 @@ class TSDBClient:
             sys.exit()
 
     async def aclose(self) -> None:
-        """Close all cached connections."""
+        """Reset the TSDB client state."""
 
-        if not self._connections:
-            return
-
-        async with self._lock:
-            for connection in self._connections.values():
-                await asyncio.to_thread(self._close_connection, connection)
-            self._connections.clear()
+        self._ready = False
 
     async def ping(self) -> None:
         """Verify the TSDB endpoint is reachable."""
 
-        await self.query('SELECT SERVER_VERSION()')
+        await self.execute('SELECT SERVER_VERSION()')
 
     async def create_database(self, database: str | None = None) -> None:
         """Create the target database if needed."""
@@ -235,30 +230,17 @@ class TSDBClient:
     async def execute(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
         """Execute SQL and return normalized result metadata."""
 
-        async with self._lock:
-            connection = await self._get_connection(database=database)
+        async with self._execute_semaphore:
             try:
                 log.debug('TSDB execute: {}', sql)
-                return await asyncio.to_thread(self._execute_sql, connection, sql)
+                return await asyncio.to_thread(
+                    self._execute_sql,
+                    sql,
+                    self.database if database is None else database,
+                )
             except Exception as exc:
                 log.error('TSDB execute failed: {}', exc)
-                self._close_connection(connection)
-                self._connections.pop(database, None)
                 raise TSDBError(str(exc)) from exc
-
-    async def query(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
-        """Alias for execute()."""
-
-        return await self.execute(sql, database=self.database if database is None else database)
-
-    async def _get_connection(self, *, database: str | None = None) -> Any:
-        connection = self._connections.get(database)
-        if connection is not None:
-            return connection
-
-        connection = await asyncio.to_thread(self._open_connection, database)
-        self._connections[database] = connection
-        return connection
 
     def _open_connection(self, database: str | None) -> Any:
         kwargs: dict[str, Any] = {
@@ -277,21 +259,58 @@ class TSDBClient:
         if callable(close):
             close()
 
-    @staticmethod
-    def _execute_sql(connection: Any, sql: str) -> dict[str, Any]:
-        cursor = connection.cursor()
+    def _execute_sql(self, sql: str, database: str | None) -> dict[str, Any]:
+        connection = self._open_connection(database)
         try:
-            cursor.execute(sql)
-            rows = cursor.fetchall() if hasattr(cursor, 'fetchall') else []
-            return {
-                'code': 0,
-                'rows': len(rows),
-                'data': rows,
-            }
+            cursor = connection.cursor()
+            try:
+                cursor.execute(sql)
+                rows = cursor.fetchall() if hasattr(cursor, 'fetchall') else []
+                return {
+                    'code': 0,
+                    'rows': len(rows),
+                    'data': rows,
+                }
+            finally:
+                close = getattr(cursor, 'close', None)
+                if callable(close):
+                    close()
         finally:
-            close = getattr(cursor, 'close', None)
-            if callable(close):
-                close()
+            self._close_connection(connection)
 
 
-tsdb_client: TSDBClient = TSDBClient()
+class TSDB:
+    """Unified TSDB facade with internal read/write separation."""
+
+    def __init__(self) -> None:
+        self._read_client = TSDBClient()
+        self._write_client = TSDBClient()
+
+    @property
+    def enabled(self) -> bool:
+        return settings.TSDB_ENABLED
+
+    @property
+    def read_ready(self) -> bool:
+        return self._read_client.ready
+
+    @property
+    def write_ready(self) -> bool:
+        return self._write_client.ready
+
+    async def init(self) -> None:
+        await self._read_client.init()
+        await self._write_client.init()
+
+    async def aclose(self) -> None:
+        await self._write_client.aclose()
+        await self._read_client.aclose()
+
+    async def write(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
+        return await self._write_client.execute(sql, database=database)
+
+    async def query(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
+        return await self._read_client.execute(sql, database=database)
+
+
+tsdb: TSDB = TSDB()

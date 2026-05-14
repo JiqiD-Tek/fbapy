@@ -11,9 +11,9 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.baby import CreateBabyParam, GetBabyDetail, UpdateBabyParam
-from backend.app.cloud.schema.insight import VikingInsightDetail, TSDBInsightDetail
+from backend.app.cloud.schema.analytics import VikingAnalyticsDetail, TSDBAnalyticsDetail
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.insight_service import insight_service
+from backend.app.cloud.service.analytics_service import analytics_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -76,7 +76,7 @@ async def update_baby(
 
 
 @router.get('/{pk}/viking', summary='获取宝宝的 画像 数据', dependencies=[DependsJwtAuth])
-async def get_insights(
+async def get_viking(
         request: Request,
         db: CurrentSession,
         pk: Annotated[int, Path(description='宝宝 ID')],
@@ -86,8 +86,8 @@ async def get_insights(
         assistant_id: Annotated[str | None, Query(description='按 assistant 隔离的 ID')] = None,
         start_time: Annotated[str | None, Query(description='Viking 查询开始时间，支持 ISO 字符串或毫秒时间戳')] = None,
         end_time: Annotated[str | None, Query(description='Viking 查询结束时间，支持 ISO 字符串或毫秒时间戳')] = None,
-) -> ResponseSchemaModel[VikingInsightDetail]:
-    data = await insight_service.query_viking(
+) -> ResponseSchemaModel[VikingAnalyticsDetail]:
+    data = await analytics_service.query_viking(
         db=db,
         user_id=request.user.id,
         baby_id=pk,
@@ -112,8 +112,8 @@ async def get_tsdb(
         category: Annotated[str | None, Query(description='TSDB 事件分类')] = None,
         service: Annotated[str | None, Query(description='TSDB 服务来源')] = None,
         limit: Annotated[int, Query(description='TSDB 返回条数', ge=1, le=50000)] = 100,
-) -> ResponseSchemaModel[TSDBInsightDetail]:
-    data = await insight_service.query_tsdb(
+) -> ResponseSchemaModel[TSDBAnalyticsDetail]:
+    data = await analytics_service.query_tsdb(
         db=db,
         user_id=request.user.id,
         baby_id=pk,

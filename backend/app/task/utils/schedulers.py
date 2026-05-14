@@ -98,7 +98,7 @@ class ModelEntry(ScheduleEntry):
         self.model.enabled = self.enabled = model.enabled = False
         async with async_db_session.begin() as db:
             stmt = select(TaskScheduler).where(TaskScheduler.id == model.id)
-            query = await db.execute(stmt)
+            query = await db.write(stmt)
             task = query.scalars().first()
             if task:
                 task.no_changes = True
@@ -146,7 +146,7 @@ class ModelEntry(ScheduleEntry):
         """
         async with async_db_session.begin() as db:
             stmt = select(TaskScheduler).where(TaskScheduler.id == self.model.id).with_for_update()
-            query = await db.execute(stmt)
+            query = await db.write(stmt)
             task = query.scalars().first()
             if task:
                 for field in ['last_run_time', 'total_run_count', 'no_changes']:
@@ -161,7 +161,7 @@ class ModelEntry(ScheduleEntry):
         """保存或更新本地任务调度"""
         async with async_db_session.begin() as db:
             stmt = select(TaskScheduler).where(TaskScheduler.name == name)
-            query = await db.execute(stmt)
+            query = await db.write(stmt)
             task = query.scalars().first()
             temp = await cls._unpack_fields(name, **entry)
             if not task:
@@ -187,7 +187,7 @@ class ModelEntry(ScheduleEntry):
                     'interval_period': PeriodType.SECONDS.value,
                 }
                 stmt = select(TaskScheduler).filter_by(**spec)
-                query = await db.execute(stmt)
+                query = await db.write(stmt)
                 obj = query.scalars().first()
                 if not obj:
                     obj = TaskScheduler(**CreateTaskSchedulerParam(task=task, **spec).model_dump())
@@ -200,7 +200,7 @@ class ModelEntry(ScheduleEntry):
                     'crontab': crontab,
                 }
                 stmt = select(TaskScheduler).filter_by(**spec)
-                query = await db.execute(stmt)
+                query = await db.write(stmt)
                 obj = query.scalars().first()
                 if not obj:
                     obj = TaskScheduler(**CreateTaskSchedulerParam(task=task, **spec).model_dump())
@@ -384,7 +384,7 @@ class DatabaseScheduler(Scheduler):
         async with async_db_session() as db:
             logger.debug('DatabaseScheduler: Fetching database schedule')
             stmt = select(TaskScheduler).where(TaskScheduler.enabled == True)  # noqa: E712
-            query = await db.execute(stmt)
+            query = await db.write(stmt)
             schedulers = query.scalars().all()
             s = {}
             for scheduler in schedulers:

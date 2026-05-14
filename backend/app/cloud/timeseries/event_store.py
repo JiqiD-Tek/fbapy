@@ -4,6 +4,8 @@ import asyncio
 import json
 import uuid
 
+from asyncio import Queue, QueueEmpty
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
@@ -12,13 +14,24 @@ import cachebox
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.timeseries.js61_event import JS61EventTable
 from backend.app.cloud.timeseries.mqtt_event import MQTTEventRoute, parse_mqtt_topic
+from backend.common._queue import batch_dequeue
 from backend.common.log import log
+from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
 from backend.database.db import async_db_session
-from backend.database.tsdb import TSDBTable, quote_identifier, quote_value, tsdb_client
+from backend.database.tsdb import TSDBTable, quote_identifier, quote_value, tsdb
+from backend.core.conf import settings
 from backend.utils.timezone import timezone
 
 if TYPE_CHECKING:
     from backend.common.mqtt_broker import MQTTMessageContext
+
+
+@dataclass(slots=True)
+class TSDBInsertItem:
+    table: TSDBTable
+    subtable_name: str
+    tags: dict[str, str]
+    values: dict[str, object]
 
 
 class EventStore:
@@ -28,7 +41,13 @@ class EventStore:
         'js61': JS61EventTable.__table__,
     }
     BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, ttl=600)
-    BABY_ID_CACHE_LOCK: ClassVar[asyncio.Lock] = asyncio.Lock()
+    DID_LOCKS: ClassVar[dict[str, asyncio.Lock]] = {}
+    DID_LOCKS_GUARD: ClassVar[asyncio.Lock] = asyncio.Lock()
+
+    TSDB_WRITE_QUEUE: ClassVar[Queue[TSDBInsertItem]] = Queue(maxsize=settings.TSDB_WRITE_QUEUE_MAXSIZE)
+    TSDB_WRITE_TASKS: ClassVar[list[asyncio.Task]] = []
+    TSDB_WRITE_STARTED: ClassVar[bool] = False
+    TSDB_WRITE_START_LOCK: ClassVar[asyncio.Lock] = asyncio.Lock()
 
     MAX_PAYLOAD_LENGTH = 4096
     MAX_QUERY_LIMIT = 50000
@@ -68,7 +87,7 @@ class EventStore:
         if cache_key in cls.BABY_ID_CACHE:
             return cls.BABY_ID_CACHE[cache_key]
 
-        async with cls.BABY_ID_CACHE_LOCK:
+        async with await cls._get_did_lock(did):
             if cache_key in cls.BABY_ID_CACHE:
                 return cls.BABY_ID_CACHE[cache_key]
 
@@ -77,16 +96,36 @@ class EventStore:
             return baby_id
 
     @classmethod
-    async def _resolve_subtable_name(cls, model: str, baby_id: int) -> str:
+    async def _get_did_lock(cls, did: str) -> asyncio.Lock:
+        async with cls.DID_LOCKS_GUARD:
+            lock = cls.DID_LOCKS.get(did)
+            if lock is None:
+                lock = asyncio.Lock()
+                cls.DID_LOCKS[did] = lock
+            return lock
+
+    @classmethod
+    def _resolve_subtable_name(cls, model: str, baby_id: int) -> str:
         return f'{model}_{baby_id}'
 
     @classmethod
-    def _ensure_tsdb_ready(cls, *, action: str) -> bool:
-        if not tsdb_client.enabled:
+    def _ensure_tsdb_read_ready(cls, *, action: str) -> bool:
+        if not tsdb.enabled:
             log.debug(f'skip TSDB {action} because TSDB client is not enabled')
             return False
-        if not tsdb_client.ready:
+        if not tsdb.read_ready:
             log.debug(f'skip TSDB {action} because TSDB client is not ready')
+            return False
+
+        return True
+
+    @classmethod
+    def _ensure_tsdb_write_ready(cls, *, action: str) -> bool:
+        if not tsdb.enabled:
+            log.debug(f'skip TSDB {action} because TSDB write client is not enabled')
+            return False
+        if not tsdb.write_ready:
+            log.debug(f'skip TSDB {action} because TSDB write client is not ready')
             return False
 
         return True
@@ -203,6 +242,77 @@ class EventStore:
         }
 
     @classmethod
+    async def start(cls) -> None:
+        if not cls._ensure_tsdb_write_ready(action='writer start'):
+            return
+
+        if cls.TSDB_WRITE_STARTED:
+            return
+
+        async with cls.TSDB_WRITE_START_LOCK:
+            if cls.TSDB_WRITE_STARTED:
+                return
+
+            cls.TSDB_WRITE_TASKS = [
+                asyncio.create_task(cls._writer_worker(index), name=f'tsdb_writer_worker_{index}')
+                for index in range(settings.TSDB_WRITE_WORKERS)
+            ]
+            cls.TSDB_WRITE_STARTED = True
+            observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
+            log.info(
+                f'TSDB writer started with {settings.TSDB_WRITE_WORKERS} workers, '
+                f'batch={settings.TSDB_WRITE_BATCH_SIZE}, queue={settings.TSDB_WRITE_QUEUE_MAXSIZE}'
+            )
+
+    @classmethod
+    async def _writer_worker(cls, worker_id: int) -> None:
+        while True:
+            items = await batch_dequeue(
+                cls.TSDB_WRITE_QUEUE,
+                max_items=settings.TSDB_WRITE_BATCH_SIZE,
+                timeout=settings.TSDB_WRITE_BATCH_MAX_WAIT_SECONDS,
+                queue_name='tsdb_write',
+            )
+            if not items:
+                continue
+
+            try:
+                await cls._flush_batch(items)
+            except Exception as exc:
+                inc_queue_exception(queue_name='tsdb_write')
+                log.error(f'TSDB batch flush failed in worker {worker_id}: {exc}', exc_info=True)
+            finally:
+                for _ in items:
+                    cls.TSDB_WRITE_QUEUE.task_done()
+
+    @classmethod
+    async def _flush_batch(cls, items: list[TSDBInsertItem]) -> None:
+        sql_fragments = [item.table.insert_sql(subtable_name=item.subtable_name, values=item.values, tags=item.tags) for
+                         item in items]
+        sql = ' '.join(sql_fragments)
+        await tsdb.write(sql)
+        observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
+
+    @classmethod
+    async def shutdown(cls) -> None:
+        for task in cls.TSDB_WRITE_TASKS:
+            task.cancel()
+        if cls.TSDB_WRITE_TASKS:
+            await asyncio.gather(*cls.TSDB_WRITE_TASKS, return_exceptions=True)
+        cls.TSDB_WRITE_TASKS.clear()
+        cls.TSDB_WRITE_STARTED = False
+
+        while True:
+            try:
+                cls.TSDB_WRITE_QUEUE.get_nowait()
+                cls.TSDB_WRITE_QUEUE.task_done()
+            except QueueEmpty:
+                break
+
+        observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
+        log.info('TSDB writer stopped')
+
+    @classmethod
     def _get_selected_columns(cls, table: TSDBTable) -> tuple[tuple[str, ...], str]:
         column_names = tuple(field.name for field in table.columns)
         selected_columns = ', '.join(quote_identifier(name) for name in column_names)
@@ -237,7 +347,7 @@ class EventStore:
     async def insert(cls, message_ctx: MQTTMessageContext) -> None:
         """Persist one MQTT message into the matching TSDB subtable."""
 
-        if not cls._ensure_tsdb_ready(action='message insert'):
+        if not cls._ensure_tsdb_write_ready(action='message insert'):
             log.debug('TSDB is not ready, skipping message insert')
             return
 
@@ -258,12 +368,20 @@ class EventStore:
 
         model_key, table = resolved_table
         try:
-            await table.insert(
-                tsdb_client,
-                subtable_name=await cls._resolve_subtable_name(model_key, baby_id),
+            item = TSDBInsertItem(
+                table=table,
+                subtable_name=cls._resolve_subtable_name(model_key, baby_id),
                 tags=cls._build_insert_tags(baby_id=baby_id),
                 values=cls._build_insert_values(message_ctx, route),
             )
+            await asyncio.wait_for(
+                cls.TSDB_WRITE_QUEUE.put(item),
+                timeout=settings.TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS,
+            )
+            observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
+        except asyncio.TimeoutError:
+            inc_queue_exception(queue_name='tsdb_write')
+            log.warning(f'TSDB write queue enqueue timeout, dropping message: {message_ctx.topic}')
         except Exception as exc:
             log.error(
                 f'failed to ingest MQTT message into TSDB, table={table.name}, topic={message_ctx.topic}, error={exc}'
@@ -288,7 +406,7 @@ class EventStore:
         if resolved_table is None:
             return []
 
-        if not cls._ensure_tsdb_ready(action='message query'):
+        if not cls._ensure_tsdb_read_ready(action='message query'):
             return []
 
         _, table = resolved_table
@@ -310,7 +428,7 @@ class EventStore:
             filters=filters,
             limit=safe_limit,
         )
-        result = await tsdb_client.query(sql)
+        result = await tsdb.query(sql)
         rows = result.get('data', [])
 
         return cls._map_query_rows(column_names=column_names, rows=rows)
@@ -320,12 +438,12 @@ event_store = EventStore()
 
 
 async def main() -> None:
-    await tsdb_client.init()
+    await tsdb.init()
     ret = await event_store.query(
         model='js61',
         baby_id=1,
-        start_time='2026-04-01 00:00:00',
-        end_time='2026-05-01 00:00:00',
+        start_time='2026-05-01 00:00:00',
+        end_time='2026-06-01 00:00:00',
         limit=10000,
     )
     print(ret)

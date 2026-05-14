@@ -77,7 +77,14 @@ class Settings(BaseSettings):
     TSDB_PASSWORD: str = ''
     TSDB_DATABASE: str = 'fba'
     TSDB_REQUEST_TIMEOUT_SECONDS: float = 10.0
-    TSDB_KEEP_DAYS: int = 30
+    TSDB_KEEP_DAYS: int = 90
+    TSDB_MAX_CONCURRENCY: int = 1
+
+    TSDB_WRITE_WORKERS: int = 1
+    TSDB_WRITE_QUEUE_MAXSIZE: int = 20000
+    TSDB_WRITE_BATCH_SIZE: int = 200
+    TSDB_WRITE_BATCH_MAX_WAIT_SECONDS: float = 0.1
+    TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS: float = 0.2
 
     # 缓存
     CACHE_LOCAL_ENABLED: bool = True
@@ -384,6 +391,8 @@ class Settings(BaseSettings):
     MQTT_USERNAME: str = ''
     MQTT_JWT_SECRET: str = ''
     MQTT_PASSWORD: str = ''
+    MQTT_CALLBACK_QUEUE_MAXSIZE: int = 10000
+    MQTT_CALLBACK_WORKERS: int = 8
     MQTT_UP_TOPICS: list[str] = [
         '$share/group/k11/+/up/event',
         '$share/group/k11/+/up/property',
