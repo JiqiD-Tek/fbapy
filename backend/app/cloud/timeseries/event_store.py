@@ -432,22 +432,3 @@ class EventStore:
         rows = result.get('data', [])
 
         return cls._map_query_rows(column_names=column_names, rows=rows)
-
-
-event_store = EventStore()
-
-
-async def main() -> None:
-    await tsdb.init()
-    ret = await event_store.query(
-        model='js61',
-        baby_id=1,
-        start_time='2026-05-01 00:00:00',
-        end_time='2026-06-01 00:00:00',
-        limit=10000,
-    )
-    print(ret)
-
-
-if __name__ == '__main__':
-    asyncio.run(main())
