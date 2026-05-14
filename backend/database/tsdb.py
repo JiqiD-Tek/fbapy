@@ -171,6 +171,8 @@ class TSDBClient:
         self.metadata = metadata or TSDBBase.metadata
         self._connections: dict[str | None, Any] = {}
         self._lock = asyncio.Lock()
+        self._pool_semaphore = asyncio.Semaphore(settings.TSDB_MAX_CONCURRENCY)
+        self._ready = False
 
     @property
     def enabled(self) -> bool:
@@ -182,7 +184,7 @@ class TSDBClient:
 
     @property
     def ready(self) -> bool:
-        return bool(self._connections)
+        return self._ready
 
     @property
     def endpoint(self) -> str:
@@ -198,6 +200,7 @@ class TSDBClient:
             await self.ping()
             await self.create_database()
             await self.create_all()
+            self._ready = True
             log.info('TSDB initialized via taospy-rest at {}/{}', self.endpoint, self.database)
         except Exception as exc:
             log.error('TSDB initialization failed: {}', exc)
@@ -214,6 +217,7 @@ class TSDBClient:
             for connection in self._connections.values():
                 await asyncio.to_thread(self._close_connection, connection)
             self._connections.clear()
+            self._ready = False
 
     async def ping(self) -> None:
         """Verify the TSDB endpoint is reachable."""
@@ -235,7 +239,7 @@ class TSDBClient:
     async def execute(self, sql: str, *, database: str | None = None) -> dict[str, Any]:
         """Execute SQL and return normalized result metadata."""
 
-        async with self._lock:
+        async with self._pool_semaphore:
             connection = await self._get_connection(database=database)
             try:
                 log.debug('TSDB execute: {}', sql)
@@ -256,9 +260,14 @@ class TSDBClient:
         if connection is not None:
             return connection
 
-        connection = await asyncio.to_thread(self._open_connection, database)
-        self._connections[database] = connection
-        return connection
+        async with self._lock:
+            connection = self._connections.get(database)
+            if connection is not None:
+                return connection
+
+            connection = await asyncio.to_thread(self._open_connection, database)
+            self._connections[database] = connection
+            return connection
 
     def _open_connection(self, database: str | None) -> Any:
         kwargs: dict[str, Any] = {

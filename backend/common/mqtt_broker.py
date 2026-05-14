@@ -11,12 +11,13 @@ import json
 import random
 import uuid
 
+from asyncio import Queue, QueueEmpty
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
 from threading import Lock
-from typing import Any
+from typing import Any, TypeAlias
 
 import paho.mqtt.client as mqtt
 
@@ -27,6 +28,7 @@ from backend.app.cloud.timeseries.device_state import DeviceStateStore
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.app.cloud.timeseries.mqtt_event import parse_mqtt_topic, normalize_payload
 from backend.common.log import log
+from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
 
@@ -72,11 +74,17 @@ class MQTTMessageContext:
 
 
 # 消息回调函数类型定义
-MessageCallback = Callable[[MQTTMessageContext], None | Awaitable[None]]
+MessageCallback: TypeAlias = Callable[[MQTTMessageContext], None | Awaitable[None]]
 
 
 class MQTTConnectionError(Exception):
     """MQTT 连接失败的自定义异常。"""
+
+
+@dataclass(slots=True)
+class MQTTCallbackItem:
+    callback: MessageCallback
+    message_ctx: MQTTMessageContext
 
 
 class MQTTBroker:
@@ -114,6 +122,72 @@ class MQTTBroker:
 
         self._connection_task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._callback_queue: Queue[MQTTCallbackItem] = Queue(maxsize=settings.MQTT_CALLBACK_QUEUE_MAXSIZE)
+        self._callback_tasks: list[asyncio.Task] = []
+        self._callback_started = False
+        self._callback_start_lock = asyncio.Lock()
+
+    async def _ensure_callback_workers(self) -> None:
+        if self._callback_started:
+            return
+
+        async with self._callback_start_lock:
+            if self._callback_started:
+                return
+
+            self._callback_tasks = [
+                asyncio.create_task(self._callback_worker(index), name=f'mqtt_callback_worker_{index}')
+                for index in range(settings.MQTT_CALLBACK_WORKERS)
+            ]
+            self._callback_started = True
+            observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+
+    def _enqueue_callback_items_nowait(self, items: list[MQTTCallbackItem]) -> None:
+        for item in items:
+            try:
+                self._callback_queue.put_nowait(item)
+                observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+            except asyncio.QueueFull:
+                inc_queue_exception(queue_name='mqtt_callback')
+                log.warning(f'MQTT callback queue is full, dropping message: {item.message_ctx.topic}')
+                return
+
+    async def _callback_worker(self, worker_id: int) -> None:
+        while True:
+            item = await self._callback_queue.get()
+            observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+            try:
+                await self._run_callback(item)
+            except Exception as exc:
+                inc_queue_exception(queue_name='mqtt_callback')
+                log.error(f'MQTT callback worker {worker_id} failed: {exc}', exc_info=True)
+            finally:
+                self._callback_queue.task_done()
+
+    @staticmethod
+    async def _run_callback(item: MQTTCallbackItem) -> None:
+        result = item.callback(item.message_ctx)
+        if asyncio.iscoroutine(result):
+            await result
+
+    async def _shutdown_callback_workers(self) -> None:
+        for task in self._callback_tasks:
+            task.cancel()
+
+        if self._callback_tasks:
+            await asyncio.gather(*self._callback_tasks, return_exceptions=True)
+
+        self._callback_tasks.clear()
+        self._callback_started = False
+
+        while True:
+            try:
+                self._callback_queue.get_nowait()
+                self._callback_queue.task_done()
+            except QueueEmpty:
+                break
+
+        observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
 
     async def connect(self) -> bool:
         """
@@ -122,6 +196,7 @@ class MQTTBroker:
         如果连接任务正在进行，则等待其完成。
         """
         self._loop = asyncio.get_running_loop()
+        await self._ensure_callback_workers()
 
         async with self._client_lock:
             if self.connected:
@@ -211,29 +286,23 @@ class MQTTBroker:
             timestamp=timezone.now().timestamp(),
         )
 
-        # 2. 查找匹配的回调函数
-        callbacks_to_run = []
+        # 2. 查找匹配的回调函数，并交给有界调度队列
+        callback_items: list[MQTTCallbackItem] = []
         with self._callback_lock:
             # 使用 MQTTMatcher 查找所有匹配该主题的订阅回调
-            # iter_match(topic) 会返回所有匹配该 topic 的过滤器所关联的值
             for callbacks in self._matcher.iter_match(topic):
-                if isinstance(callbacks, dict):
-                    callbacks_to_run.extend(callbacks.values())
+                if not isinstance(callbacks, dict):
+                    continue
+                callback_items.extend(
+                    MQTTCallbackItem(
+                        callback=callback,
+                        message_ctx=message_ctx,
+                    )
+                    for callback in callbacks.values()
+                )
 
-        # 3. 在主事件循环中调用回调
-        def _invoke(_callback: MessageCallback) -> None:
-            """在主线程中执行回调，并处理协程。"""
-            try:
-                coro = _callback(message_ctx)
-                if asyncio.iscoroutine(coro):
-                    # 如果是协程，创建任务在主循环中执行
-                    asyncio.create_task(coro)
-            except Exception as ex:
-                log.error(f'消息回调执行失败: {ex}', exc_info=True)
-
-        for callback in callbacks_to_run:
-            # 使用 call_soon_threadsafe 将执行安排到主事件循环
-            self._call_loop_threadsafe(_invoke, callback)
+        if callback_items:
+            self._call_loop_threadsafe(self._enqueue_callback_items_nowait, callback_items)
 
     @staticmethod
     def _extract_actual_filter(topic: str) -> str:
@@ -557,6 +626,7 @@ class MQTTBroker:
             self._connection_event.clear()
             self._disconnect_event.clear()
             log.info('MQTT 客户端已断开连接')
+        await self._shutdown_callback_workers()
 
     @asynccontextmanager
     async def context(self):
@@ -614,9 +684,6 @@ def create_mqtt_config(client_id: str | None = None) -> MQTTConfig:
     try:
         client_id = client_id or f'fbapy_{uuid.uuid4().hex}'
 
-        username = "3E:96:10:BA:61:2F"
-        password = "D98BB367386B5B18A815EC31F74B43A6"
-
         # 服务器端认证：使用 JWT 编码密码
         username = settings.MQTT_USERNAME
         password = jwt.encode(claims={}, key=settings.MQTT_JWT_SECRET, algorithm='HS256')
@@ -667,7 +734,7 @@ async def on_message(message_ctx: MQTTMessageContext) -> None:
     if route is None or route.direction != 'up':
         return
 
-    if route.category == "property":
+    if route.category == 'property':
         try:
             payload = normalize_payload(message_ctx.payload)
             await DeviceStateStore.update(
@@ -678,7 +745,7 @@ async def on_message(message_ctx: MQTTMessageContext) -> None:
         except Exception as exc:
             log.debug(f'更新设备状态失败: {exc}', exc_info=True)
 
-    if route.category in {"event", "property", }:
+    if route.category == 'event':
         try:
             await EventStore.insert(message_ctx)
         except Exception as exc:

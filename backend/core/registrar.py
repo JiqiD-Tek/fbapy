@@ -16,6 +16,7 @@ from starlette_context.middleware import ContextMiddleware
 from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
+from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.cache.pubsub import cache_pubsub_manager
 from backend.common.exception.exception_handler import register_exception
 from backend.common.lifespan import lifespan_manager
@@ -69,6 +70,9 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     # 启动缓存 Pub/Sub 监听器
     cache_pubsub_manager.start_listener()
 
+    # 启动 TSDB 批量写入器
+    await EventStore.start()
+
     # 初始化mqtt连接
     await init_mqtt()
 
@@ -76,6 +80,9 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 关闭 mqtt 连接
     await close_mqtt()
+
+    # 关闭 TSDB 批量写入器
+    await EventStore.shutdown()
 
     # 停止缓存 Pub/Sub 监听器
     await cache_pubsub_manager.stop_listener()
