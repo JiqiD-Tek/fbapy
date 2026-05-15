@@ -52,7 +52,7 @@ services:
       - "${DOCKER_MAP_RABBITMA_PORT:-5672}:5672"
     container_name: fba_rabbitmq
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 2048m
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -67,7 +67,7 @@ services:
     container_name: fba_tsdb
     hostname: tsdb
     restart: always
-    cpus: 1.0
+    cpus: 1.5
     mem_limit: 2048m
     ports:
       - "${DOCKER_MAP_TSDB_PORT_6030:-6030}:6030"
@@ -88,10 +88,10 @@ services:
       - fba-network
 
   fba_emqx:
-    image: emqx/emqx-enterprise:5.10.1-rc.2
+    image: emqx/emqx-enterprise:6.2.0
     container_name: fba_emqx
     restart: always
-    cpus: 1.0
+    cpus: 1.5
     mem_limit: 2048m
     environment:
       EMQX_NODE_NAME: ${EMQX_NODE_NAME}
@@ -139,7 +139,7 @@ services:
   fba_loki:
     image: grafana/loki:k289-533b1f0
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_LOKI_PORT:-3100}:3100"
@@ -151,7 +151,7 @@ services:
   fba_prometheus:
     image: prom/prometheus:latest
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_PROMETHEUS_PORT:-9090}:9090"
@@ -171,7 +171,7 @@ services:
   fba_alloy:
     image: grafana/alloy:latest
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_ALLOY_GRPC_PORT:-4317}:4317"
@@ -192,7 +192,7 @@ services:
   fba_tempo:
     image: grafana/tempo:latest
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_TEMPO_PORT:-3200}:3200"
@@ -213,7 +213,7 @@ services:
   fba_grafana:
     image: grafana/grafana:nightly-ubuntu
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_GRAFANA_PORT:-3000}:3000"
@@ -233,7 +233,7 @@ services:
   fba_celery_exporter:
     image: danihodovic/celery-exporter:latest
     restart: always
-    cpus: 1.0
+    cpus: 0.5
     mem_limit: 1024m
     ports:
       - "${DOCKER_MAP_CELERY_EXPORTER_PORT:-9808}:9808"
