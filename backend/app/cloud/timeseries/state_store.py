@@ -189,7 +189,7 @@ class StateStore:
             return
 
         current = await cls._load_snapshot(route.did)
-        patch = cls._extract_state_patch(cls._prepare_payload(payload))
+        patch = cls._extract_state_patch(cls._prepare_payload(payload).get('payload', {}))
         snapshot = cls._merge_snapshot(
             did=route.did,
             model=route.model,

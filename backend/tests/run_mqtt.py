@@ -29,7 +29,13 @@ async def main() -> None:
     # 发布消息
     for i in range(10):
         await mqtt.publish(
-            f'js61/{client_id}/up/property', {'volume': 10 + i, 'timestamp': time.time(), 'device_id': client_id}
+            f'js61/{client_id}/up/property', {
+                "msg_id": 1, "service": "property", 'timestamp': time.time(),
+                "payload": {
+                    "online": 0, "battery": 80, "storage": {"total": 8388608, "used": 102400}, "volume": 2,
+                    "repeat_mode": 1, "sleep": 0
+                }
+            }
         )
         await asyncio.sleep(1)
 
