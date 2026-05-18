@@ -18,19 +18,15 @@ class StateSnapshot:
     online: int | None = None
     battery: int | None = None
     volume: int | None = None
-    storage_total: int | None = None
-    storage_used: int | None = None
-    sleep_mode: int | None = None
-    sleep_value: int | None = None
+    storage: dict | None = None
+    sleep: dict | None = None
     repeat_mode: int | None = None
 
 
 class StateStore:
     STATE_REDIS_PREFIX: ClassVar[str] = 'fba:device:state'
     STATE_TTL_SECONDS: ClassVar[int] = 60 * 60 * 24
-    STATE_FIELDS: ClassVar[tuple[str, ...]] = (
-        'online', 'battery', 'volume', 'storage_total', 'storage_used', 'sleep_mode', 'sleep_value', 'repeat_mode',
-    )
+    STATE_FIELDS: ClassVar[tuple[str, ...]] = ('online', 'battery', 'volume', 'storage', 'sleep', 'repeat_mode')
 
     @classmethod
     def _cache_key(cls, did: str) -> str:
@@ -63,31 +59,6 @@ class StateStore:
         return text or None
 
     @classmethod
-    def _resolve_storage_state(
-            cls,
-            payload: dict[str, Any],
-    ) -> tuple[int | str | None, int | str | None]:
-        storage_payload = payload.get('storage')
-        if isinstance(storage_payload, dict):
-            storage_total = cls._coerce_int(storage_payload.get('total'))
-            storage_used = cls._coerce_int(storage_payload.get('used'))
-            if storage_total is not None or storage_used is not None:
-                return storage_total, storage_used
-
-        return None, None
-
-    @classmethod
-    def _resolve_sleep_state(cls, payload: dict[str, Any]) -> tuple[int | None, int | None]:
-        sleep_payload = payload.get('sleep')
-        if isinstance(sleep_payload, dict):
-            sleep_mode = cls._coerce_int(sleep_payload.get('mode'))
-            sleep_value = cls._coerce_int(sleep_payload.get('value'))
-            if sleep_mode is not None or sleep_value is not None:
-                return sleep_mode, sleep_value
-
-        return None, None
-
-    @classmethod
     def _extract_state_patch(cls, payload: Any) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return {}
@@ -103,17 +74,11 @@ class StateStore:
         if (volume := cls._coerce_int(payload.get('volume'))) is not None:
             patch['volume'] = volume
 
-        storage_total, storage_used = cls._resolve_storage_state(payload)
-        if storage_total is not None:
-            patch['storage_total'] = storage_total
-        if storage_used is not None:
-            patch['storage_used'] = storage_used
+        if (storage := payload.get('storage')) is not None:
+            patch['storage'] = storage
 
-        sleep_mode, sleep_value = cls._resolve_sleep_state(payload)
-        if sleep_mode is not None:
-            patch['sleep_mode'] = sleep_mode
-        if sleep_value is not None:
-            patch['sleep_value'] = sleep_value
+        if (sleep := payload.get('sleep')) is not None:
+            patch['sleep'] = sleep
 
         if (repeat_mode := cls._coerce_int(payload.get('repeat_mode'))) is not None:
             patch['repeat_mode'] = repeat_mode
@@ -131,9 +96,6 @@ class StateStore:
         if did is None or model is None or timestamp is None:
             return None
 
-        storage_total, storage_used = cls._resolve_storage_state(data)
-        sleep_mode, sleep_value = cls._resolve_sleep_state(data)
-
         return StateSnapshot(
             did=did,
             model=model,
@@ -141,10 +103,8 @@ class StateStore:
             online=cls._coerce_int(data.get('online')),
             battery=cls._coerce_int(data.get('battery')),
             volume=cls._coerce_int(data.get('volume')),
-            storage_total=storage_total,
-            storage_used=storage_used,
-            sleep_mode=sleep_mode,
-            sleep_value=sleep_value,
+            storage=data.get('storage'),
+            sleep=data.get('sleep'),
             repeat_mode=cls._coerce_int(data.get('repeat_mode')),
         )
 
