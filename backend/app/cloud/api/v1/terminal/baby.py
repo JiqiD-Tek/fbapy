@@ -11,9 +11,9 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.baby import CreateBabyParam, GetBabyDetail, UpdateBabyParam
-from backend.app.cloud.schema.analytics import VikingAnalyticsDetail, TSDBAnalyticsDetail
-from backend.app.cloud.service.baby_service import baby_service
+from backend.app.cloud.schema.analytics import TSDBAnalyticsDetail, VikingAnalyticsDetail
 from backend.app.cloud.service.analytics_service import analytics_service
+from backend.app.cloud.service.baby_service import baby_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -75,7 +75,19 @@ async def update_baby(
     return response_base.fail()
 
 
-@router.get('/{pk}/viking', summary='获取宝宝的 画像 数据', dependencies=[DependsJwtAuth])
+@router.delete('/{pk}', summary='删除宝宝', dependencies=[DependsJwtAuth])
+async def delete_baby(
+        request: Request,
+        db: CurrentSessionTransaction,
+        pk: Annotated[int, Path(description='宝宝 ID')],
+) -> ResponseModel:
+    count = await baby_service.delete(db=db, user_id=request.user.id, pk=pk)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
+
+
+@router.get('/{pk}/viking', summary='获取宝宝的画像数据', dependencies=[DependsJwtAuth])
 async def get_viking(
         request: Request,
         db: CurrentSession,

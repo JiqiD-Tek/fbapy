@@ -135,6 +135,14 @@ class BabyService:
         return await baby_dao.update(db, pk, obj)
 
     @staticmethod
+    async def delete(*, db: AsyncSession, user_id: int, pk: int) -> int:
+        baby = await BabyService._ensure_user_has_baby(db=db, user_id=user_id, baby_id=pk)
+        count = await baby_dao.delete(db, pk)
+        if count > 0:
+            await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=baby.device_id)
+        return count
+
+    @staticmethod
     async def get_user_babies(*, db: AsyncSession, user_id: int) -> Sequence[Baby]:
         return await baby_dao.get_all_by_user(db, user_id=user_id)
 
