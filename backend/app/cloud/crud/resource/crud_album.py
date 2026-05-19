@@ -13,10 +13,12 @@ class CRUDCloudAlbum(CRUDPlus[CloudAlbum]):
         return await self.select_model(db, pk)
 
     async def get_select(
-        self,
-        title: str | None,
-        content_type: int | None,
-        status: int | None,
+            self,
+            title: str | None,
+            content_type: int | None,
+            status: int | None,
+            column: str = 'id',
+            order: str = 'desc'
     ) -> Select:
         filters = {}
 
@@ -27,7 +29,7 @@ class CRUDCloudAlbum(CRUDPlus[CloudAlbum]):
         if status is not None:
             filters['status'] = status
 
-        return await self.select_order('id', **filters)
+        return await self.select_order(column, order, **filters)
 
     async def get_all(self, db: AsyncSession) -> Sequence[CloudAlbum]:
         return await self.select_models(db)

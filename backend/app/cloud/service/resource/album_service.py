@@ -28,16 +28,20 @@ class CloudAlbumService:
 
     @staticmethod
     async def get_album_list(
-        *,
-        db: AsyncSession,
-        title: str | None = None,
-        content_type: ContentType | None = None,
-        status: int | None = None,
+            *,
+            db: AsyncSession,
+            title: str | None = None,
+            content_type: ContentType | None = None,
+            status: int | None = None,
+            column: str | None = None,
+            order: str | None = None,
     ) -> dict[str, Any]:
         album_select = await cloud_album_dao.get_select(
             title=title,
             content_type=content_type,
             status=status,
+            column=column,
+            order=order,
         )
         return await paging_data(db, album_select)
 
