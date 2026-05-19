@@ -53,10 +53,7 @@ class CloudDialogueService:
     ) -> CloudDialogue:
         if not obj.title.strip():
             raise errors.RequestError(msg='名称不能为空')
-        return await cloud_dialogue_dao.create(
-            db,
-            obj.model_copy(update={'content': obj.content.model_dump()}),
-        )
+        return await cloud_dialogue_dao.create(db, obj)
 
     async def update_dialogue(
         self,
@@ -79,9 +76,6 @@ class CloudDialogueService:
         if 'content' in payload:
             if payload['content'] is None:
                 raise errors.RequestError(msg='结构化内容不能为空')
-            if hasattr(payload['content'], 'model_dump'):
-                payload['content'] = payload['content'].model_dump()
-
         return await cloud_dialogue_dao.update(db, pk, payload)
 
     async def delete_dialogue(self, *, db: AsyncSession, pk: int) -> int:

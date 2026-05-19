@@ -29,7 +29,7 @@ async def get_random_dialogue(
     device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[GetDialogueDetail]:
     data = await cloud_dialogue_service.get_random_dialogue(db=db, did=device.did)
-    return response_base.success(data=data)
+    return response_base.success(data=GetDialogueDetail.model_validate(data))
 
 
 @router.get('/{pk}', summary='获取对话详情', dependencies=[DependsJwtAuth])
@@ -38,7 +38,7 @@ async def get_dialogue(
     pk: Annotated[int, Path(description='对话 ID')],
 ) -> ResponseSchemaModel[GetDialogueDetail]:
     data = await cloud_dialogue_service.get_dialogue(db=db, pk=pk)
-    return response_base.success(data=data)
+    return response_base.success(data=GetDialogueDetail.model_validate(data))
 
 
 @router.get('', summary='分页获取对话列表', dependencies=[DependsJwtAuth, DependsPagination])
@@ -54,6 +54,7 @@ async def get_dialogue_paginated(
         author=author,
         status=status,
     )
+    page_data['items'] = [GetDialogueDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)
 
 
@@ -63,7 +64,7 @@ async def create_dialogue(
     obj: CreateDialogueParam,
 ) -> ResponseSchemaModel[GetDialogueDetail]:
     dialogue = await cloud_dialogue_service.create_dialogue(db=db, obj=obj)
-    return response_base.success(data=dialogue)
+    return response_base.success(data=GetDialogueDetail.model_validate(dialogue))
 
 
 @router.put('/{pk}', summary='更新对话', dependencies=[DependsJwtAuth])

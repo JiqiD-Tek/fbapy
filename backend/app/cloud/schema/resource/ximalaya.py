@@ -23,6 +23,14 @@ class XimalayaRecommendedParam(XimalayaRequestBase):
     """推荐接口仅依赖公共参数。"""
 
 
+class XimalayaSearchParam(XimalayaRequestBase):
+    """搜索接口仅依赖公共参数。"""
+    query: str| None = Field(description='搜索关键词')
+    song_name: str | None = Field(None, description='歌曲名称')
+    album_name: str | None = Field(None, description='专辑名称')
+    artist: str | None = Field(None, description='歌手名称')
+
+
 class XimalayaListTagsParam(XimalayaRequestBase):
     category_id: int = Field(description='分类 ID')
     type: int = Field(description='0-专辑标签，1-声音标签')

@@ -6,20 +6,26 @@
 @Date    : 2026/03/26
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_album import cloud_album_dao
 from backend.app.cloud.crud.resource.crud_song import cloud_song_dao
-from backend.app.cloud.model import CloudSong
+from backend.app.cloud.model import CloudAlbum, CloudSong
 from backend.app.cloud.schema.resource.album import ContentType
 from backend.app.cloud.schema.resource.song import CreateSongParam, UpdateSongParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 
+if TYPE_CHECKING:
+    from backend.app.cloud.schema.resource.ximalaya import XimalayaSearchParam
+
 
 class CloudSongService:
+    SEARCH_LIMIT = 50
+
     @staticmethod
     async def get_song(*, db: AsyncSession, pk: int) -> CloudSong:
         song = await cloud_song_dao.get(db, pk)
@@ -90,6 +96,88 @@ class CloudSongService:
         count = await cloud_song_dao.delete(db, pk)
         await self._sync_album_track_count(db=db, album_id=song.album_id)
         return count
+
+    @classmethod
+    def _normalize_search_keyword(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    @classmethod
+    def _resolve_search_keyword(cls, obj: XimalayaSearchParam) -> tuple[str, str]:
+        for field_name in ('song_name', 'album_name', 'artist', 'query'):
+            keyword = cls._normalize_search_keyword(getattr(obj, field_name))
+            if keyword is not None:
+                return field_name, keyword
+
+        raise errors.RequestError(msg='搜索关键词不能为空')
+
+    @staticmethod
+    def _serialize_search_row(row: sa.RowMapping) -> dict[str, Any]:
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'play_url': row['play_url'] or '',
+            'duration': int(row['duration'] or 0),
+            'content_type': row['content_type'],
+            'artist': (row['song_artist'] or row['album_artist'] or '').strip(),
+            'album': row['album'] or '',
+        }
+
+    async def search_resources(
+            self,
+            *,
+            db: AsyncSession,
+            obj: XimalayaSearchParam,
+    ) -> list[dict[str, Any]]:
+        search_field, keyword = self._resolve_search_keyword(obj)
+        keyword_like = f'%{keyword}%'
+
+        song_name_match = CloudSong.title.like(keyword_like)
+        album_name_match = CloudAlbum.title.like(keyword_like)
+        artist_match = sa.or_(
+            CloudSong.artist.like(keyword_like),
+            CloudAlbum.artist.like(keyword_like),
+        )
+
+        priority_order = sa.case(
+            (song_name_match, 0),
+            (album_name_match, 1),
+            (artist_match, 2),
+            else_=3,
+        )
+
+        stmt = (
+            sa.select(
+                CloudSong.id.label('id'),
+                CloudSong.title.label('name'),
+                CloudSong.play_url.label('play_url'),
+                CloudSong.duration.label('duration'),
+                CloudSong.content_type.label('content_type'),
+                CloudSong.artist.label('song_artist'),
+                CloudAlbum.artist.label('album_artist'),
+                CloudAlbum.title.label('album'),
+            )
+            .select_from(CloudSong)
+            .outerjoin(CloudAlbum, CloudAlbum.id == CloudSong.album_id)
+            .where(CloudSong.status == 1)
+        )
+
+        if search_field == 'song_name':
+            stmt = stmt.where(song_name_match).order_by(CloudSong.id.desc())
+        elif search_field == 'album_name':
+            stmt = stmt.where(album_name_match).order_by(CloudSong.id.desc())
+        elif search_field == 'artist':
+            stmt = stmt.where(artist_match).order_by(CloudSong.id.desc())
+        else:
+            stmt = stmt.where(sa.or_(song_name_match, album_name_match, artist_match)).order_by(
+                priority_order.asc(),
+                CloudSong.id.desc(),
+            )
+
+        result = await db.execute(stmt.limit(self.SEARCH_LIMIT))
+        return [self._serialize_search_row(row) for row in result.mappings().all()]
 
     @staticmethod
     async def _normalize_song_with_album(
