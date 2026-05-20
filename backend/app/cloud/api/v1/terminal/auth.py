@@ -41,7 +41,7 @@ from backend.app.cloud.schema.user import (
 )
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.resource.storage import storage_service
+from backend.app.cloud.service.resource.storage import StorageService
 from backend.common.providers.ali_sms import sms_client
 from backend.common.providers.ali_sts import sts_client
 from backend.common.context import ctx
@@ -235,16 +235,18 @@ async def oss_token(
         ext: Annotated[str, Path(description='文件类型')],
         auth_context: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[OSSToken]:
-    def _resolve_oss_owner_uid(_auth_context: object) -> str:
-        if isinstance(_auth_context, DeviceAuthParam):
-            return _auth_context.did
-        else:
-            owner = getattr(_auth_context, 'uuid', None)
-            if isinstance(owner, str) and owner:
-                return owner
-        return ''
+    if isinstance(auth_context, DeviceAuthParam):
+        uid = auth_context.did
+        product = auth_context.model
+    else:
+        owner = getattr(auth_context, 'uuid', None)
+        if not isinstance(owner, str) or not owner:
+            raise errors.AuthorizationError(msg='认证信息无效')
+        uid = owner
+        product = 'fba'
 
-    object_name = storage_service.create_object_name(uid=_resolve_oss_owner_uid(auth_context), ext=ext)
+    storage_service = StorageService(product)
+    object_name = storage_service.create_object_name(uid=uid, ext=ext)
     url = storage_service.get_object_url(object_name)
     sign_url = storage_service.get_sign_url(object_name)
     data = OSSToken(url=url, sign_url=sign_url)

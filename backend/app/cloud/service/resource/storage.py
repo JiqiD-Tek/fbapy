@@ -15,7 +15,7 @@ from backend.utils.timezone import timezone
 class StorageService:
     CDN_HOST = 'https://media.jiqid.com'
 
-    def __init__(self, product: str = 'k11'):
+    def __init__(self, product: str = 'fba'):
         self.product = product
 
     @staticmethod
@@ -40,9 +40,8 @@ class StorageService:
         return oss_client.sign_url(object_name)
 
 
-storage_service = StorageService()
-
 if __name__ == '__main__':
+    storage_service = StorageService()
     object_name = storage_service.create_object_name(uid='D98BB367386B5B18A815EC31F74B43A6')
     print(object_name)
     print(storage_service.get_object_url(object_name))
