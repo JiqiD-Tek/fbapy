@@ -11,8 +11,8 @@ class CRUDDeviceRecharge(CRUDPlus[DeviceRecharge]):
     async def get(self, db: AsyncSession, pk: int) -> DeviceRecharge | None:
         return await self.select_model(db, pk)
 
-    async def get_by_did(self, db: AsyncSession, did: str) -> Sequence[DeviceRecharge]:
-        return await self.select_models(db, did=did)
+    async def get_by_device_did(self, db: AsyncSession, device_did: str) -> Sequence[DeviceRecharge]:
+        return await self.select_models(db, device_did=device_did)
 
     async def create(self, db: AsyncSession, obj: CreateDeviceRechargeParam) -> DeviceRecharge:
         return await self.create_model(db, obj, flush=True)

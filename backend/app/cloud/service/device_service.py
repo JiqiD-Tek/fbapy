@@ -42,7 +42,7 @@ class DeviceService:
             raise errors.CustomError(error=CustomErrorCode.DEVICE_QUOTA_NOT_ENOUGH)
 
         usage = CreateDeviceUsageParam.model_construct(
-            did=did,
+            device_did=did,
             apply_quota=alloc_quota,
             start_time=timezone.now(),
         )
@@ -55,7 +55,7 @@ class DeviceService:
         return await self._settle_active_usages(db=db, device=device)
 
     async def _settle_active_usages(self, db: AsyncSession, device: Device) -> int:
-        active_usages = await device_usage_dao.get_by_did_status(db, device.did, UsageStatus.ACTIVE)
+        active_usages = await device_usage_dao.get_by_device_did_status(db, device.did, UsageStatus.ACTIVE)
         if not active_usages:
             return device.quota
 

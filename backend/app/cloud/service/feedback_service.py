@@ -40,10 +40,14 @@ class FeedbackService:
 
     @staticmethod
     async def get_list(
-        *, db: AsyncSession, name: str | None = None, did: str | None = None, status: int | None = None
+        *,
+        db: AsyncSession,
+        name: str | None = None,
+        device_did: str | None = None,
+        status: int | None = None,
     ) -> dict[str, Any]:
         """获取反馈列表（支持分页和查询条件）"""
-        feedback_select = await feedback_dao.get_select(name=name, did=did, status=status)
+        feedback_select = await feedback_dao.get_select(name=name, device_did=device_did, status=status)
         return await paging_data(db, feedback_select)
 
     @staticmethod

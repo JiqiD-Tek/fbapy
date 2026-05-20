@@ -33,7 +33,7 @@ router = APIRouter()
 async def get_feedback(
     db: CurrentSession, pk: Annotated[int, Path(description='日志 ID')]
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
-    data = feedback_service.get(db=db, pk=pk)
+    data = await feedback_service.get(db=db, pk=pk)
     return response_base.success(data=data)
 
 
@@ -48,10 +48,10 @@ async def get_feedback(
 async def get_feedback_paginated(
     db: CurrentSession,
     name: Annotated[str | None, Query(description='名称')] = None,
-    did: Annotated[str | None, Query(description='设备did')] = None,
+    device_did: Annotated[str | None, Query(description='设备did')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetFeedbackDetail]]:
-    page_data = await feedback_service.get_list(db=db, name=name, did=did, status=status)
+    page_data = await feedback_service.get_list(db=db, name=name, device_did=device_did, status=status)
     return response_base.success(data=page_data)
 
 
@@ -63,7 +63,7 @@ async def create_feedback(
     db: CurrentSessionTransaction,
     mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
     auth_ctx: Annotated[Any, Depends(device_or_jwt_auth_verify)],
-    did: Annotated[str, Body(description='设备did')],
+    device_did: Annotated[str, Body(description='设备did')],
     status: Annotated[int, Body(description='状态(0：不需要日志上传 1：需要日志上传)')] = 0,
     category: Annotated[str | None, Body(description='反馈类型')] = None,
     content: Annotated[str | None, Body(description='反馈内容')] = None,
@@ -72,11 +72,11 @@ async def create_feedback(
     contact: Annotated[str | None, Body(description='联系方式')] = None,
     comment: Annotated[str | None, Body(description='处理备注')] = None,
 ) -> ResponseSchemaModel[GetFeedbackDetail]:
-    if isinstance(auth_ctx, DeviceAuthParam) and did != auth_ctx.did:
+    if isinstance(auth_ctx, DeviceAuthParam) and device_did != auth_ctx.did:
         raise errors.RequestError(msg='设备 did 不匹配')
 
     obj = CreateFeedbackParam(
-        did=did,
+        device_did=device_did,
         category=category,
         content=content,
         pic_url=pic_url,
@@ -88,7 +88,7 @@ async def create_feedback(
     feedback = await feedback_service.create(db=db, obj=obj)
 
     if status == 1:
-        messaging_service = MessagingService(mqtt_client=mqtt_client, did=did)
+        messaging_service = MessagingService(mqtt_client=mqtt_client, did=device_did)
         await messaging_service.send_request_log(feedback_id=feedback.id)
 
     return response_base.success(data=feedback)
@@ -106,7 +106,7 @@ async def update_feedback(
 ) -> ResponseModel:
     if isinstance(auth_ctx, DeviceAuthParam):
         feedback = await feedback_service.get(db=db, pk=pk)
-        if feedback.did != auth_ctx.did:
+        if feedback.device_did != auth_ctx.did:
             raise errors.RequestError(msg='无权更新其他设备的反馈')
 
     count = await feedback_service.update(db=db, pk=pk, obj=obj)

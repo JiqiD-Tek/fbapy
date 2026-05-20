@@ -12,13 +12,13 @@ class CRUDFeedback(CRUDPlus[Feedback]):
     async def get(self, db: AsyncSession, pk: int) -> Feedback | None:
         return await self.select_model(db, pk)
 
-    async def get_select(self, name: str | None, did: str | None, status: int | None) -> Select:
+    async def get_select(self, name: str | None, device_did: str | None, status: int | None) -> Select:
         filters = {}
 
         if name is not None:
             filters['name__like'] = f'%{name}%'
-        if did is not None:
-            filters['did'] = did
+        if device_did is not None:
+            filters['device_did'] = device_did
         if status is not None:
             filters['status'] = status
 

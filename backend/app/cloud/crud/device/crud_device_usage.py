@@ -11,11 +11,16 @@ class CRUDDeviceUsage(CRUDPlus[DeviceUsage]):
     async def get(self, db: AsyncSession, pk: int) -> DeviceUsage | None:
         return await self.select_model(db, pk)
 
-    async def get_by_did(self, db: AsyncSession, did: str) -> Sequence[DeviceUsage]:
-        return await self.select_models(db, did=did)
+    async def get_by_device_did(self, db: AsyncSession, device_did: str) -> Sequence[DeviceUsage]:
+        return await self.select_models(db, device_did=device_did)
 
-    async def get_by_did_status(self, db: AsyncSession, did: str, status: UsageStatus) -> Sequence[DeviceUsage]:
-        return await self.select_models(db, did=did, status=status)
+    async def get_by_device_did_status(
+        self,
+        db: AsyncSession,
+        device_did: str,
+        status: UsageStatus,
+    ) -> Sequence[DeviceUsage]:
+        return await self.select_models(db, device_did=device_did, status=status)
 
     async def create(self, db: AsyncSession, obj: CreateDeviceUsageParam) -> DeviceUsage:
         return await self.create_model(db, obj, flush=True)

@@ -2,7 +2,7 @@
 """
 @Project : fbapy
 @File    : feedback.py
-@Author  : guhua@jiqid.com
+@Author  : OpenAI
 @Date    : 2025/11/25 10:41
 """
 
@@ -19,8 +19,7 @@ class Feedback(Base):
     __tablename__ = 'u_feedback'
 
     id: Mapped[id_key] = mapped_column(init=False)
-    did: Mapped[str] = mapped_column(sa.BigInteger, comment='设备did')
-
+    device_did: Mapped[str] = mapped_column(sa.String(64), index=True, comment='设备did')
     category: Mapped[str | None] = mapped_column(sa.String(256), comment='反馈类型')
     content: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='反馈内容')
     pic_url: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='反馈图片地址')
