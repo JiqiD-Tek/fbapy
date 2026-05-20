@@ -31,6 +31,9 @@ class Firmware(Base):
     min_version: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='最低兼容版本')
     max_version: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='最高兼容版本')
     device_model: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='适用设备型号')
+    release_scope: Mapped[str] = mapped_column(
+        sa.String(16), default='public', comment='发布范围 public=公开 whitelist=白名单',
+    )
     is_latest: Mapped[bool] = mapped_column(default=False, comment='是否为最新版本')
     is_force: Mapped[bool] = mapped_column(default=False, comment='是否强制更新')
     status: Mapped[int] = mapped_column(default=0, index=True, comment='固件状态(0禁用 1启用)')

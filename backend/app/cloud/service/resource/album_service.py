@@ -47,6 +47,7 @@ class CloudAlbumService:
 
     @staticmethod
     async def create_album(*, db: AsyncSession, obj: CreateAlbumParam) -> CloudAlbum:
+        CloudAlbumService._validate_album_payload(obj.model_dump())
         return await cloud_album_dao.create(db, obj)
 
     @staticmethod
@@ -58,7 +59,11 @@ class CloudAlbumService:
         payload = obj.model_dump(exclude_unset=True)
         if not payload:
             raise errors.RequestError(msg='更新内容不能为空')
-        CloudAlbumService._validate_album_payload(payload)
+        CloudAlbumService._validate_album_payload(
+            payload,
+            current_min_age=album.min_age,
+            current_max_age=album.max_age,
+        )
 
         count = await cloud_album_dao.update(db, pk, obj)
         if count > 0 and 'content_type' in payload and payload['content_type'] != album.content_type:
@@ -82,11 +87,20 @@ class CloudAlbumService:
         return await cloud_album_dao.delete(db, pk)
 
     @staticmethod
-    def _validate_album_payload(payload: dict[str, Any]) -> None:
+    def _validate_album_payload(
+            payload: dict[str, Any],
+            *,
+            current_min_age: int | None = None,
+            current_max_age: int | None = None,
+    ) -> None:
         if 'title' in payload and payload['title'] is None:
             raise errors.RequestError(msg='专辑标题不能为空')
         if 'content_type' in payload and payload['content_type'] is None:
             raise errors.RequestError(msg='内容类型不能为空')
+        min_age = payload.get('min_age', current_min_age)
+        max_age = payload.get('max_age', current_max_age)
+        if min_age is not None and max_age is not None and min_age > max_age:
+            raise errors.RequestError(msg='最小适龄不能大于最大适龄')
 
 
 cloud_album_service: CloudAlbumService = CloudAlbumService()

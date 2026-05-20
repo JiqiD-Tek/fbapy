@@ -18,4 +18,5 @@ from backend.app.cloud.model.resource.album import CloudAlbum as CloudAlbum
 from backend.app.cloud.model.resource.song import CloudSong as CloudSong
 from backend.app.cloud.model.feedback import Feedback as Feedback
 from backend.app.cloud.model.firmware import Firmware as Firmware
+from backend.app.cloud.model.firmware_whitelist import FirmwareWhitelist as FirmwareWhitelist
 from backend.app.cloud.model.user import User as User

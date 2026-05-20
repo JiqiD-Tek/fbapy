@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import Firmware
-from backend.app.cloud.schema.firmware import CreateFirmwareParam, UpdateFirmwareParam
+from backend.app.cloud.schema.firmware import CreateFirmwareParam, FirmwareReleaseScope, UpdateFirmwareParam
 
 
 class CRUDFirmware(CRUDPlus[Firmware]):
@@ -19,6 +19,7 @@ class CRUDFirmware(CRUDPlus[Firmware]):
         device_model: str | None,
         status: int | None,
         is_latest: bool | None,
+        release_scope: FirmwareReleaseScope | None,
     ) -> Select:
         filters = {}
 
@@ -32,6 +33,8 @@ class CRUDFirmware(CRUDPlus[Firmware]):
             filters['status'] = status
         if is_latest is not None:
             filters['is_latest'] = is_latest
+        if release_scope is not None:
+            filters['release_scope'] = release_scope
 
         return await self.select_order('id', **filters)
 
@@ -47,12 +50,13 @@ class CRUDFirmware(CRUDPlus[Firmware]):
     async def get_latest_firmware(self, db: AsyncSession, device_model: str) -> Firmware | None:
         return await self.select_model_by_column(db, device_model=device_model, is_latest=True, status=1)
 
-    async def get_upgrade_firmware(self, db: AsyncSession, *, device_model: str, version_code: int) -> Firmware | None:
+    async def get_public_upgrade_firmware(self, db: AsyncSession, *, device_model: str, version_code: int) -> Firmware | None:
         stmt = (
             select(Firmware)
             .where(
                 Firmware.device_model == device_model,
                 Firmware.status == 1,
+                Firmware.release_scope == FirmwareReleaseScope.PUBLIC.value,
                 Firmware.version_code > version_code,
             )
             .order_by(Firmware.version_code.desc(), Firmware.id.desc())

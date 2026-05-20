@@ -10,7 +10,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.firmware import CreateFirmwareParam, GetFirmwareDetail, UpdateFirmwareParam
+from backend.app.cloud.schema.firmware import (
+    BatchSetFirmwareWhitelistParam,
+    CreateFirmwareParam,
+    FirmwareReleaseScope,
+    GetFirmwareDetail,
+    GetFirmwareWhitelistDetail,
+    UpdateFirmwareParam,
+    UpdateFirmwareWhitelistParam,
+)
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.firmware_service import firmware_service
 from backend.common.pagination import DependsPagination, PageData
@@ -28,8 +36,61 @@ async def get_upgrade_firmware(
     version_code: Annotated[int, Query(description='当前固件版本代码')],
     device: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[GetFirmwareDetail | None]:
-    data = await firmware_service.get_upgrade(db=db, device_model=device.model, version_code=version_code)
+    data = await firmware_service.get_upgrade(
+        db=db,
+        device_did=device.did,
+        device_model=device.model,
+        version_code=version_code,
+    )
     return response_base.success(data=data)
+
+
+@router.get('/whitelist', summary='分页获取固件白名单', dependencies=[DependsJwtAuth, DependsPagination])
+async def get_firmware_whitelist_list(
+    db: CurrentSession,
+    firmware_id: Annotated[int | None, Query(description='固件 ID')] = None,
+    device_did: Annotated[str | None, Query(description='设备 DID')] = None,
+    enabled: Annotated[bool | None, Query(description='是否启用')] = None,
+) -> ResponseSchemaModel[PageData[GetFirmwareWhitelistDetail]]:
+    page_data = await firmware_service.get_whitelist_list(
+        db=db,
+        firmware_id=firmware_id,
+        device_did=device_did,
+        enabled=enabled,
+    )
+    return response_base.success(data=page_data)
+
+
+@router.post('/whitelist', summary='批量设置固件白名单', dependencies=[DependsJwtAuth])
+async def set_firmware_whitelist(
+    db: CurrentSessionTransaction,
+    obj: BatchSetFirmwareWhitelistParam,
+) -> ResponseSchemaModel[list[GetFirmwareWhitelistDetail]]:
+    data = await firmware_service.set_whitelist(db=db, obj=obj)
+    return response_base.success(data=data)
+
+
+@router.put('/whitelist/{pk}', summary='更新固件白名单', dependencies=[DependsJwtAuth])
+async def update_firmware_whitelist(
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='白名单 ID')],
+    obj: UpdateFirmwareWhitelistParam,
+) -> ResponseModel:
+    count = await firmware_service.update_whitelist(db=db, pk=pk, obj=obj)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
+
+
+@router.delete('/whitelist/{pk}', summary='删除固件白名单', dependencies=[DependsJwtAuth])
+async def delete_firmware_whitelist(
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='白名单 ID')],
+) -> ResponseModel:
+    count = await firmware_service.delete_whitelist(db=db, pk=pk)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
 
 
 @router.get('/{pk}', summary='获取固件详情', dependencies=[DependsJwtAuth])
@@ -49,6 +110,7 @@ async def get_firmware_list(
     device_model: Annotated[str | None, Query(description='适配设备型号')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
     is_latest: Annotated[bool | None, Query(description='是否最新')] = None,
+    release_scope: Annotated[FirmwareReleaseScope | None, Query(description='发布范围')] = None,
 ) -> ResponseSchemaModel[PageData[GetFirmwareDetail]]:
     page_data = await firmware_service.get_list(
         db=db,
@@ -57,6 +119,7 @@ async def get_firmware_list(
         device_model=device_model,
         status=status,
         is_latest=is_latest,
+        release_scope=release_scope,
     )
     return response_base.success(data=page_data)
 
