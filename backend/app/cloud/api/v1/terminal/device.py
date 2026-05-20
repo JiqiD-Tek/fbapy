@@ -104,7 +104,6 @@ async def get_device_paginated(
 ) -> ResponseSchemaModel[PageData[GetDeviceDetail]]:
     page_data = await device_service.get_list(
         db=db,
-        user_id=request.user.id,
         did=did,
         sn=sn,
         mac=mac,

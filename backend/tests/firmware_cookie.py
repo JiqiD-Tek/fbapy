@@ -3,7 +3,7 @@
 设备鉴权 Cookie 测试脚本
 
 用法示例:
-python backend/test/device_auth_cookie.py --base-url http://127.0.0.1:8000 --mac C41C9C09C981
+python backend/test/firmware_cookie.py --base-url http://127.0.0.1:8000 --mac C41C9C09C981
 """
 
 import argparse
@@ -40,12 +40,12 @@ def _print_result(title: str, response: httpx.Response) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description='测试 terminal 设备鉴权 Cookie 传参')
     parser.add_argument('--base-url', default='http://iot.jiqid.net', help='服务地址')
-    parser.add_argument('--path', default='/api/v1/terminal/auth/coze_token', help='测试接口路径')
-    parser.add_argument('--method', default='POST', choices=['GET', 'POST'], help='请求方法')
-    parser.add_argument('--mac', default='7C:DF:A1:E0:B1:C8', help='设备 MAC')
-    parser.add_argument('--did', default='40EFAC5AD7BA5211B2DE91F4709F3E38', help='设备 DID，不传则自动派生')
-    parser.add_argument('--sn', default='K102501A0100123', help='设备序列号')
-    parser.add_argument('--model', default='K11', help='设备型号')
+    parser.add_argument('--path', default='/api/v1/terminal/firmware/upgrade?version_code=0', help='测试接口路径')
+    parser.add_argument('--method', default='GET', choices=['GET', 'POST'], help='请求方法')
+    parser.add_argument('--mac', default='AC:27:6E:AC:A2:3C', help='设备 MAC')
+    parser.add_argument('--did', default='4E27122F00955BE98BA2C648AD7525F0', help='设备 DID，不传则自动派生')
+    parser.add_argument('--sn', default='4E27122F00955BE98BA2C648AD7525F0', help='设备序列号')
+    parser.add_argument('--model', default='JS61', help='设备型号')
     parser.add_argument('--timeout', type=float, default=10.0, help='请求超时秒数')
     args = parser.parse_args()
 

@@ -120,14 +120,12 @@ class DeviceService:
     async def get_list(
         *,
         db: AsyncSession,
-        user_id: int,
         did: str | None = None,
         sn: str | None = None,
         mac: str | None = None,
         model: str | None = None,
     ) -> dict[str, Any]:
         device_select = await device_dao.get_select(
-            user_id=user_id,
             did=did,
             sn=sn,
             mac=mac,

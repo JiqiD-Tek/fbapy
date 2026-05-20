@@ -28,9 +28,9 @@ class StorageService:
         """生成唯一 UUID（短）"""
         return uuid.uuid4().hex[:6]
 
-    def create_object_name(self, did: str, ext: str = 'jpg') -> str:
+    def create_object_name(self, uid: str, ext: str = 'jpg') -> str:
         filename = f'{self._today()}_{self._uuid()}.{ext}'
-        key = f'{self.product}/{ext}/{did}/{filename}'
+        key = f'{self.product}/{ext}/{uid}/{filename}'
         return key
 
     def get_object_url(self, object_name: str) -> str:
@@ -43,7 +43,7 @@ class StorageService:
 storage_service = StorageService()
 
 if __name__ == '__main__':
-    object_name = storage_service.create_object_name(did='D98BB367386B5B18A815EC31F74B43A6')
+    object_name = storage_service.create_object_name(uid='D98BB367386B5B18A815EC31F74B43A6')
     print(object_name)
     print(storage_service.get_object_url(object_name))
     print(storage_service.get_sign_url(object_name))

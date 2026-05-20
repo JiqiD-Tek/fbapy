@@ -48,7 +48,7 @@ from backend.common.context import ctx
 from backend.common.exception import errors
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceAuth, verify_device_credentials
+from backend.common.security.auth import DependsDeviceAuth, DependsDeviceOrJwtAuth, verify_device_credentials
 from backend.common.security.jwt import DependsJwtAuth, DependsSuperUser
 from backend.common.security.jwt import jwt_encode, jwt_decode
 from backend.core.conf import settings
@@ -230,13 +230,21 @@ async def sts_token(
     return response_base.success(data=data)
 
 
-@router.post('/oss_token/{ext}', summary='阿里云OSS', dependencies=[DependsDeviceAuth])
+@router.post('/oss_token/{ext}', summary='阿里云OSS', dependencies=[DependsDeviceOrJwtAuth])
 async def oss_token(
-        request: Request,
         ext: Annotated[str, Path(description='文件类型')],
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_context: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[OSSToken]:
-    object_name = storage_service.create_object_name(did=device.did, ext=ext)
+    def _resolve_oss_owner_uid(_auth_context: object) -> str:
+        if isinstance(_auth_context, DeviceAuthParam):
+            return _auth_context.did
+        else:
+            owner = getattr(_auth_context, 'uuid', None)
+            if isinstance(owner, str) and owner:
+                return owner
+        return ''
+
+    object_name = storage_service.create_object_name(uid=_resolve_oss_owner_uid(auth_context), ext=ext)
     url = storage_service.get_object_url(object_name)
     sign_url = storage_service.get_sign_url(object_name)
     data = OSSToken(url=url, sign_url=sign_url)
