@@ -124,7 +124,9 @@ class CloudSongService:
             'duration': int(row['duration'] or 0),
             'content_type': row['content_type'],
             'artist': (row['song_artist'] or row['album_artist'] or '').strip(),
+            'album_id': row['album_id'],
             'album': row['album'] or '',
+            'source': 'jiqid',
         }
 
     async def search_resources(
@@ -158,6 +160,7 @@ class CloudSongService:
                 CloudSong.duration.label('duration'),
                 CloudSong.content_type.label('content_type'),
                 CloudSong.artist.label('song_artist'),
+                CloudAlbum.id.label('album_id'),
                 CloudAlbum.artist.label('album_artist'),
                 CloudAlbum.title.label('album'),
             )

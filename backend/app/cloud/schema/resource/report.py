@@ -42,7 +42,7 @@ class ActivityTrendPoint(SchemaBase):
     date: str = Field(description='Date in YYYY-MM-DD format')
     chat_count: int = Field(0, description='Daily AI interaction count')
     duration: int = Field(0, description='Daily usage duration in seconds')
-    player_count: int = Field(0, description='Daily player event count')
+    play_count: int = Field(0, description='Daily play event count')
 
 
 class PlayPreferenceStat(SchemaBase):
@@ -53,7 +53,7 @@ class PlayPreferenceStat(SchemaBase):
 class UsagePreviewOverview(SchemaBase):
     chat_count: int = Field(0, description='AI interaction count')
     duration: int = Field(0, description='Usage duration in seconds')
-    player_count: int = Field(0, description='Player event count')
+    play_count: int = Field(0, description='play event count')
     play_preferences: list[PlayPreferenceStat] = Field(default_factory=list, description='Play preference summary')
 
 

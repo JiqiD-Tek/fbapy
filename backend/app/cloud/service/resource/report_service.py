@@ -48,7 +48,8 @@ ACTIVE_DURATION_SECONDS = 300
 class UsageCounter:
     chat_count: int = 0
     active_count: int = 0
-    player_count: int = 0
+    dialogue_count: int = 0
+    play_count: int = 0
     play_preferences: dict[str, int] = field(default_factory=dict)
 
     @staticmethod
@@ -71,7 +72,7 @@ class UsageCounter:
 
     @classmethod
     def _resolve_play_preference(cls, row: dict[str, Any], service: str) -> str | None:
-        if service != 'player':
+        if service != 'play':
             return None
 
         payload = cls._parse_payload(row.get('payload'))
@@ -82,11 +83,18 @@ class UsageCounter:
         if not isinstance(nested_payload, dict):
             return None
 
-        value = nested_payload.get('category')
-        if not value:
+        content_type = nested_payload.get('content_type')
+        if not content_type:
             return None
 
-        return str(value).strip() or None
+        source = nested_payload.get('source')  # 播放来源
+        if source == 'jiqid':  # 1儿歌 2故事 3哄睡
+            return {1: '儿歌', 2: '故事', 3: '哄睡'}.get(content_type, None)
+
+        if source == 'ximalaya':  #
+            return None  # todo
+
+        return None
 
     @staticmethod
     def _resolve_event_date(row: dict[str, Any]) -> date | None:
@@ -107,8 +115,8 @@ class UsageCounter:
             self.chat_count += 1
         elif service == 'active':
             self.active_count += 1
-        elif service == 'player':
-            self.player_count += 1
+        elif service == 'play':
+            self.play_count += 1
             if play_preference:
                 self.play_preferences[play_preference] = self.play_preferences.get(play_preference, 0) + 1
 
@@ -117,7 +125,7 @@ class UsageCounter:
             date=current_date.isoformat(),
             chat_count=self.chat_count,
             duration=self.active_count * ACTIVE_DURATION_SECONDS,
-            player_count=self.player_count,
+            play_count=self.play_count,
         )
 
     def to_play_preferences(self) -> list[PlayPreferenceStat]:
@@ -290,7 +298,7 @@ class ReportService:
         return UsagePreviewOverview(
             chat_count=counter.chat_count,
             duration=counter.active_count * ACTIVE_DURATION_SECONDS,
-            player_count=counter.player_count,
+            play_count=counter.play_count,
             play_preferences=counter.to_play_preferences(),
         )
 
@@ -308,7 +316,7 @@ class ReportService:
     @staticmethod
     def _section_has_activity(section: UsagePreviewSection) -> bool:
         overview = section.overview
-        return (overview.chat_count + overview.duration + overview.player_count) > 0
+        return (overview.chat_count + overview.duration + overview.play_count) > 0
 
     @staticmethod
     def _section_to_llm_usage(section: UsagePreviewSection) -> dict[str, Any]:
@@ -316,7 +324,7 @@ class ReportService:
             'overview': {
                 'chat_count': section.overview.chat_count,
                 'duration': section.overview.duration,
-                'player_count': section.overview.player_count,
+                'play_count': section.overview.play_count,
                 'play_preferences': [item.model_dump() for item in section.overview.play_preferences],
             },
             'daily_activity': [item.model_dump() for item in section.daily_activity],
@@ -541,7 +549,7 @@ class ReportService:
         for item in daily_counters.values():
             counter.chat_count += item.chat_count
             counter.active_count += item.active_count
-            counter.player_count += item.player_count
+            counter.play_count += item.play_count
             for label, count in item.play_preferences.items():
                 counter.play_preferences[label] = counter.play_preferences.get(label, 0) + count
         return counter

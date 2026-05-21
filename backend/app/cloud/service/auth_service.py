@@ -337,6 +337,7 @@ class AuthService:
             await user_dao.update_model(db, user.id, updates)
             await db.flush()
             await db.refresh(user)
+            await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user.id}')
 
         return user
 
