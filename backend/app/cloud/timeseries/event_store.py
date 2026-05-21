@@ -144,6 +144,9 @@ class EventStore:
 
     @classmethod
     def _serialize_message_payload(cls, topic: str, payload: object) -> str:
+        if isinstance(payload, dict):
+            payload = payload.get('payload', payload)
+
         text = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
         if len(text) > cls.MAX_PAYLOAD_LENGTH:
