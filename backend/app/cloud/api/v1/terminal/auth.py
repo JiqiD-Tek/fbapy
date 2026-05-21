@@ -249,7 +249,8 @@ async def oss_token(
     object_name = storage_service.create_object_name(uid=uid, ext=ext)
     url = storage_service.get_object_url(object_name)
     sign_url = storage_service.get_sign_url(object_name)
-    data = OSSToken(url=url, sign_url=sign_url)
+    signature = storage_service.generate_signature()
+    data = OSSToken(url=url, sign_url=sign_url, signature=signature)
 
     return response_base.success(data=data)
 

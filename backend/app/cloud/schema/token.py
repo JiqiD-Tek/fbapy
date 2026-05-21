@@ -137,3 +137,4 @@ class OSSToken(SchemaBase):
 
     url: str = Field(description='存储路径')
     sign_url: str = Field(description='签名路径')
+    signature: dict = Field(description='签名')

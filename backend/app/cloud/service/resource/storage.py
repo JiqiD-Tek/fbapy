@@ -39,6 +39,9 @@ class StorageService:
     def get_sign_url(self, object_name: str) -> str:
         return oss_client.sign_url(object_name)
 
+    def generate_signature(self):
+        return oss_client.generate_signature()
+
 
 if __name__ == '__main__':
     storage_service = StorageService()

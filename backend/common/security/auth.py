@@ -283,5 +283,8 @@ if __name__ == '__main__':
     MAC = 'ac:27:6e:ac:a1:a0'
     MAC = 'ac:27:6e:ac:a1:90'
     MAC = 'ac:27:6e:ac:a2:3c'
+    MAC = 'ac:27:6e:ac:a2:3d'
+    MAC = 'ac:27:6e:ac:a2:3e'
+    MAC = 'ac:27:6e:ac:a1:a8'
     log.debug(f'MAC: {MAC}')
     main(mac=MAC)
