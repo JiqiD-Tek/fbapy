@@ -113,7 +113,7 @@ class DeviceService:
         return device
 
     @staticmethod
-    async def get_bind_status(*, db: AsyncSession, did: str) -> dict[str, Any]:
+    async def get_bind_state(*, db: AsyncSession, did: str) -> dict[str, Any]:
         device = await DeviceService.get_by_did(db=db, did=did)
 
         user_stmt = (

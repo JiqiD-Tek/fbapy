@@ -14,7 +14,7 @@ from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import (
-    GetDeviceBindStatusDetail,
+    GetDeviceBindStateDetail,
     GetDeviceDetail,
     UpdateDeviceParam, UpdateFirmwareParam,
 )
@@ -33,13 +33,13 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
-@router.post('/bind/status', summary='设备绑定关系', dependencies=[DependsDeviceAuth])
-async def bind_status(
+@router.get('/bind/state', summary='设备绑定关系', dependencies=[DependsDeviceAuth])
+async def bind_state(
         db: CurrentSession,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> ResponseSchemaModel[GetDeviceBindStatusDetail]:
-    data = await device_service.get_bind_status(db=db, did=auth_ctx.did)
-    return response_base.success(data=GetDeviceBindStatusDetail.model_validate(data))
+) -> ResponseSchemaModel[GetDeviceBindStateDetail]:
+    data = await device_service.get_bind_state(db=db, did=auth_ctx.did)
+    return response_base.success(data=GetDeviceBindStateDetail.model_validate(data))
 
 
 @router.post('/bind/token', summary='设备通过配网 token 绑定用户')

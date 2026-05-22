@@ -66,7 +66,7 @@ class GetDeviceDetail(DeviceSchemaBase):
     updated_time: datetime | None = Field(None, description='更新时间')
 
 
-class GetDeviceBindStatusDetail(SchemaBase):
+class GetDeviceBindStateDetail(SchemaBase):
     """设备绑定状态"""
 
     is_bound: bool = Field(description='是否已绑定用户')
