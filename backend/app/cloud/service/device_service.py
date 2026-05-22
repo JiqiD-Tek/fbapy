@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.device.crud_device import device_dao
 from backend.app.cloud.crud.device.crud_device_usage import device_usage_dao
-from backend.app.cloud.model import Baby, Device
+from backend.app.cloud.model import Baby, Device, User
 from backend.app.cloud.model.m2m import user_device
-from backend.app.cloud.schema.device.device import UpdateDeviceParam
+from backend.app.cloud.schema.device.device import UpdateDeviceParam, UpdateFirmwareParam
 from backend.app.cloud.schema.device.device_usage import CreateDeviceUsageParam, UpdateDeviceUsageParam, UsageStatus
 from backend.app.cloud.timeseries.state_store import StateStore
 from backend.common.exception import errors
@@ -113,6 +113,24 @@ class DeviceService:
         return device
 
     @staticmethod
+    async def get_bind_status(*, db: AsyncSession, did: str) -> dict[str, Any]:
+        device = await DeviceService.get_by_did(db=db, did=did)
+
+        user_stmt = (
+            select(User)
+            .join(user_device, user_device.c.user_id == User.id)
+            .where(user_device.c.device_id == device.id)
+            .limit(1)
+        )
+        user_result = await db.execute(user_stmt)
+        user = user_result.scalar_one_or_none()
+
+        return {
+            'is_bound': user is not None,
+            'user': user,
+        }
+
+    @staticmethod
     async def get_all(*, db: AsyncSession) -> Sequence[Device]:
         return await device_dao.get_all(db)
 
@@ -144,11 +162,19 @@ class DeviceService:
         return await device_dao.update(db, pk, obj)
 
     @staticmethod
-    async def delete(*, db: AsyncSession, user_id: int, pk: int) -> int:
-        await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
+    async def update_firmware(*, db: AsyncSession, did: str, obj: UpdateFirmwareParam) -> int:
+        device = await DeviceService.get_by_did(db=db, did=did)
+        return await device_dao.update_model(db, device.id, obj)
+
+    @staticmethod
+    async def delete(*, db: AsyncSession, user_id: int, pk: int) -> Device | None:
+        device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
         await db.execute(update(Baby).where(Baby.device_id == pk).values(device_id=None))
         await db.execute(delete(user_device).where(user_device.c.device_id == pk))
-        return await device_dao.delete(db, pk)
+        count = await device_dao.delete(db, pk)
+        if count <= 0:
+            return None
+        return device
 
 
 device_service: DeviceService = DeviceService()

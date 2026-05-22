@@ -20,12 +20,10 @@ class MessagingService:
     业务化方法命名，便于扩展其他功能
     """
 
-    DEFAULT_MODEL = 'k11'
-
     def __init__(self, mqtt_client: MQTTBroker, did: str, model: str = None) -> None:
         self.client = mqtt_client
         self.did = did
-        self.model = model or self.DEFAULT_MODEL
+        self.model = model
 
     # ---------------- 公共方法 ----------------
     @staticmethod
@@ -38,7 +36,7 @@ class MessagingService:
         :return: 完整消息字典
         """
         return {
-            'msg_id': str(uuid.uuid4().hex),
+            'msg_id': uuid.uuid4().hex,
             'timestamp': timezone.now().timestamp(),
             'type': msg_type,
             'service': service,
@@ -83,7 +81,7 @@ class MessagingService:
         msg = self._build_message(payload, msg_type='command', service='player')
         return await self._publish(topic, msg)
 
-    async def send_system_control(self, target: str, action: str, value: str) -> str:
+    async def send_system_control(self, action: str, target: str, value: str) -> str:
         """下发设备控制指令"""
         payload = {
             'action': action,

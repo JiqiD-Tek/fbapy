@@ -58,13 +58,13 @@ async def control_tool(
         mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         did: Annotated[str, Body(description='设备did')],
         model: Annotated[str, Body(description='设备型号')],
-        target: Annotated[str, Body(description='目标')],
         action: Annotated[str, Body(description='动作')],
+        target: Annotated[str, Body(description='目标')],
         value: Annotated[str | None, Body(description='值')] = None,
 ) -> ResponseModel:
     """设备控制"""
     service = MessagingService(mqtt_client=mqtt_client, did=did, model=model)
-    await service.send_system_control(target=target, action=action, value=value)
+    await service.send_system_control(action=action, target=target, value=value)
 
     return response_base.success()
 

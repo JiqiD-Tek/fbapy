@@ -10,6 +10,7 @@ from datetime import datetime
 
 from pydantic import ConfigDict, Field
 
+from backend.app.cloud.schema.user import GetUserInfoDetail
 from backend.common.schema import SchemaBase
 
 
@@ -42,6 +43,13 @@ class UpdateDeviceParam(DeviceSchemaBase):
     model: str | None = Field(None, description='设备型号')
 
 
+class UpdateFirmwareParam(SchemaBase):
+    """更新设备固件参数"""
+
+    firmware: str = Field(description='固件版本')
+    hardware: str = Field(description='硬件版本')
+
+
 class DeleteDeviceParam(SchemaBase):
     """删除设备参数"""
 
@@ -56,3 +64,10 @@ class GetDeviceDetail(DeviceSchemaBase):
     id: int = Field(description='设备 ID')
     created_time: datetime = Field(description='创建时间')
     updated_time: datetime | None = Field(None, description='更新时间')
+
+
+class GetDeviceBindStatusDetail(SchemaBase):
+    """设备绑定状态"""
+
+    is_bound: bool = Field(description='是否已绑定用户')
+    user: GetUserInfoDetail | None = Field(None, description='绑定用户信息')

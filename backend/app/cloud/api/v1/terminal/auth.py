@@ -112,9 +112,9 @@ async def terminal_login(
         db: CurrentSessionTransaction,
         auth: AuthLoginParam,
         background_tasks: BackgroundTasks,
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[GetLoginToken]:
-    data = await auth_service.login(db=db, auth=auth, device=device, background_tasks=background_tasks)
+    data = await auth_service.login(db=db, auth=auth, device=auth_ctx, background_tasks=background_tasks)
     return response_base.success(data=data)
 
 
@@ -233,13 +233,13 @@ async def sts_token(
 @router.post('/oss_token/{ext}', summary='阿里云OSS', dependencies=[DependsDeviceOrJwtAuth])
 async def oss_token(
         ext: Annotated[str, Path(description='文件类型')],
-        auth_context: object = DependsDeviceOrJwtAuth,
+        auth_ctx: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[OSSToken]:
-    if isinstance(auth_context, DeviceAuthParam):
-        uid = auth_context.did
-        product = auth_context.model
+    if isinstance(auth_ctx, DeviceAuthParam):
+        uid = auth_ctx.did
+        product = auth_ctx.model
     else:
-        owner = getattr(auth_context, 'uuid', None)
+        owner = getattr(auth_ctx, 'uuid', None)
         if not isinstance(owner, str) or not owner:
             raise errors.AuthorizationError(msg='认证信息无效')
         uid = owner
@@ -269,9 +269,9 @@ async def current_location() -> ResponseSchemaModel[CurrentLocation]:
 @router.post('/coze_token', summary='Coze 授权', dependencies=[DependsDeviceAuth])
 async def coze_token(
         db: CurrentSessionTransaction,
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[CozeToken]:
-    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
     quota = 600
 
     config = {
@@ -303,9 +303,9 @@ async def coze_token(
 async def livekit_token(
         db: CurrentSessionTransaction,
         obj: LivekitDeviceParam,  # 业务字段（room/name/metadata）
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[LivekitToken]:
-    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
     quota = 600
 
     token = (
@@ -335,17 +335,17 @@ async def livekit_token(
 @router.post('/fba_token', summary='fba 授权', dependencies=[DependsDeviceAuth])
 async def fba_token(
         db: CurrentSessionTransaction,
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[FbaToken]:
-    # quota = await device_service.allocate_quota(db=db, did=device.did)
+    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
     quota = 600
 
-    baby = await baby_service.get_by_device_did(db=db, did=device.did)
+    baby = await baby_service.get_by_device_did(db=db, did=auth_ctx.did)
 
     now = timezone.now()
     expire_time = now + datetime.timedelta(seconds=quota)
     payload = {
-        'mac': device.mac, 'did': device.did, 'sn': device.sn, 'model': device.model,
+        'mac': auth_ctx.mac, 'did': auth_ctx.did, 'sn': auth_ctx.sn, 'model': auth_ctx.model,
         'baby_id': baby.id if baby is not None else 0,
         'iat': int(timezone.to_utc(now).timestamp()),
         'exp': int(timezone.to_utc(expire_time).timestamp()),
@@ -363,9 +363,9 @@ async def fba_token(
 @router.post('/end_usage', summary='断开会话', dependencies=[DependsDeviceAuth])
 async def end_usage(
         db: CurrentSessionTransaction,
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseModel:
-    # quota = await device_service.end_usage(db=db, did=device.did)
+    # quota = await device_service.end_usage(db=db, did=auth_ctx.did)
     quota = 600
 
     return response_base.success(data=quota)

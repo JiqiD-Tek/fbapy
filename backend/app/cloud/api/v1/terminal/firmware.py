@@ -34,12 +34,12 @@ router = APIRouter()
 async def get_upgrade_firmware(
     db: CurrentSession,
     version_code: Annotated[int, Query(description='当前固件版本代码')],
-    device: DeviceAuthParam = DependsDeviceAuth,
+    auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[GetFirmwareDetail | None]:
     data = await firmware_service.get_upgrade(
         db=db,
-        device_did=device.did,
-        device_model=device.model,
+        device_did=auth_ctx.did,
+        device_model=auth_ctx.model,
         version_code=version_code,
     )
     return response_base.success(data=data)

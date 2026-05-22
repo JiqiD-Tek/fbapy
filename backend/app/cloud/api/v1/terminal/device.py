@@ -8,10 +8,16 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Path, Query, Request, Depends
 
+from backend.common.mqtt_broker import MQTTBroker, get_mqtt
+from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
-from backend.app.cloud.schema.device.device import GetDeviceDetail, UpdateDeviceParam
+from backend.app.cloud.schema.device.device import (
+    GetDeviceBindStatusDetail,
+    GetDeviceDetail,
+    UpdateDeviceParam, UpdateFirmwareParam,
+)
 from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
@@ -27,15 +33,24 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
+@router.post('/bind/status', summary='设备绑定关系', dependencies=[DependsDeviceAuth])
+async def bind_status(
+        db: CurrentSession,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[GetDeviceBindStatusDetail]:
+    data = await device_service.get_bind_status(db=db, did=auth_ctx.did)
+    return response_base.success(data=GetDeviceBindStatusDetail.model_validate(data))
+
+
 @router.post('/bind/token', summary='设备通过配网 token 绑定用户')
 async def bind_device_by_token(
         db: CurrentSessionTransaction,
         obj: MiniProvisionBindParam,
-        device: DeviceAuthParam = DependsDeviceAuth,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[MiniProvisionStatusDetail]:
     data = await auth_service.bind_device_by_mini_provision_token(
         db=db,
-        device=device,
+        device=auth_ctx,
         token=obj.token,
     )
     return response_base.success(data=data)
@@ -125,13 +140,31 @@ async def update_device(
     return response_base.fail()
 
 
-@router.delete('/{pk}', summary='删除设备', dependencies=[DependsJwtAuth])
-async def delete_device(
-        request: Request,
+@router.put('/update', summary='更新设备固件信息', dependencies=[DependsDeviceAuth])
+async def update_device_firmware(
         db: CurrentSessionTransaction,
-        pk: Annotated[int, Path(description='设备 ID')],
+        obj: UpdateFirmwareParam,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseModel:
-    count = await device_service.delete(db=db, user_id=request.user.id, pk=pk)
+    count = await device_service.update_firmware(db=db, did=auth_ctx.did, obj=obj)
     if count > 0:
         return response_base.success()
     return response_base.fail()
+
+
+@router.delete('/{pk}', summary='删除设备', dependencies=[DependsJwtAuth])
+async def delete_device(
+        mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
+        request: Request,
+        db: CurrentSession,
+        pk: Annotated[int, Path(description='设备 ID')],
+) -> ResponseModel:
+    device = await device_service.delete(db=db, user_id=request.user.id, pk=pk)
+    if device is None:
+        return response_base.fail()
+    await db.commit()
+
+    # 设备恢复出厂
+    service = MessagingService(mqtt_client=mqtt_client, did=device.did, model=device.model)
+    await service.send_system_control(action='factory_reset', target='', value='')
+    return response_base.success()
