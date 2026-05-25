@@ -8,9 +8,9 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Request, Depends
+from fastapi import APIRouter, Path, Query, Request
 
-from backend.common.mqtt_broker import MQTTBroker, get_mqtt
+from backend.common.mqtt_broker import MQTTDependency
 from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import (
@@ -154,7 +154,6 @@ async def update_device_firmware(
 
 @router.delete('/{pk}', summary='删除设备', dependencies=[DependsJwtAuth])
 async def delete_device(
-        mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         request: Request,
         db: CurrentSession,
         pk: Annotated[int, Path(description='设备 ID')],
@@ -165,6 +164,7 @@ async def delete_device(
     await db.commit()
 
     # 设备恢复出厂
+    mqtt_client = await MQTTDependency.get_manager()
     service = MessagingService(mqtt_client=mqtt_client, did=device.did, model=device.model)
     await service.send_system_control(action='factory_reset', target='', value='')
     return response_base.success()
