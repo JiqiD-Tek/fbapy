@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_album import cloud_album_dao
@@ -196,6 +197,16 @@ class CloudSongService:
         album = await cloud_album_dao.get(db, obj.album_id)
         if not album:
             raise errors.NotFoundError(msg='专辑不存在')
+
+        logger.info(
+            'normalize_song_with_album: album_id={}, request_content_type={}, request_content_type_type={}, '
+            'album_content_type={}, album_content_type_type={}',
+            obj.album_id,
+            obj.content_type,
+            type(obj.content_type).__name__,
+            album.content_type,
+            type(album.content_type).__name__,
+        )
 
         return obj.model_copy(update={'content_type': album.content_type})
 
