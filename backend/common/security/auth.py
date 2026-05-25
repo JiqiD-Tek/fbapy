@@ -285,6 +285,6 @@ if __name__ == '__main__':
     MAC = 'ac:27:6e:ac:a2:3c'
     MAC = 'ac:27:6e:ac:a2:3d'
     MAC = 'ac:27:6e:ac:a2:3e'
-    MAC = 'ac:27:6e:ac:a1:a8'
+    MAC = 'ac:27:6e:ac:9d:64'
     log.debug(f'MAC: {MAC}')
     main(mac=MAC)

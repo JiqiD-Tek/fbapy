@@ -99,7 +99,7 @@ async def bind_device(
         db: CurrentSessionTransaction,
         obj: UserDeviceParam,
 ) -> ResponseModel:
-    if obj.user_id != request.user.id:
+    if not request.user.is_superuser and obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
 
     await device_service.bind_device(db=db, obj=obj)
@@ -112,7 +112,7 @@ async def unbind_device(
         db: CurrentSession,
         obj: UserDeviceParam,
 ) -> ResponseModel:
-    if obj.user_id != request.user.id:
+    if not request.user.is_superuser and obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
 
     device = await device_service.unbind_device(db=db, obj=obj)
