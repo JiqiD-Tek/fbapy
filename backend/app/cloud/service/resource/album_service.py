@@ -8,7 +8,6 @@
 
 from typing import Any
 
-from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_album import cloud_album_dao
@@ -48,11 +47,6 @@ class CloudAlbumService:
 
     @staticmethod
     async def create_album(*, db: AsyncSession, obj: CreateAlbumParam) -> CloudAlbum:
-        logger.info(
-            'create_album payload: content_type={}, content_type_type={}',
-            obj.content_type,
-            type(obj.content_type).__name__,
-        )
         CloudAlbumService._validate_album_payload(obj.model_dump())
         return await cloud_album_dao.create(db, obj)
 
@@ -63,13 +57,6 @@ class CloudAlbumService:
             raise errors.NotFoundError(msg='专辑不存在')
 
         payload = obj.model_dump(exclude_unset=True)
-        if 'content_type' in payload:
-            logger.info(
-                'update_album payload: album_id={}, content_type={}, content_type_type={}',
-                pk,
-                payload['content_type'],
-                type(payload['content_type']).__name__,
-            )
         if not payload:
             raise errors.RequestError(msg='更新内容不能为空')
         CloudAlbumService._validate_album_payload(
