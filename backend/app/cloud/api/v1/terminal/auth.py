@@ -314,7 +314,7 @@ async def livekit_token(
             api_key=settings.LIVEKIT_API_KEY,
             api_secret=settings.LIVEKIT_API_SECRET,
         )
-        .with_identity(identity=device.did)
+        .with_identity(identity=auth_ctx.did)
         .with_name(name=obj.name)
         .with_metadata(metadata=obj.metadata)
         .with_ttl(ttl=datetime.timedelta(seconds=quota))
