@@ -9,15 +9,17 @@
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.device.crud_device import device_dao
 from backend.app.cloud.crud.device.crud_device_usage import device_usage_dao
 from backend.app.cloud.model import Baby, Device, User
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.device.device import UpdateDeviceParam, UpdateFirmwareParam
 from backend.app.cloud.schema.device.device_usage import CreateDeviceUsageParam, UpdateDeviceUsageParam, UsageStatus
+from backend.app.cloud.schema.user import UserDeviceParam
 from backend.app.cloud.timeseries.state_store import StateStore
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
@@ -106,6 +108,39 @@ class DeviceService:
         return await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
 
     @staticmethod
+    async def bind_device(*, db: AsyncSession, obj: UserDeviceParam) -> None:
+        if await user_dao.get(db, obj.user_id) is None:
+            raise errors.NotFoundError(msg='用户不存在')
+        if await device_dao.get(db, obj.device_id) is None:
+            raise errors.NotFoundError(msg='设备不存在')
+
+        result = await db.execute(select(user_device.c.user_id).where(user_device.c.device_id == obj.device_id))
+        bound_user_ids = set(result.scalars().all())
+        if obj.user_id in bound_user_ids:
+            return None
+        if bound_user_ids:
+            raise errors.ConflictError(msg='该设备已绑定其他用户')
+
+        await db.execute(insert(user_device), obj.model_dump())
+        return None
+
+    @staticmethod
+    async def unbind_device(*, db: AsyncSession, obj: UserDeviceParam) -> Device:
+        device = await DeviceService._ensure_user_has_device(db=db, user_id=obj.user_id, device_id=obj.device_id)
+        await db.execute(
+            update(Baby)
+            .where(Baby.user_id == obj.user_id, Baby.device_id == obj.device_id)
+            .values(device_id=None)
+        )
+        await db.execute(
+            delete(user_device).where(
+                user_device.c.user_id == obj.user_id,
+                user_device.c.device_id == obj.device_id,
+            )
+        )
+        return device
+
+    @staticmethod
     async def get_by_did(*, db: AsyncSession, did: str) -> Device:
         device = await device_dao.get_by_did(db, did)
         if not device:
@@ -136,12 +171,12 @@ class DeviceService:
 
     @staticmethod
     async def get_list(
-        *,
-        db: AsyncSession,
-        did: str | None = None,
-        sn: str | None = None,
-        mac: str | None = None,
-        model: str | None = None,
+            *,
+            db: AsyncSession,
+            did: str | None = None,
+            sn: str | None = None,
+            mac: str | None = None,
+            model: str | None = None,
     ) -> dict[str, Any]:
         device_select = await device_dao.get_select(
             did=did,

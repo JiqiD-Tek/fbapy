@@ -1,7 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Request
+from fastapi import APIRouter, Query, Request, Depends
 
+from backend.app.cloud.service.device_service import device_service
+from backend.common.mqtt_broker import MQTTBroker, get_mqtt
+from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.schema.baby import GetBabyDetail
 from backend.app.cloud.schema.device.device import GetDeviceDetail
 from backend.app.cloud.schema.user import GetUserInfoDetail, UserDeviceParam
@@ -58,6 +61,20 @@ async def get_cloud_user_devices(
     return response_base.success(data=data)
 
 
+@router.delete('/me', summary='注销当前用户', dependencies=[DependsJwtAuth])
+async def delete_cloud_user(
+        request: Request,
+        db: CurrentSession,
+) -> ResponseModel:
+    count, device_ids = await user_service.delete_current_user(db=db, user_id=request.user.id)
+    await db.commit()
+    for device_id in device_ids:
+        await baby_service.invalidate_timeseries_baby_cache(db=db, device_id=device_id)
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
+
+
 @router.post('/bind', summary='设备绑定', dependencies=[DependsJwtAuth])
 async def bind_device(
         request: Request,
@@ -67,18 +84,25 @@ async def bind_device(
     if obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
 
-    await user_service.bind_device(db=db, obj=obj)
+    await device_service.bind_device(db=db, obj=obj)
     return response_base.success()
 
 
 @router.post('/unbind', summary='设备解绑', dependencies=[DependsJwtAuth])
 async def unbind_device(
+        mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         request: Request,
-        db: CurrentSessionTransaction,
+        db: CurrentSession,
         obj: UserDeviceParam,
 ) -> ResponseModel:
     if obj.user_id != request.user.id:
         raise errors.RequestError(msg='无权操作其他用户')
 
-    await user_service.unbind_device(db=db, obj=obj)
+    device = await device_service.unbind_device(db=db, obj=obj)
+    await db.commit()
+    await baby_service.invalidate_timeseries_baby_cache(db=db, device_id=device.id)
+
+    # 设备解绑
+    service = MessagingService(mqtt_client=mqtt_client, did=device.did, model=device.model)
+    await service.send_system_control(action='unbind', target='', value='')
     return response_base.success()

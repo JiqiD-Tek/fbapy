@@ -27,6 +27,7 @@ from backend.app.cloud.schema.user import (
     MiniProgramProfileParam,
     UserDeviceParam,
 )
+from backend.app.cloud.service.device_service import device_service
 from backend.app.cloud.service.user_service import user_service
 from backend.common.providers.mini_service import mini_service
 from backend.common.context import ctx
@@ -259,7 +260,7 @@ class AuthService:
             if payload.user_id in bound_user_ids:
                 msg = '设备已绑定当前用户'
             else:
-                await user_service.bind_device(
+                await device_service.bind_device(
                     db=db,
                     obj=UserDeviceParam(user_id=payload.user_id, device_id=device_model.id),
                 )
@@ -383,7 +384,7 @@ class AuthService:
         device = await self._register_device(db, device)
         user = await self._register_user(db, auth)
         # 绑定设备
-        await user_service.bind_device(db=db, obj=UserDeviceParam(user_id=user.id, device_id=device.id))
+        await device_service.bind_device(db=db, obj=UserDeviceParam(user_id=user.id, device_id=device.id))
 
         return user
 

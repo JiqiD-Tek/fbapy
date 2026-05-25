@@ -25,7 +25,7 @@ class BabyService:
     """宝宝服务类"""
 
     @staticmethod
-    async def _invalidate_timeseries_baby_cache(*, db: AsyncSession, device_id: int | None) -> None:
+    async def invalidate_timeseries_baby_cache(*, db: AsyncSession, device_id: int | None) -> None:
         if device_id is None:
             return
 
@@ -126,7 +126,7 @@ class BabyService:
             user_id=user_id,
         )
         baby = await baby_dao.create(db, baby_data)
-        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
+        await BabyService.invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
         return baby
 
     @staticmethod
@@ -139,7 +139,7 @@ class BabyService:
         baby = await BabyService._ensure_user_has_baby(db=db, user_id=user_id, baby_id=pk)
         count = await baby_dao.delete(db, pk)
         if count > 0:
-            await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=baby.device_id)
+            await BabyService.invalidate_timeseries_baby_cache(db=db, device_id=baby.device_id)
         return count
 
     @staticmethod
@@ -174,8 +174,8 @@ class BabyService:
             .values(device_id=None)
         )
         await baby_dao.update_model(db, obj.baby_id, {'device_id': obj.device_id})
-        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=previous_device_id)
-        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
+        await BabyService.invalidate_timeseries_baby_cache(db=db, device_id=previous_device_id)
+        await BabyService.invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
 
     @staticmethod
     async def unbind_device_baby(*, db: AsyncSession, user_id: int, obj: DeviceBabyParam) -> None:
@@ -188,7 +188,7 @@ class BabyService:
         if baby.device_id != obj.device_id:
             raise errors.RequestError(msg='宝宝未绑定该设备')
         await baby_dao.update_model(db, obj.baby_id, {'device_id': None})
-        await BabyService._invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
+        await BabyService.invalidate_timeseries_baby_cache(db=db, device_id=obj.device_id)
 
 
 baby_service: BabyService = BabyService()
