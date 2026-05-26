@@ -287,9 +287,12 @@ class EventStore:
 
     @classmethod
     async def _flush_batch(cls, items: list[TSDBInsertItem]) -> None:
-        sql_fragments = [item.table.insert_sql(subtable_name=item.subtable_name, values=item.values, tags=item.tags) for
-                         item in items]
-        sql = ' '.join(sql_fragments)
+        sql_fragments = [
+            item.table.insert_sql(subtable_name=item.subtable_name, values=item.values, tags=item.tags)
+            for item in items
+        ]
+        first_sql, *rest_sql = sql_fragments
+        sql = ' '.join([first_sql, *(fragment.removeprefix('INSERT INTO ') for fragment in rest_sql)])
         await tsdb.write(sql)
         observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
 
