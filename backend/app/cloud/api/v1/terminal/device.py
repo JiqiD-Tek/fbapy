@@ -140,7 +140,7 @@ async def update_device(
     return response_base.fail()
 
 
-@router.put('/update', summary='更新设备固件信息', dependencies=[DependsDeviceAuth])
+@router.put('/firmware/update', summary='更新设备固件信息', dependencies=[DependsDeviceAuth])
 async def update_device_firmware(
         db: CurrentSessionTransaction,
         obj: UpdateFirmwareParam,
