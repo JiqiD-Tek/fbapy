@@ -79,15 +79,11 @@ class UsageCounter:
         if payload is None:
             return None
 
-        nested_payload = payload.get('payload')
-        if not isinstance(nested_payload, dict):
-            return None
-
-        content_type = nested_payload.get('content_type')
+        content_type = payload.get('content_type')
         if not content_type:
             return None
 
-        source = nested_payload.get('source')  # 播放来源
+        source = payload.get('source')  # 播放来源
         if source == 'jiqid':  # 1儿歌 2故事 3哄睡
             return {1: '儿歌', 2: '故事', 3: '哄睡'}.get(content_type, None)
 
