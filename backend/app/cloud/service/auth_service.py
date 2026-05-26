@@ -66,7 +66,7 @@ class AuthService:
 
         access_token_data = await create_access_token(
             user.id,
-            multi_login=True,
+            multi_login=False,
             username=user.username,
             nickname=user.nickname,
             last_login_time=timezone.to_str(user.last_login_time),
@@ -79,7 +79,7 @@ class AuthService:
         refresh_token_data = await create_refresh_token(
             access_token_data.session_uuid,
             user.id,
-            multi_login=True,
+            multi_login=False,
         )
 
         return GetLoginToken(
