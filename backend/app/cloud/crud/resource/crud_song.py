@@ -30,7 +30,7 @@ class CRUDCloudSong(CRUDPlus[CloudSong]):
         if status is not None:
             filters['status'] = status
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('track_no', **filters)
 
     async def get_all(self, db: AsyncSession) -> Sequence[CloudSong]:
         return await self.select_models(db)
