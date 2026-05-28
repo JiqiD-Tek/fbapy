@@ -230,15 +230,20 @@ class EventStore:
         }
 
     @classmethod
-    def _build_insert_values(cls, message_ctx: MQTTMessageContext, route: MQTTEventRoute) -> dict[str, object]:
+    def _build_insert_values(
+            cls,
+            message_ctx: MQTTMessageContext,
+            route: MQTTEventRoute,
+            payload: object,
+    ) -> dict[str, object]:
         return {
             'ts': int(message_ctx.timestamp * 1000),
             'event_id': uuid.uuid4().hex,
             'did': route.did,
             'category': route.category,
-            'service': cls._resolve_service_name(message_ctx.payload),
+            'service': cls._resolve_service_name(payload),
             'topic': message_ctx.topic,
-            'payload': cls._serialize_message_payload(message_ctx.topic, message_ctx.payload),
+            'payload': cls._serialize_message_payload(message_ctx.topic, payload),
         }
 
     @classmethod
@@ -347,7 +352,7 @@ class EventStore:
         return [dict(zip(column_names, row, strict=False)) for row in rows]
 
     @classmethod
-    async def insert(cls, message_ctx: MQTTMessageContext) -> None:
+    async def insert(cls, message_ctx: MQTTMessageContext, *, payload: object) -> None:
         """Persist one MQTT message into the matching TSDB subtable."""
 
         if not cls._ensure_tsdb_write_ready(action='message insert'):
@@ -375,7 +380,7 @@ class EventStore:
                 table=table,
                 subtable_name=cls._resolve_subtable_name(model_key, baby_id),
                 tags=cls._build_insert_tags(baby_id=baby_id),
-                values=cls._build_insert_values(message_ctx, route),
+                values=cls._build_insert_values(message_ctx, route, payload),
             )
             await asyncio.wait_for(
                 cls.TSDB_WRITE_QUEUE.put(item),

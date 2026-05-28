@@ -67,10 +67,20 @@ class MQTTMessageContext:
     """MQTT 消息上下文。"""
 
     topic: str
-    payload: Any
+    payload: bytes
     qos: int
     retain: bool
     timestamp: float
+
+
+@dataclass(frozen=True, slots=True)
+class MQTTPublishResult:
+    topic: str
+    qos: int
+    retain: bool
+    mid: int | None
+    published: bool
+    error: str | None = None
 
 
 # 消息回调函数类型定义
@@ -320,24 +330,9 @@ class MQTTBroker:
         """接收到消息时的回调。"""
         topic = message.topic
 
-        # 1. 解码消息负载
-        try:
-            payload_bytes = message.payload
-            if payload_bytes:
-                payload_str = payload_bytes.decode('utf-8')
-                try:
-                    payload = json.loads(payload_str)
-                except json.JSONDecodeError:
-                    payload = payload_str  # 非 JSON 格式，保持为字符串
-            else:
-                payload = None
-        except Exception as e:
-            log.error(f'解码消息负载失败 (主题: {topic}): {e}')
-            return
-
         message_ctx = MQTTMessageContext(
             topic=topic,
-            payload=payload,
+            payload=bytes(message.payload or b''),
             qos=message.qos,
             retain=message.retain,
             timestamp=timezone.now().timestamp(),
@@ -644,12 +639,19 @@ class MQTTBroker:
 
     async def publish(
             self, topic: str, payload: str | dict | bytes | None = None, qos: int = 1, retain: bool = False
-    ) -> bool:
+    ) -> MQTTPublishResult:
         """发布消息到指定主题。"""
         qos = self._validate_qos(qos)
         if not self.connected or not self.client:
             log.warning(f'无法发布到 {topic}: 客户端未连接')
-            return False
+            return MQTTPublishResult(
+                topic=topic,
+                qos=qos,
+                retain=retain,
+                mid=None,
+                published=False,
+                error='mqtt client is not connected',
+            )
 
         try:
             # 负载编码处理
@@ -668,14 +670,38 @@ class MQTTBroker:
             # paho-mqtt 的 publish 是非阻塞的
             info = self.client.publish(topic, final_payload, qos=qos, retain=retain)
 
-            # 可以选择等待消息发送完成，但通常不需要
-            # info.wait_for_publish()
+            if info.rc != mqtt.MQTT_ERR_SUCCESS:
+                error = mqtt.error_string(info.rc)
+                log.error(f'发布到 {topic} 失败: rc={info.rc}, error={error}, mid={info.mid}')
+                return MQTTPublishResult(
+                    topic=topic,
+                    qos=qos,
+                    retain=retain,
+                    mid=info.mid,
+                    published=False,
+                    error=error,
+                )
+
+            await asyncio.to_thread(info.wait_for_publish, self.config.unsubscribe_timeout)
 
             log.debug(f'已发布消息到 {topic} (QoS: {qos}, Retain: {retain}, Mid: {info.mid})')
-            return True
+            return MQTTPublishResult(
+                topic=topic,
+                qos=qos,
+                retain=retain,
+                mid=info.mid,
+                published=True,
+            )
         except Exception as e:
             log.error(f'发布到 {topic} 失败: {e}', exc_info=True)
-            return False
+            return MQTTPublishResult(
+                topic=topic,
+                qos=qos,
+                retain=retain,
+                mid=None,
+                published=False,
+                error=str(e),
+            )
 
     async def disconnect(self) -> None:
         """优雅关闭连接。"""

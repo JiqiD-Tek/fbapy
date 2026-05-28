@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import json
 import time
 
 from backend.common.log import log
@@ -21,7 +22,12 @@ async def main() -> None:
 
     async def on_message(message_ctx: MQTTMessageContext) -> None:
         """全局消息处理回调示例。"""
-        log.info(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
+        payload = message_ctx.payload.decode('utf-8') if message_ctx.payload else ''
+        try:
+            payload = json.loads(payload) if payload else None
+        except ValueError:
+            pass
+        log.info(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {payload}')
 
     # 客户端订阅主题
     await mqtt.subscribe(f'js61/{client_id}/up/property', on_message)

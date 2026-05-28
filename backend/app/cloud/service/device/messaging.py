@@ -9,6 +9,7 @@
 import json
 import uuid
 
+from backend.common.exception import errors
 from backend.common.mqtt_broker import MQTTBroker
 from backend.utils.timezone import timezone
 
@@ -50,7 +51,9 @@ class MessagingService:
         :param message: 消息字典
         :return: msg_id
         """
-        await self.client.publish(topic, json.dumps(message))
+        result = await self.client.publish(topic, message)
+        if not result.published:
+            raise errors.ServerError(msg=f'MQTT publish failed: {result.error or "unknown error"}')
         return message['msg_id']
 
     # ---------------- 业务方法 ----------------
