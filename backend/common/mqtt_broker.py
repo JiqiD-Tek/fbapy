@@ -747,6 +747,14 @@ async def on_message(message_ctx: MQTTMessageContext) -> None:
 
     if route.category == 'event':
         try:
+            await StateStore.touch(
+                route=route,
+                timestamp=message_ctx.timestamp,
+            )
+        except Exception as exc:
+            log.debug(f'更新设备状态时间戳失败: {exc}', exc_info=True)
+
+        try:
             await EventStore.insert(message_ctx)
         except Exception as exc:
             log.debug(f'保存历史消息失败: {exc}', exc_info=True)

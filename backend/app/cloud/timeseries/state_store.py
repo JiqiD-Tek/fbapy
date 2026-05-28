@@ -118,7 +118,7 @@ class StateStore:
             patch: dict[str, Any],
             timestamp: float | None,
     ) -> StateSnapshot:
-        resolved_timestamp = float(timestamp) if timestamp is not None else (current.timestamp if current else 0.0)
+        resolved_timestamp = int(float(timestamp)) if timestamp is not None else (current.timestamp if current else 0)
         base = current or StateSnapshot(
             did=did,
             model=model.lower(),
@@ -144,6 +144,14 @@ class StateStore:
             return None
 
     @classmethod
+    async def _save_snapshot(cls, snapshot: StateSnapshot) -> None:
+        await redis_client.set(
+            cls._cache_key(snapshot.did),
+            json.dumps(asdict(snapshot), ensure_ascii=False, default=str),
+            ex=cls.STATE_TTL_SECONDS,
+        )
+
+    @classmethod
     async def update(cls, *, route: MQTTEventRoute, payload: Any, timestamp: float | None = None) -> None:
         if not route.did:
             return
@@ -159,13 +167,28 @@ class StateStore:
         )
 
         try:
-            await redis_client.set(
-                cls._cache_key(route.did),
-                json.dumps(asdict(snapshot), ensure_ascii=False, default=str),
-                ex=cls.STATE_TTL_SECONDS,
-            )
+            await cls._save_snapshot(snapshot)
         except Exception as exc:
             log.debug(f'update device state failed, did={route.did}, error={exc}', exc_info=True)
+
+    @classmethod
+    async def touch(cls, *, route: MQTTEventRoute, timestamp: float | None = None) -> None:
+        if not route.did:
+            return
+
+        current = await cls._load_snapshot(route.did)
+        snapshot = cls._merge_snapshot(
+            did=route.did,
+            model=route.model,
+            current=current,
+            patch={},
+            timestamp=timestamp,
+        )
+
+        try:
+            await cls._save_snapshot(snapshot)
+        except Exception as exc:
+            log.debug(f'touch device state failed, did={route.did}, error={exc}', exc_info=True)
 
     @classmethod
     async def get(cls, did: str) -> dict[str, Any] | None:
