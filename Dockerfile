@@ -1,8 +1,11 @@
 # Select the image to build based on SERVER_TYPE, defaulting to fba_server, or docker-compose build args
 ARG SERVER_TYPE=fba_server
+ARG FBA_HOME=/fba
 
 # === Python environment from uv ===
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+
+ARG FBA_HOME
 
 # Used for build Python packages
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
@@ -10,28 +13,34 @@ RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debi
     && apt-get install -y --no-install-recommends gcc python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . /fba
-
-WORKDIR /fba
+WORKDIR ${FBA_HOME}
 
 # Configure uv environment
 ENV UV_COMPILE_BYTECODE=1 \
-    UV_NO_CACHE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/usr/local
 
-# Install dependencies with cache
+# Install Python dependencies first so normal source changes do not invalidate this layer.
+COPY pyproject.toml uv.lock ./
+
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-default-groups --group server --no-install-project
 
-# Preinstall plugin dependencies
+# Copy only plugin-related sources before installing plugin requirements, so ordinary
+# backend code changes do not force plugin dependency reinstallation.
+COPY backend/core ./backend/core
+COPY backend/plugin ./backend/plugin
+
 RUN --mount=type=cache,target=/root/.cache/uv \
     python -c "from backend.plugin.requirements import install_requirements; install_requirements(None)"
 
+# Copy the rest of the project after dependencies are ready.
+COPY . ${FBA_HOME}
+
 # === Runtime base server image ===
 FROM python:3.13-slim AS base_server
+
+ARG FBA_HOME
 
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
@@ -46,13 +55,13 @@ RUN mkdir -p /usr/local/bin \
 
 ENV PATH="/root/.local/bin/:$PATH"
 
-COPY --from=builder /fba /fba
+COPY --from=builder ${FBA_HOME} ${FBA_HOME}
 
 COPY --from=builder /usr/local /usr/local
 
 COPY deploy/backend/supervisor/supervisord.conf /etc/supervisor/supervisord.conf
 
-WORKDIR /fba/backend
+WORKDIR ${FBA_HOME}/backend
 
 # === FastAPI server image ===
 FROM base_server AS fba_server
