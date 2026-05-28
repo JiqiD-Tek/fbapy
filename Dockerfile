@@ -28,6 +28,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy only plugin-related sources before installing plugin requirements, so ordinary
 # backend code changes do not force plugin dependency reinstallation.
+COPY backend/.env.example ./backend/.env.example
+COPY backend/.env ./backend/.env
 COPY backend/core ./backend/core
 COPY backend/plugin ./backend/plugin
 
