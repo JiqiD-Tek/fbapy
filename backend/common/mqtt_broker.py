@@ -7,12 +7,15 @@
 """
 
 import asyncio
+import inspect
 import json
+import math
 import random
 import uuid
+import zlib
 
 from asyncio import Queue, QueueEmpty
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from enum import Enum
@@ -24,9 +27,6 @@ import paho.mqtt.client as mqtt
 from jose import jwt
 from paho.mqtt.matcher import MQTTMatcher
 
-from backend.app.cloud.timeseries.state_store import StateStore
-from backend.app.cloud.timeseries.event_store import EventStore
-from backend.app.cloud.timeseries.mqtt_route import normalize_mqtt_payload, parse_mqtt_topic
 from backend.common.log import log
 from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
 from backend.core.conf import settings
@@ -47,7 +47,7 @@ class MQTTConfig:
     host: str = field(default_factory=lambda: settings.MQTT_HOST)
     port: int = field(default_factory=lambda: settings.MQTT_PORT)
     username: str | None = field(default_factory=lambda: settings.MQTT_USERNAME)
-    password: str | None = field(default_factory=lambda: settings.MQTT_PASSWORD)
+    password: str | None = None
     ssl: bool = False
     ssl_context: Any = None
     version: MQTTVersion = MQTTVersion.V5
@@ -75,6 +75,7 @@ class MQTTMessageContext:
 
 # 消息回调函数类型定义
 MessageCallback: TypeAlias = Callable[[MQTTMessageContext], None | Awaitable[None]]
+CallbackShardKeyExtractor: TypeAlias = Callable[[MQTTMessageContext], str | None]
 
 
 class MQTTConnectionError(Exception):
@@ -82,9 +83,17 @@ class MQTTConnectionError(Exception):
 
 
 @dataclass(slots=True)
-class MQTTCallbackItem:
-    callback: MessageCallback
+class MQTTDispatchItem:
+    callbacks: tuple[MessageCallback, ...]
     message_ctx: MQTTMessageContext
+
+
+@dataclass(slots=True)
+class _QueueGroupView:
+    queues: tuple[Queue[Any], ...]
+
+    def qsize(self) -> int:
+        return sum(queue.qsize() for queue in self.queues)
 
 
 class MQTTBroker:
@@ -109,6 +118,7 @@ class MQTTBroker:
         # key: actual_filter (str), value: {callback_id: MessageCallback}
         self._matcher = MQTTMatcher()
         self._matcher_callbacks: dict[str, dict[int, MessageCallback]] = {}
+        self._callback_shard_key_extractors: dict[int, CallbackShardKeyExtractor | None] = {}
         self._callback_id_counter = 0
 
         # 异步事件用于控制连接循环
@@ -122,7 +132,13 @@ class MQTTBroker:
 
         self._connection_task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._callback_queue: Queue[MQTTCallbackItem] = Queue(maxsize=settings.MQTT_CALLBACK_QUEUE_MAXSIZE)
+        self._callback_shards = max(1, settings.MQTT_CALLBACK_SHARDS)
+        self._callback_queue_maxsize = max(1, settings.MQTT_CALLBACK_QUEUE_MAXSIZE)
+        self._callback_queue_shard_maxsize = max(1, math.ceil(self._callback_queue_maxsize / self._callback_shards))
+        self._callback_queues: list[Queue[MQTTDispatchItem]] = [
+            Queue(maxsize=self._callback_queue_shard_maxsize) for _ in range(self._callback_shards)
+        ]
+        self._callback_queue_view = _QueueGroupView(tuple(self._callback_queues))
         self._callback_tasks: list[asyncio.Task] = []
         self._callback_started = False
         self._callback_start_lock = asyncio.Lock()
@@ -136,39 +152,79 @@ class MQTTBroker:
                 return
 
             self._callback_tasks = [
-                asyncio.create_task(self._callback_worker(index), name=f'mqtt_callback_worker_{index}')
-                for index in range(settings.MQTT_CALLBACK_WORKERS)
+                asyncio.create_task(
+                    self._callback_worker(shard_id=shard_id),
+                    name=f'mqtt_callback_worker_{shard_id}',
+                )
+                for shard_id in range(self._callback_shards)
             ]
             self._callback_started = True
-            observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+            self._observe_callback_queue_sizes()
 
-    def _enqueue_callback_items_nowait(self, items: list[MQTTCallbackItem]) -> None:
-        for item in items:
+    def _observe_callback_queue_sizes(self) -> None:
+        observe_queue_size(self._callback_queue_view, queue_name='mqtt_callback')
+
+    @staticmethod
+    def _resolve_shard_id_from_key(shard_key: str, shard_count: int) -> int:
+        return zlib.crc32(shard_key.encode('utf-8')) % shard_count
+
+    def _resolve_callback_shard_id(
+            self,
+            *,
+            message_ctx: MQTTMessageContext,
+            shard_key_extractor: CallbackShardKeyExtractor | None,
+    ) -> int:
+        shard_key: str | None = None
+        if shard_key_extractor is not None:
             try:
-                self._callback_queue.put_nowait(item)
-                observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
-            except asyncio.QueueFull:
-                inc_queue_exception(queue_name='mqtt_callback')
-                log.warning(f'MQTT callback queue is full, dropping message: {item.message_ctx.topic}')
-                return
+                shard_key = shard_key_extractor(message_ctx)
+            except Exception as exc:
+                log.error(f'MQTT shard key extractor failed: {exc}', exc_info=True)
 
-    async def _callback_worker(self, worker_id: int) -> None:
+        if shard_key:
+            return self._resolve_shard_id_from_key(shard_key, self._callback_shards)
+
+        return self._resolve_shard_id_from_key(message_ctx.topic, self._callback_shards)
+
+    def _enqueue_dispatch_item_nowait(self, shard_id: int, item: MQTTDispatchItem) -> None:
+        queue = self._callback_queues[shard_id]
+        try:
+            queue.put_nowait(item)
+            self._observe_callback_queue_sizes()
+        except asyncio.QueueFull:
+            inc_queue_exception(queue_name='mqtt_callback')
+            log.warning(
+                f'MQTT callback shard queue is full, dropping message: shard={shard_id}, topic={item.message_ctx.topic}'
+            )
+
+    def _enqueue_dispatch_items_nowait(self, items: list[tuple[int, MQTTDispatchItem]]) -> None:
+        for shard_id, item in items:
+            self._enqueue_dispatch_item_nowait(shard_id, item)
+
+    async def _callback_worker(self, *, shard_id: int) -> None:
+        queue = self._callback_queues[shard_id]
         while True:
-            item = await self._callback_queue.get()
-            observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+            item = await queue.get()
+            self._observe_callback_queue_sizes()
             try:
                 await self._run_callback(item)
             except Exception as exc:
                 inc_queue_exception(queue_name='mqtt_callback')
-                log.error(f'MQTT callback worker {worker_id} failed: {exc}', exc_info=True)
+                log.error(f'MQTT callback worker failed: shard={shard_id}, error={exc}', exc_info=True)
             finally:
-                self._callback_queue.task_done()
+                queue.task_done()
 
     @staticmethod
-    async def _run_callback(item: MQTTCallbackItem) -> None:
-        result = item.callback(item.message_ctx)
-        if asyncio.iscoroutine(result):
-            await result
+    async def _run_callback(item: MQTTDispatchItem) -> None:
+        for callback in item.callbacks:
+            try:
+                result = callback(item.message_ctx)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                inc_queue_exception(queue_name='mqtt_callback')
+                callback_name = getattr(callback, '__qualname__', getattr(callback, '__name__', repr(callback)))
+                log.error(f'MQTT callback failed: callback={callback_name}, topic={item.message_ctx.topic}, error={exc}', exc_info=True)
 
     async def _shutdown_callback_workers(self) -> None:
         for task in self._callback_tasks:
@@ -180,14 +236,15 @@ class MQTTBroker:
         self._callback_tasks.clear()
         self._callback_started = False
 
-        while True:
-            try:
-                self._callback_queue.get_nowait()
-                self._callback_queue.task_done()
-            except QueueEmpty:
-                break
+        for queue in self._callback_queues:
+            while True:
+                try:
+                    queue.get_nowait()
+                    queue.task_done()
+                except QueueEmpty:
+                    break
 
-        observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
+        self._observe_callback_queue_sizes()
 
     async def connect(self) -> bool:
         """
@@ -286,23 +343,34 @@ class MQTTBroker:
             timestamp=timezone.now().timestamp(),
         )
 
-        # 2. 查找匹配的回调函数，并交给有界调度队列
-        callback_items: list[MQTTCallbackItem] = []
+        # 2. 查找匹配的回调函数，并按分片交给有界调度队列
+        dispatch_items: list[tuple[int, MQTTDispatchItem]] = []
         with self._callback_lock:
             # 使用 MQTTMatcher 查找所有匹配该主题的订阅回调
             for callbacks in self._matcher.iter_match(topic):
                 if not isinstance(callbacks, dict):
                     continue
-                callback_items.extend(
-                    MQTTCallbackItem(
-                        callback=callback,
+                shard_buckets: dict[int, list[MessageCallback]] = {}
+                for callback_id, callback in callbacks.items():
+                    shard_id = self._resolve_callback_shard_id(
                         message_ctx=message_ctx,
+                        shard_key_extractor=self._callback_shard_key_extractors.get(callback_id),
                     )
-                    for callback in callbacks.values()
+                    shard_buckets.setdefault(shard_id, []).append(callback)
+
+                dispatch_items.extend(
+                    (
+                        shard_id,
+                        MQTTDispatchItem(
+                            callbacks=tuple(bucket_callbacks),
+                            message_ctx=message_ctx,
+                        ),
+                    )
+                    for shard_id, bucket_callbacks in shard_buckets.items()
                 )
 
-        if callback_items:
-            self._call_loop_threadsafe(self._enqueue_callback_items_nowait, callback_items)
+        if dispatch_items:
+            self._call_loop_threadsafe(self._enqueue_dispatch_items_nowait, dispatch_items)
 
     @staticmethod
     def _extract_actual_filter(topic: str) -> str:
@@ -461,7 +529,13 @@ class MQTTBroker:
         except Exception as e:
             log.error(f'批量重新订阅过程中发生错误: {e}')
 
-    async def subscribe(self, topic: str, callback: MessageCallback, qos: int = 1) -> int:
+    async def subscribe(
+            self,
+            topic: str,
+            callback: MessageCallback,
+            qos: int = 1,
+            shard_key_extractor: CallbackShardKeyExtractor | None = None,
+    ) -> int:
         """
         订阅一个主题并注册回调函数。
         返回一个用于取消订阅的 callback_id。
@@ -483,6 +557,7 @@ class MQTTBroker:
                 topic_qos_map = self._subscriptions_qos.setdefault(topic, {})
                 topic_callbacks[callback_id] = callback
                 topic_qos_map[callback_id] = qos
+                self._callback_shard_key_extractors[callback_id] = shard_key_extractor
 
                 # 使用独立的 matcher 存储，避免不同 topic 共享同一 actual_filter 时互相覆盖
                 matcher_callbacks = self._matcher_callbacks.get(actual_filter)
@@ -526,6 +601,7 @@ class MQTTBroker:
                     previous_qos = self._max_qos(topic_qos_map, default=1)
                     del topic_callbacks[callback_id]
                     topic_qos_map.pop(callback_id, None)
+                    self._callback_shard_key_extractors.pop(callback_id, None)
                     if matcher_callbacks is not None:
                         matcher_callbacks.pop(callback_id, None)
                     log.debug(f'已移除主题 {topic} 的回调 ID: {callback_id}')
@@ -538,6 +614,7 @@ class MQTTBroker:
                     for callback_key in callback_ids:
                         if matcher_callbacks is not None:
                             matcher_callbacks.pop(callback_key, None)
+                        self._callback_shard_key_extractors.pop(callback_key, None)
                     topic_callbacks.clear()
                     topic_qos_map.clear()
 
@@ -665,8 +742,6 @@ class MQTTDependency:
                     cls._instance = None
                     raise MQTTConnectionError('无法初始化 MQTT 管理器：连接失败')
 
-                # 4. 注册全局订阅
-                await register_subscriptions(cls._instance)
             return cls._instance
 
     @classmethod
@@ -701,15 +776,6 @@ def create_mqtt_config(client_id: str | None = None) -> MQTTConfig:
         raise MQTTConnectionError(f'无效的 MQTT 配置: {e}')
 
 
-async def register_subscriptions(manager: MQTTBroker) -> None:
-    """注册应用启动时的全局订阅。"""
-    # 假设 settings.MQTT_UP_TOPICS 和 on_message 存在
-    for topic in settings.MQTT_UP_TOPICS:
-        # 订阅时不需要关心返回的 callback_id，因为这是全局订阅
-        await manager.subscribe(topic, on_message)
-        log.debug(f'已注册全局订阅: {topic}')
-
-
 async def init_mqtt(config: MQTTConfig | None = None) -> MQTTBroker:
     """初始化并返回 MQTT Broker 实例。"""
     return await MQTTDependency.get_manager(config)
@@ -718,43 +784,3 @@ async def init_mqtt(config: MQTTConfig | None = None) -> MQTTBroker:
 async def close_mqtt() -> None:
     """关闭 MQTT Broker 实例。"""
     await MQTTDependency.close()
-
-
-async def get_mqtt(config: MQTTConfig | None = None) -> AsyncGenerator[MQTTBroker, None]:
-    """FastAPI 依赖注入函数。"""
-    manager = await MQTTDependency.get_manager(config)
-    yield manager
-
-
-async def on_message(message_ctx: MQTTMessageContext) -> None:
-    """全局消息处理回调示例。"""
-    log.debug(f'收到全局消息 | 主题: {message_ctx.topic} | 内容: {message_ctx.payload}')
-
-    route = parse_mqtt_topic(message_ctx.topic)
-    if route is None or route.direction != 'up':
-        return
-
-    if route.category == 'property':
-        try:
-            payload = normalize_mqtt_payload(message_ctx.payload)
-            await StateStore.update(
-                route=route,
-                payload=payload,
-                timestamp=message_ctx.timestamp,
-            )
-        except Exception as exc:
-            log.debug(f'更新设备状态失败: {exc}', exc_info=True)
-
-    if route.category == 'event':
-        try:
-            await StateStore.touch(
-                route=route,
-                timestamp=message_ctx.timestamp,
-            )
-        except Exception as exc:
-            log.debug(f'更新设备状态时间戳失败: {exc}', exc_info=True)
-
-        try:
-            await EventStore.insert(message_ctx)
-        except Exception as exc:
-            log.debug(f'保存历史消息失败: {exc}', exc_info=True)

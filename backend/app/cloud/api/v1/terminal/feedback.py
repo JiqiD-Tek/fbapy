@@ -19,11 +19,11 @@ from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.service.feedback_service import feedback_service
 from backend.common.exception import errors
-from backend.common.mqtt_broker import MQTTBroker, get_mqtt
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
+from backend.common.mqtt_broker import MQTTDependency
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
@@ -61,7 +61,6 @@ async def get_feedback_paginated(
 )
 async def create_feedback(
         db: CurrentSessionTransaction,
-        mqtt_client: Annotated[MQTTBroker, Depends(get_mqtt)],
         device_did: Annotated[str, Body(description='设备did')],
         status: Annotated[int, Body(description='状态(0：不需要日志上传 1：需要日志上传)')] = 0,
         category: Annotated[str | None, Body(description='反馈类型')] = None,
@@ -85,6 +84,7 @@ async def create_feedback(
     feedback = await feedback_service.create(db=db, obj=obj)
 
     if isinstance(auth_ctx, DeviceAuthParam) and status == 1:
+        mqtt_client = await MQTTDependency.get_manager()
         messaging_service = MessagingService(mqtt_client=mqtt_client, did=auth_ctx.did, model=auth_ctx.model)
         await messaging_service.send_request_log(feedback_id=feedback.id)
 

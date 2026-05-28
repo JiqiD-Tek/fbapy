@@ -14,9 +14,9 @@ from backend.common.mqtt_broker import MQTTMessageContext, close_mqtt, init_mqtt
 
 
 async def main() -> None:
-    """Example usage of AsyncMQTTManager."""
+    """Example usage of MQTTBroker."""
 
-    client_id = 'CE606A3C93BC5765B6F0BD0343AC9EDC'
+    client_id = 'TEST_DEVICE_DID'
     mqtt = await init_mqtt()
 
     async def on_message(message_ctx: MQTTMessageContext) -> None:

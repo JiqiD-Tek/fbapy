@@ -390,9 +390,8 @@ class Settings(BaseSettings):
     MQTT_PORT: int = 1883
     MQTT_USERNAME: str = ''
     MQTT_JWT_SECRET: str = ''
-    MQTT_PASSWORD: str = ''
     MQTT_CALLBACK_QUEUE_MAXSIZE: int = 10000
-    MQTT_CALLBACK_WORKERS: int = 8
+    MQTT_CALLBACK_SHARDS: int = 8
     MQTT_UP_TOPICS: list[str] = [
         '$share/group/k11/+/up/event',
         '$share/group/k11/+/up/property',

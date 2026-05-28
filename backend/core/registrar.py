@@ -16,6 +16,7 @@ from starlette_context.middleware import ContextMiddleware
 from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
+from backend.app.cloud.mqtt import cloud_mqtt_consumer
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.cache.pubsub import cache_pubsub_manager
 from backend.common.exception.exception_handler import register_exception
@@ -74,7 +75,8 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     await EventStore.start()
 
     # 初始化mqtt连接
-    await init_mqtt()
+    broker = await init_mqtt()
+    await cloud_mqtt_consumer.register(broker)
 
     yield
 
