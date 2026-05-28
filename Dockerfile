@@ -26,16 +26,6 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-default-groups --group server --no-install-project
 
-# Copy only plugin-related sources before installing plugin requirements, so ordinary
-# backend code changes do not force plugin dependency reinstallation.
-COPY backend/.env.example ./backend/.env.example
-COPY backend/.env ./backend/.env
-COPY backend/core ./backend/core
-COPY backend/plugin ./backend/plugin
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    python -c "from backend.plugin.requirements import install_requirements; install_requirements(None)"
-
 # Copy the rest of the project after dependencies are ready.
 COPY . ${FBA_HOME}
 
