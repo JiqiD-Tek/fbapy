@@ -108,7 +108,12 @@ class DeviceService:
         return await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
 
     @staticmethod
-    async def bind_device(*, db: AsyncSession, obj: UserDeviceParam) -> None:
+    async def bind_device(
+        *,
+        db: AsyncSession,
+        obj: UserDeviceParam,
+        allow_shared: bool = False,
+    ) -> None:
         if await user_dao.get(db, obj.user_id) is None:
             raise errors.NotFoundError(msg='用户不存在')
         if await device_dao.get(db, obj.device_id) is None:
@@ -118,7 +123,7 @@ class DeviceService:
         bound_user_ids = set(result.scalars().all())
         if obj.user_id in bound_user_ids:
             return None
-        if bound_user_ids:
+        if bound_user_ids and not allow_shared:
             raise errors.ConflictError(msg='该设备已绑定其他用户')
 
         await db.execute(insert(user_device), obj.model_dump())

@@ -384,7 +384,11 @@ class AuthService:
         device = await self._register_device(db, device)
         user = await self._register_user(db, auth)
         # 绑定设备
-        await device_service.bind_device(db=db, obj=UserDeviceParam(user_id=user.id, device_id=device.id))
+        await device_service.bind_device(
+            db=db,
+            obj=UserDeviceParam(user_id=user.id, device_id=device.id),
+            allow_shared=True
+        )
 
         return user
 
