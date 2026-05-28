@@ -26,6 +26,7 @@ from backend.app.cloud.service.resource.song_service import cloud_song_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
+from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
@@ -92,7 +93,7 @@ async def delete_album(
     return response_base.fail()
 
 
-@router.get('/songs/{pk}', summary='获取歌曲详情', dependencies=[DependsJwtAuth])
+@router.get('/songs/{pk}', summary='获取歌曲详情', dependencies=[DependsDeviceOrJwtAuth])
 async def get_song(
         db: CurrentSession,
         pk: Annotated[int, Path(description='歌曲 ID')],
