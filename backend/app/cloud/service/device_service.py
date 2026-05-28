@@ -27,6 +27,7 @@ from backend.common.response.response_code import CustomErrorCode
 from backend.utils.timezone import timezone
 
 MAX_ALLOW_QUOTA = 600
+SHARED_BIND_MODELS = {'k11'}
 
 
 class DeviceService:
@@ -109,20 +110,21 @@ class DeviceService:
 
     @staticmethod
     async def bind_device(
-        *,
-        db: AsyncSession,
-        obj: UserDeviceParam,
-        allow_shared: bool = False,
+            *,
+            db: AsyncSession,
+            obj: UserDeviceParam,
     ) -> None:
         if await user_dao.get(db, obj.user_id) is None:
             raise errors.NotFoundError(msg='用户不存在')
-        if await device_dao.get(db, obj.device_id) is None:
+        if (device := await device_dao.get(db, obj.device_id)) is None:
             raise errors.NotFoundError(msg='设备不存在')
 
         result = await db.execute(select(user_device.c.user_id).where(user_device.c.device_id == obj.device_id))
         bound_user_ids = set(result.scalars().all())
         if obj.user_id in bound_user_ids:
             return None
+
+        allow_shared = (device.model or '').lower() in SHARED_BIND_MODELS
         if bound_user_ids and not allow_shared:
             raise errors.ConflictError(msg='该设备已绑定其他用户')
 
