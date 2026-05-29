@@ -161,22 +161,18 @@ class HuoshanLongTextTTSClient:
         await self._client.aclose()
 
     async def submit(self, *, payload: dict[str, Any], resource_id: str | None = None) -> dict[str, Any]:
-        response = await self._request_json(
+        return await self._request_json(
             url=self._config.submit_url,
             body=payload,
             resource_id=resource_id or self._config.resource_id,
         )
-        self._assert_success(response, action='submit')
-        return response
 
     async def query(self, *, task_id: str, resource_id: str | None = None) -> dict[str, Any]:
-        response = await self._request_json(
+        return await self._request_json(
             url=self._config.query_url,
             body={'task_id': task_id},
             resource_id=resource_id or self._config.query_resource_id,
         )
-        self._assert_success(response, action='query')
-        return response
 
     async def download_file(self, *, url: str) -> bytes:
         try:
@@ -211,6 +207,20 @@ class HuoshanLongTextTTSClient:
         try:
             response = await self._client.post(url, json=body, headers=headers)
             response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            request_url = str(getattr(exc.request, 'url', url)) if getattr(exc, 'request', None) is not None else url
+            raise HuoshanTTSError(
+                status_code=504,
+                code=type(exc).__name__,
+                message=f'Huoshan TTS request timed out: {type(exc).__name__}: {exc}',
+                payload={
+                    'url': request_url,
+                    'resource_id': resource_id,
+                    'timeout_seconds': self._config.timeout,
+                    'error_type': type(exc).__name__,
+                    'error_repr': repr(exc),
+                },
+            ) from exc
         except httpx.HTTPStatusError as exc:
             parsed_payload = self._parse_json_safely(exc.response.text)
             raise HuoshanTTSError(
@@ -224,14 +234,21 @@ class HuoshanLongTextTTSClient:
                 request_id=exc.response.headers.get('X-Tt-Logid') or exc.response.headers.get('X-Api-Request-Id'),
             ) from exc
         except httpx.RequestError as exc:
+            request_url = str(getattr(exc.request, 'url', url)) if getattr(exc, 'request', None) is not None else url
             raise HuoshanTTSError(
                 status_code=502,
                 code='RequestError',
-                message=f'Huoshan TTS request failed: {exc}',
+                message=f'Huoshan TTS request failed: {type(exc).__name__}: {exc}',
+                payload={
+                    'url': request_url,
+                    'resource_id': resource_id,
+                    'error_type': type(exc).__name__,
+                    'error_repr': repr(exc),
+                },
             ) from exc
 
         try:
-            return response.json()
+            data = response.json()
         except ValueError as exc:
             raise HuoshanTTSError(
                 status_code=response.status_code,
@@ -239,17 +256,15 @@ class HuoshanLongTextTTSClient:
                 message='Huoshan TTS returned a non-JSON response',
                 payload=response.text,
             ) from exc
-
-    @classmethod
-    def _assert_success(cls, response: dict[str, Any], *, action: str) -> None:
-        code = int(response.get('code', -1))
-        if code in cls.SUCCESS_CODES:
-            return
+        code = int((data or {}).get('code', -1))
+        if code in self.SUCCESS_CODES:
+            return data
         raise HuoshanTTSError(
-            status_code=400,
+            status_code=response.status_code,
             code=str(code),
-            message=f'Huoshan TTS {action} returned an error',
-            payload=response,
+            message=str((data or {}).get('message') or 'Huoshan TTS returned an error'),
+            payload=data,
+            request_id=response.headers.get('X-Tt-Logid') or response.headers.get('X-Api-Request-Id'),
         )
 
     @staticmethod

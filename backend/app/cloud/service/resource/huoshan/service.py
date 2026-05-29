@@ -621,6 +621,11 @@ class HuoshanVoiceService:
                     return result
 
                 if provider_task_status == 3:
+                    log.error(
+                        'Huoshan story synthesis provider returned failed status: '
+                        f'task_id={task_id}, speaker={result.speaker}, resource_id={result.resource_id}, '
+                        f'query_resource_id={client.query_resource_id}, query_response={query_response}'
+                    )
                     result = result.model_copy(update={
                         'task_status': STORY_TASK_STATUS_FAILED,
                         'error_message': 'Huoshan story synthesis task failed',
@@ -638,7 +643,12 @@ class HuoshanVoiceService:
 
                 await asyncio.sleep(settings.BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS)
         except HuoshanTTSError as exc:
-            log.error(f'Huoshan story synthesis processing failed: task_id={task_id}, error={exc}')
+            log.error(
+                'Huoshan story synthesis query failed: '
+                f'task_id={task_id}, speaker={result.speaker}, resource_id={result.resource_id}, '
+                f'query_resource_id={client.query_resource_id}, status_code={exc.status_code}, code={exc.code}, '
+                f'request_id={exc.request_id}, payload={exc.payload}, error={exc!r}'
+            )
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': exc.message,
