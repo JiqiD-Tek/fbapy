@@ -261,10 +261,10 @@ async def get_terminal_user(user_id: int) -> GetUserInfoDetail:
                 raise errors.TokenError(msg='Token 无效')
 
             user = GetUserInfoDetail.model_validate(current_user)
-            await redis_client.setex(
+            await redis_client.set(
                 f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user_id}',
-                settings.TOKEN_EXPIRE_SECONDS,
                 user.model_dump_json(),
+                ex=settings.TOKEN_EXPIRE_SECONDS,
             )
     else:
         # TODO: 在恰当的时机，应替换为使用 model_validate_json
