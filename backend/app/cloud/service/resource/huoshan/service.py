@@ -42,7 +42,11 @@ from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
 from backend.app.cloud.service.resource.huoshan.config import (
+    CLONE_VOICE_RESOURCE_ID_V2,
+    VoiceProfile,
+    get_public_voice,
     get_voice_name,
+    get_voice_profile,
     get_voice_project_for_speaker,
 )
 from backend.app.cloud.service.resource.huoshan.audio_tools import mix_audio_with_bgm
@@ -78,13 +82,24 @@ class HuoshanVoiceService:
 
     @classmethod
     def _attach_voice_alias(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
-        if str(status.speaker_alias or '').strip():
-            return status
+        update_data: dict[str, str] = {}
 
-        speaker_alias = get_voice_name(status.speaker_id)
-        if speaker_alias is None:
+        if not str(status.speaker_alias or '').strip():
+            speaker_alias = get_voice_name(status.speaker_id)
+            if speaker_alias is not None:
+                update_data['speaker_alias'] = speaker_alias
+
+        resource_id = cls._resolve_clone_voice_resource_id(status)
+        if resource_id and resource_id != str(status.resource_id or '').strip():
+            update_data['resource_id'] = resource_id
+
+        if not update_data:
             return status
-        return status.model_copy(update={'speaker_alias': speaker_alias}, deep=True)
+        return status.model_copy(update=update_data, deep=True)
+
+    @staticmethod
+    def _normalize_text(value: object) -> str:
+        return str(value or '').strip()
 
     @staticmethod
     def _resolve_client_config() -> HuoshanOpenAPIConfig:
@@ -99,17 +114,22 @@ class HuoshanVoiceService:
         )
 
     @classmethod
-    def _resolve_story_client_config(cls, speaker: str | None = None) -> HuoshanLongTextTTSConfig:
+    def _resolve_story_client_config(
+            cls,
+            speaker: str | None = None,
+            *,
+            resource_id: str | None = None,
+    ) -> HuoshanLongTextTTSConfig:
         project = get_voice_project_for_speaker(speaker)
-        resource_id = settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
+        resolved_resource_id = cls._normalize_text(resource_id) or CLONE_VOICE_RESOURCE_ID_V2
         query_resource_id = (
                 settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
-                or HuoshanLongTextTTSClient.infer_query_resource_id(resource_id)
+                or HuoshanLongTextTTSClient.infer_query_resource_id(resolved_resource_id)
         )
         return HuoshanLongTextTTSConfig(
             app_id=project.app_id,
             access_key=project.access_token,
-            resource_id=resource_id,
+            resource_id=resolved_resource_id,
             query_resource_id=query_resource_id,
             submit_url=settings.BYTES_TTS_LONG_SUBMIT_URL,
             query_url=settings.BYTES_TTS_LONG_QUERY_URL,
@@ -121,8 +141,47 @@ class HuoshanVoiceService:
         return HuoshanOpenAPIClient(cls._resolve_client_config())
 
     @classmethod
-    def _create_story_client(cls, speaker: str | None = None) -> HuoshanLongTextTTSClient:
-        return HuoshanLongTextTTSClient(cls._resolve_story_client_config(speaker))
+    def _create_story_client(
+            cls,
+            speaker: str | None = None,
+            *,
+            resource_id: str | None = None,
+    ) -> HuoshanLongTextTTSClient:
+        return HuoshanLongTextTTSClient(cls._resolve_story_client_config(speaker, resource_id=resource_id))
+
+    @classmethod
+    def _resolve_story_voice(
+            cls,
+            *,
+            speaker: str,
+            voice_status: HuoshanVoiceStatus | None = None,
+    ) -> tuple[VoiceProfile, HuoshanVoiceStatus | None]:
+        public_voice = get_public_voice(speaker)
+        if public_voice is not None:
+            return public_voice, None
+
+        if voice_status is None:
+            raise errors.NotFoundError(msg='Voice clone does not exist')
+
+        profile = get_voice_profile(voice_status.speaker_id or speaker)
+        if profile is None:
+            profile = VoiceProfile(
+                id=cls._normalize_text(voice_status.speaker_id or speaker),
+                name=cls._normalize_text(voice_status.speaker_alias),
+            )
+        return profile, voice_status
+
+    @classmethod
+    def _resolve_story_resource_id(cls, voice: VoiceProfile) -> str:
+        return cls._normalize_text(voice.resource_id) or CLONE_VOICE_RESOURCE_ID_V2
+
+    @classmethod
+    def _resolve_clone_voice_resource_id(cls, status: HuoshanVoiceStatus) -> str:
+        for detail in status.model_type_details:
+            resource_id = cls._normalize_text(detail.resource_id)
+            if resource_id:
+                return resource_id
+        return CLONE_VOICE_RESOURCE_ID_V2
 
     @staticmethod
     def _story_generation_system_prompt() -> str:
@@ -319,7 +378,7 @@ class HuoshanVoiceService:
 
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
         project_name = get_voice_project_for_speaker(speaker).name
-        result = await self._list_voice_status_page(
+        result = await self._list_clone_voice_status_page(
             HuoshanVoiceListParam(project_name=project_name, speaker_ids=[speaker], state=None, page_size=10)
         )
         for status in result.statuses:
@@ -351,7 +410,7 @@ class HuoshanVoiceService:
             )
             return output_path.read_bytes()
 
-    async def _list_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
+    async def _list_clone_voice_status_page(self, obj: HuoshanVoiceListParam) -> HuoshanVoiceListResult:
         if obj.speaker_id and (not obj.project_name or obj.project_name == 'default'):
             obj = obj.model_copy(update={'project_name': get_voice_project_for_speaker(obj.speaker_id).name}, deep=True)
 
@@ -368,7 +427,7 @@ class HuoshanVoiceService:
 
         return HuoshanVoiceListResult.model_validate(data.get('result') or {})
 
-    async def list_all_voice_statuses(self, obj: HuoshanVoiceListParam) -> list[HuoshanVoiceStatus]:
+    async def list_clone_voice_statuses(self, obj: HuoshanVoiceListParam) -> list[HuoshanVoiceStatus]:
         query = obj.model_copy(deep=True)
         if query.page_size is None:
             query.page_size = 100
@@ -377,7 +436,7 @@ class HuoshanVoiceService:
         if query.state is None:
             query.state = 'Success'
 
-        result = await self._list_voice_status_page(query)
+        result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
 
     async def order_voices(self, obj: HuoshanVoiceOrderParam) -> HuoshanVoiceOrderResponse:
@@ -531,7 +590,7 @@ class HuoshanVoiceService:
 
     async def _process_story_synthesis(self, task_id: str) -> HuoshanStorySynthesisResult:
         result = await self._get_story_synthesis_task_result(task_id)
-        client = self._create_story_client(result.speaker)
+        client = self._create_story_client(result.speaker, resource_id=result.resource_id)
         deadline = monotonic() + settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS
 
         try:
@@ -604,11 +663,18 @@ class HuoshanVoiceService:
             obj: HuoshanStorySynthesisParam,
     ) -> HuoshanStorySynthesisResult:
         bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
-        log.info(bgm_song)
-        voice_status = await self._get_voice_status(speaker=obj.speaker)
-        log.info(voice_status)
-        story_client_config = self._resolve_story_client_config(obj.speaker)
-        client = self._create_story_client(obj.speaker)
+        public_voice = get_public_voice(obj.speaker)
+        voice_status: HuoshanVoiceStatus | None = None
+        if public_voice is None:
+            voice_status = await self._get_voice_status(speaker=obj.speaker)
+
+        voice_profile, resolved_voice_status = self._resolve_story_voice(
+            speaker=obj.speaker,
+            voice_status=voice_status,
+        )
+        resource_id = self._resolve_story_resource_id(voice_profile)
+        story_client_config = self._resolve_story_client_config(obj.speaker, resource_id=resource_id)
+        client = self._create_story_client(obj.speaker, resource_id=resource_id)
 
         try:
             submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
@@ -624,9 +690,9 @@ class HuoshanVoiceService:
 
         result = HuoshanStorySynthesisResult(
             task_id=task_id,
-            speaker=voice_status.speaker_id or '',
-            speaker_alias=voice_status.speaker_alias,
-            speaker_state=voice_status.state,
+            speaker=voice_profile.id,
+            speaker_alias=(resolved_voice_status.speaker_alias or voice_profile.name) if resolved_voice_status else voice_profile.name,
+            speaker_state=resolved_voice_status.state if resolved_voice_status else None,
             resource_id=story_client_config.resource_id,
             audio_format=STORY_AUDIO_FORMAT,
             bgm=HuoshanStoryBgmInfo(

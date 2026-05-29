@@ -100,7 +100,7 @@ class HuoshanVoiceRenewParam(HuoshanSchemaBase):
 
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
-    speaker: str = Field(description='Voice clone speaker ID')
+    speaker: str = Field(description='Speaker ID, supports cloned or public voices')
     speech_rate: int = Field(0, description='Speech rate')
     bgm_song_id: int = Field(gt=0, description='Background music song ID')
     bgm_volume: int = Field(50, ge=0, le=100, description='Background music volume')
@@ -167,6 +167,7 @@ class HuoshanVoiceStatus(HuoshanSchemaBase):
     instance_no: str | None = Field(None, alias='InstanceNO', description='Instance number')
     is_activable: bool | None = Field(None, alias='IsActivable', description='Whether it can be activated')
     speaker_id: str | None = Field(None, alias='SpeakerID', description='Speaker ID')
+    resource_id: str | None = Field(None, description='Resolved TTS resource ID')
     state: HuoshanVoiceState | None = Field(None, alias='State', description='Voice state')
     version: str | None = Field(None, alias='Version', description='Training version')
     expire_time: int | None = Field(None, alias='ExpireTime', description='Expire time')
@@ -203,6 +204,12 @@ class HuoshanStoryBgmInfo(HuoshanSchemaBase):
     play_url: str = Field(description='Background music play URL')
     artist: str | None = Field(None, description='Artist')
     duration: int = Field(description='Duration in seconds')
+
+
+class HuoshanPublicVoiceInfo(HuoshanSchemaBase):
+    speaker: str = Field(description='Public speaker ID')
+    name: str = Field(description='Public speaker name')
+    resource_id: str = Field(description='TTS resource ID')
 
 
 class HuoshanStorySynthesisResult(HuoshanSchemaBase):

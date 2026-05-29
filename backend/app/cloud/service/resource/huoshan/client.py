@@ -204,11 +204,16 @@ class HuoshanLongTextTTSClient:
             response = await self._client.post(url, json=body, headers=headers)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            parsed_payload = self._parse_json_safely(exc.response.text)
             raise HuoshanTTSError(
                 status_code=exc.response.status_code,
-                code=str(exc.response.status_code),
-                message=f'Huoshan TTS request failed: HTTP {exc.response.status_code}',
-                payload=exc.response.text,
+                code=str(parsed_payload.get('code') or exc.response.status_code),
+                message=str(
+                    parsed_payload.get('message')
+                    or f'Huoshan TTS request failed: HTTP {exc.response.status_code}'
+                ),
+                payload=parsed_payload or exc.response.text,
+                request_id=exc.response.headers.get('X-Tt-Logid') or exc.response.headers.get('X-Api-Request-Id'),
             ) from exc
         except httpx.RequestError as exc:
             raise HuoshanTTSError(
@@ -244,3 +249,17 @@ class HuoshanLongTextTTSClient:
         if resource_id in ('seed-tts-1.0', 'seed-tts-2.0'):
             return 'volc.service_type.10029'
         return resource_id
+
+    @staticmethod
+    def _parse_json_safely(raw: str) -> dict[str, Any]:
+        if not raw:
+            return {}
+
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            return {}
+
+        if isinstance(parsed, dict):
+            return parsed
+        return {}

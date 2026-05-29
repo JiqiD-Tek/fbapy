@@ -14,6 +14,7 @@ from fastapi import APIRouter, Path, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 
 from backend.app.cloud.schema.resource.huoshan import (
+    HuoshanPublicVoiceInfo,
     HuoshanStreamASRParam,
     HuoshanStreamASRResult,
     HuoshanStreamTTSParam,
@@ -29,6 +30,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceRenewResponse,
     HuoshanVoiceStatus,
 )
+from backend.app.cloud.service.resource.huoshan.config import list_public_voices
 from backend.app.cloud.service.resource.huoshan.asr.asr_stream import asr_stream_service
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
@@ -40,16 +42,34 @@ from backend.database.db import CurrentSession
 router = APIRouter()
 
 
-@router.post(
-    '/voices/all',
-    summary='Query all Huoshan voice clone statuses as a flat list',
+@router.get(
+    '/voices/public',
+    summary='List Huoshan public voices',
     # dependencies=[DependsJwtAuth],
     response_model_by_alias=False,
 )
-async def list_all_huoshan_voice_statuses(
+async def list_huoshan_public_voices() -> ResponseSchemaModel[list[HuoshanPublicVoiceInfo]]:
+    data = [
+        HuoshanPublicVoiceInfo(
+            speaker=voice.id,
+            name=voice.name,
+            resource_id=str(voice.resource_id or '').strip(),
+        )
+        for voice in list_public_voices()
+    ]
+    return response_base.success(data=data)
+
+
+@router.post(
+    '/voices/clone',
+    summary='Query clone Huoshan voice clone statuses as a flat list',
+    # dependencies=[DependsJwtAuth],
+    response_model_by_alias=False,
+)
+async def list_clone_huoshan_voice_statuses(
         obj: HuoshanVoiceListParam,
 ) -> ResponseSchemaModel[list[HuoshanVoiceStatus]]:
-    data = await huoshan_voice_service.list_all_voice_statuses(obj)
+    data = await huoshan_voice_service.list_clone_voice_statuses(obj)
     return response_base.success(data=data)
 
 
