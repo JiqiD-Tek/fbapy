@@ -23,12 +23,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls,
-            settings_cls: type[BaseSettings],
-            init_settings: PydanticBaseSettingsSource,
-            env_settings: PydanticBaseSettingsSource,
-            dotenv_settings: PydanticBaseSettingsSource,
-            file_secret_settings: PydanticBaseSettingsSource,
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级"""
         return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
@@ -263,6 +263,7 @@ class Settings(BaseSettings):
     OPERA_LOG_QUEUE_MAXSIZE: int = 100000
     OPERA_LOG_QUEUE_BATCH_CONSUME_SIZE: int = 100
     OPERA_LOG_QUEUE_TIMEOUT: int = 60  # 1 分钟
+    OPERA_LOG_BODY_MAX_SIZE: int = 10240  # 10 KB
 
     # Plugin 配置
     PLUGIN_REQUIRED: list[str] = ['dict']
@@ -277,6 +278,17 @@ class Settings(BaseSettings):
     # Grafana
     GRAFANA_METRICS_ENABLE: bool = False
     GRAFANA_OTLP_GRPC_ENDPOINT: str = 'fba_alloy:4317'
+    # 以下配置为静态定义，修改后需要手动同步相关 Grafana 配置：
+    # - GRAFANA_PROMETHEUS_APP_NAME：deploy/backend/grafana/fba_datasource.yml
+    #   deploy/backend/grafana/dashboards/fba_server.json
+    # - GRAFANA_CELERY_OTEL_SERVICE_NAME：deploy/backend/grafana/dashboards/fba_celery.json
+    # - GRAFANA_METRICS_PATH：deploy/backend/grafana/fba_config.alloy
+    #   deploy/backend/grafana/dashboards/fba_server.json
+    # - GRAFANA_PROMETHEUS_EXEMPLAR_TRACE_ID_KEY：deploy/backend/grafana/fba_datasource.yml
+    GRAFANA_PROMETHEUS_APP_NAME: str = 'fba_server'
+    GRAFANA_CELERY_OTEL_SERVICE_NAME: str = 'fba_celery_worker'
+    GRAFANA_METRICS_PATH: str = '/metrics'
+    GRAFANA_PROMETHEUS_EXEMPLAR_TRACE_ID_KEY: str = 'TraceID'
 
     ##################################################
     # [ App ] task

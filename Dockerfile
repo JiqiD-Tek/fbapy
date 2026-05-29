@@ -10,7 +10,7 @@ ARG FBA_HOME
 # Used for build Python packages
 RUN sed -i 's/deb.debian.org/mirrors.ustc.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends gcc python3-dev \
+    && apt-get install -y --no-install-recommends gcc make python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR ${FBA_HOME}
