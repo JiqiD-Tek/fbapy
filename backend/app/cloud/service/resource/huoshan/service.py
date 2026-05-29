@@ -679,6 +679,10 @@ class HuoshanVoiceService:
         try:
             submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
         except HuoshanTTSError as exc:
+            log.error(
+                'Huoshan story synthesis submit failed: '
+                f'speaker={obj.speaker}, submit_resource_id={resource_id}, error={exc}'
+            )
             self._raise_api_error(exc)
             raise
         finally:
@@ -691,7 +695,8 @@ class HuoshanVoiceService:
         result = HuoshanStorySynthesisResult(
             task_id=task_id,
             speaker=voice_profile.id,
-            speaker_alias=(resolved_voice_status.speaker_alias or voice_profile.name) if resolved_voice_status else voice_profile.name,
+            speaker_alias=(
+                    resolved_voice_status.speaker_alias or voice_profile.name) if resolved_voice_status else voice_profile.name,
             speaker_state=resolved_voice_status.state if resolved_voice_status else None,
             resource_id=story_client_config.resource_id,
             audio_format=STORY_AUDIO_FORMAT,

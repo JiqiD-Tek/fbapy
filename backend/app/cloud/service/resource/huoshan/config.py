@@ -84,6 +84,7 @@ def _build_project(
 PUBLIC_VOICES_V1 = _build_voice_profiles([
     {'id': 'en_male_corey_emo_v2_mars_bigtts', 'name': 'Corey'},
     {'id': 'zh_male_shaonianzixin_moon_bigtts', 'name': 'Brayan'},
+    {'id': 'ICL_zh_male_youmoshushu_tob', 'name': '幽默叔叔'},
 ],
     source='public',
     resource_id=PUBLIC_VOICE_RESOURCE_ID_V1,

@@ -149,6 +149,14 @@ class HuoshanLongTextTTSClient:
         self._config = config
         self._client = httpx.AsyncClient(timeout=config.timeout)
 
+    @property
+    def resource_id(self) -> str:
+        return self._config.resource_id
+
+    @property
+    def query_resource_id(self) -> str:
+        return self._config.query_resource_id
+
     async def close(self) -> None:
         await self._client.aclose()
 
