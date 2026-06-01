@@ -346,6 +346,7 @@ class ReportService:
             'summary 聚焦整体成长观察，interaction 聚焦互动表现，playback 聚焦收听偏好。'
             '每个 observations 写 1 到 2 条短句；每个 suggestion 只写 1 条建议。'
             '可以自然使用宝宝称呼，但不要杜撰新名字。'
+            '当前设备名称：虾球\n'
             f'当前宝宝称呼：{baby_name}\n'
             f'以下是最近一周的使用统计数据：\n{current_week_usage_text}\n'
             f'以下是前一周的使用统计数据：\n{previous_week_usage_text}\n'
