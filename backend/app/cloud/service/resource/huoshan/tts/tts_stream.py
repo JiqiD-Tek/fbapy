@@ -184,7 +184,7 @@ class TTSStreamService:
             resource_id = stream_config['resource_id']
             audio_format = stream_config['audio_format']
             speech_rate = int(obj.speech_rate)
-            loudness_rate = 0
+            loudness_rate = int(obj.loudness_rate)
             project = get_voice_project_for_speaker(speaker)
             if not project.app_id or not project.access_token:
                 raise errors.ServerError(

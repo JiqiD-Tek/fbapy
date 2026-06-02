@@ -102,6 +102,7 @@ class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
     speaker: str = Field(description='Speaker ID, supports cloned or public voices')
     speech_rate: int = Field(0, description='Speech rate')
+    loudness_rate: int = Field(0, description='Voice loudness rate')
     bgm_song_id: int = Field(gt=0, description='Background music song ID')
     bgm_volume: int = Field(50, ge=0, le=100, description='Background music volume')
 
@@ -114,6 +115,7 @@ class HuoshanStreamTTSParam(HuoshanSchemaBase):
     text: str = Field(min_length=1, max_length=5000, description='TTS text content')
     speaker: str = Field(min_length=1, description='Speaker ID')
     speech_rate: int = Field(0, description='Speech rate')
+    loudness_rate: int = Field(0, description='Voice loudness rate')
 
 
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
@@ -221,6 +223,8 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     audio_format: HuoshanAudioFormat = Field(description='Audio format')
     bgm: HuoshanStoryBgmInfo = Field(description='Background music info')
     bgm_volume: int = Field(description='Background music volume percent')
+    speech_rate: int = Field(0, description='Speech rate')
+    loudness_rate: int = Field(0, description='Voice loudness rate')
     is_completed: bool = Field(description='Whether mixed audio is ready')
     task_status: int = Field(description='Task status')
     oss_key: str | None = Field(None, description='OSS object key')

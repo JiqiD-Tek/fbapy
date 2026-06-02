@@ -13,6 +13,8 @@ from backend.common.schema import SchemaBase
 class DialogueUtterance(SchemaBase):
     speaker: str | None = Field(None, description='Speaker ID')
     text: str = Field(description='Utterance text')
+    speech_rate: int = Field(0, description='Speech rate')
+    loudness_rate: int = Field(0, description='Voice loudness rate')
     audio_url: str | None = Field(None, description='Audio URL')
 
 

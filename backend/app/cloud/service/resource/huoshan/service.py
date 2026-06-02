@@ -243,6 +243,7 @@ class HuoshanVoiceService:
                 'audio_params': {
                     **STORY_AUDIO_PARAMS,
                     'speech_rate': int(obj.speech_rate),
+                    'loudness_rate': int(obj.loudness_rate),
                 },
             },
         }
@@ -718,6 +719,8 @@ class HuoshanVoiceService:
                 duration=bgm_song.duration,
             ),
             bgm_volume=obj.bgm_volume,
+            speech_rate=obj.speech_rate,
+            loudness_rate=obj.loudness_rate,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
         )
