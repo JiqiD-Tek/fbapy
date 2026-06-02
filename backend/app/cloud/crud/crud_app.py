@@ -38,7 +38,7 @@ class CRUDApp(CRUDPlus[App]):
         return await self.select_models(db)
 
     async def create(self, db: AsyncSession, obj: CreateAppParam) -> App:
-        return await self.create_model(db, obj)
+        return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         return await self.update_model(db, pk, obj)

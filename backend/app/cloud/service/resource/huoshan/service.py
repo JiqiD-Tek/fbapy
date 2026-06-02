@@ -238,7 +238,7 @@ class HuoshanVoiceService:
             'unique_id': uuid.uuid4().hex,
             'namespace': 'BidirectionalTTS',
             'req_params': {
-                'text': obj.story_content,
+                'text': str(obj.story_content).replace('\r\n', ' ').replace('\n', ' ').replace('\r', ' '),
                 'speaker': obj.speaker,
                 'audio_params': {
                     **STORY_AUDIO_PARAMS,
