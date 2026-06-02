@@ -216,6 +216,7 @@ class HuoshanPublicVoiceInfo(HuoshanSchemaBase):
 
 class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     task_id: str = Field(description='Huoshan task ID')
+    submit_request_id: str | None = Field(None, description='Submit request ID')
     speaker: str = Field(description='Speaker ID')
     speaker_alias: str | None = Field(None, description='Speaker alias')
     speaker_state: HuoshanVoiceState | None = Field(None, description='Speaker state')

@@ -31,6 +31,18 @@ from volcenginesdkspeechsaasprod20250521 import (
 )
 
 
+def _get_huoshan_request_id(headers: Any) -> str | None:
+    if not headers:
+        return None
+    return (
+        headers.get('X-Tt-logid')
+        or headers.get('X-Tt-Logid')
+        or headers.get('x-tt-logid')
+        or headers.get('X-Api-Request-Id')
+        or headers.get('x-api-request-id')
+    )
+
+
 class HuoshanOpenAPIClient:
     LEGACY_SHARED_HOSTS = frozenset({'', 'open.volcengineapi.com'})
 
@@ -104,7 +116,7 @@ class HuoshanOpenAPIClient:
             status_code = 400
 
         headers = getattr(exc, 'headers', None) or {}
-        request_id = parsed.get('RequestId') or parsed.get('request_id') or headers.get('X-Tt-Logid')
+        request_id = parsed.get('RequestId') or parsed.get('request_id') or _get_huoshan_request_id(headers)
         code = parsed.get('Code') or parsed.get('code') or str(status_code)
         message = (
                 parsed.get('Message')
@@ -231,7 +243,7 @@ class HuoshanLongTextTTSClient:
                     or f'Huoshan TTS request failed: HTTP {exc.response.status_code}'
                 ),
                 payload=parsed_payload or exc.response.text,
-                request_id=exc.response.headers.get('X-Tt-Logid') or exc.response.headers.get('X-Api-Request-Id'),
+                request_id=_get_huoshan_request_id(exc.response.headers),
             ) from exc
         except httpx.RequestError as exc:
             request_url = str(getattr(exc.request, 'url', url)) if getattr(exc, 'request', None) is not None else url
@@ -258,13 +270,16 @@ class HuoshanLongTextTTSClient:
             ) from exc
         code = int((data or {}).get('code', -1))
         if code in self.SUCCESS_CODES:
+            request_id = _get_huoshan_request_id(response.headers)
+            if isinstance(data, dict) and request_id:
+                return {**data, '_request_id': request_id}
             return data
         raise HuoshanTTSError(
             status_code=response.status_code,
             code=str(code),
             message=str((data or {}).get('message') or 'Huoshan TTS returned an error'),
             payload=data,
-            request_id=response.headers.get('X-Tt-Logid') or response.headers.get('X-Api-Request-Id'),
+            request_id=_get_huoshan_request_id(response.headers),
         )
 
     @staticmethod

@@ -624,7 +624,8 @@ class HuoshanVoiceService:
                 if provider_task_status == 3:
                     log.error(
                         'Huoshan story synthesis provider returned failed status: '
-                        f'task_id={task_id}, speaker={result.speaker}, resource_id={result.resource_id}, '
+                        f'task_id={task_id}, submit_request_id={result.submit_request_id}, '
+                        f'speaker={result.speaker}, resource_id={result.resource_id}, '
                         f'query_resource_id={client.query_resource_id}, query_response={query_response}'
                     )
                     result = result.model_copy(update={
@@ -646,9 +647,10 @@ class HuoshanVoiceService:
         except HuoshanTTSError as exc:
             log.error(
                 'Huoshan story synthesis query failed: '
-                f'task_id={task_id}, speaker={result.speaker}, resource_id={result.resource_id}, '
-                f'query_resource_id={client.query_resource_id}, status_code={exc.status_code}, code={exc.code}, '
-                f'request_id={exc.request_id}, payload={exc.payload}, error={exc!r}'
+                f'task_id={task_id}, submit_request_id={result.submit_request_id}, '
+                f'speaker={result.speaker}, resource_id={result.resource_id}, '
+                f'query_resource_id={client.query_resource_id}, status_code={exc.status_code}, '
+                f'code={exc.code}, query_request_id={exc.request_id}, payload={exc.payload}, error={exc!r}'
             )
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
@@ -700,11 +702,18 @@ class HuoshanVoiceService:
             await client.close()
 
         task_id = str((submit_response.get('data') or {}).get('task_id') or '').strip()
+        submit_request_id = str(submit_response.get('_request_id') or '').strip() or None
+        log.info(
+            'Huoshan story synthesis submit response: '
+            f'speaker={obj.speaker}, submit_resource_id={resource_id}, submit_request_id={submit_request_id}, '
+            f'response={submit_response}'
+        )
         if not task_id:
             raise errors.GatewayError(msg='Huoshan story synthesis did not return task_id', data=submit_response)
 
         result = HuoshanStorySynthesisResult(
             task_id=task_id,
+            submit_request_id=submit_request_id,
             speaker=voice_profile.id,
             speaker_alias=(
                     resolved_voice_status.speaker_alias or voice_profile.name) if resolved_voice_status else voice_profile.name,
@@ -728,8 +737,8 @@ class HuoshanVoiceService:
         self._start_story_synthesis_processing(task_id)
 
         log.info(
-            f'Huoshan story synthesis submitted: task_id={task_id}, speaker={obj.speaker}, '
-            f'bgm_song_id={bgm_song.id}, resource_id={story_client_config.resource_id}'
+            f'Huoshan story synthesis submitted: task_id={task_id}, submit_request_id={submit_request_id}, '
+            f'speaker={obj.speaker}, bgm_song_id={bgm_song.id}, resource_id={story_client_config.resource_id}'
         )
 
         return result
