@@ -129,6 +129,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_jz2iyDOZ1', 'name': '英文儿童'},
             {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '旁白男'},
+            {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
         ]),
     ),
 )
