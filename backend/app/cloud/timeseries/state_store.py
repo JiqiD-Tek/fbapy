@@ -18,6 +18,7 @@ class StateSnapshot:
     online: int | None = None
     battery: int | None = None
     volume: int | None = None
+    light: int | None = None
     storage: dict | None = None
     sleep: dict | None = None
     repeat_mode: int | None = None
@@ -26,7 +27,15 @@ class StateSnapshot:
 class StateStore:
     STATE_REDIS_PREFIX: ClassVar[str] = 'fba:device:state'
     STATE_TTL_SECONDS: ClassVar[int] = 60 * 60 * 24
-    STATE_FIELDS: ClassVar[tuple[str, ...]] = ('online', 'battery', 'volume', 'storage', 'sleep', 'repeat_mode')
+    STATE_FIELDS: ClassVar[tuple[str, ...]] = (
+        'online',
+        'battery',
+        'volume',
+        'light',
+        'storage',
+        'sleep',
+        'repeat_mode',
+    )
 
     @classmethod
     def _cache_key(cls, did: str) -> str:
@@ -74,6 +83,9 @@ class StateStore:
         if (volume := cls._coerce_int(payload.get('volume'))) is not None:
             patch['volume'] = volume
 
+        if (light := cls._coerce_int(payload.get('light'))) is not None:
+            patch['light'] = light
+
         if (storage := payload.get('storage')) is not None:
             patch['storage'] = storage
 
@@ -103,6 +115,7 @@ class StateStore:
             online=cls._coerce_int(data.get('online')),
             battery=cls._coerce_int(data.get('battery')),
             volume=cls._coerce_int(data.get('volume')),
+            light=cls._coerce_int(data.get('light')),
             storage=data.get('storage'),
             sleep=data.get('sleep'),
             repeat_mode=cls._coerce_int(data.get('repeat_mode')),

@@ -14,6 +14,7 @@ class GetDeviceStateDetail(SchemaBase):
     online: int | None = Field(None, description='device online status')
     battery: int | None = Field(None, description='device battery level')
     volume: int | None = Field(None, description='volume')
+    light: int | None = Field(None, description='light')
     storage: dict | None = Field(None, description='device storage total')
     sleep: dict | None = Field(None, description='sleep mode')
     repeat_mode: int | None = Field(None, description='repeat mode')

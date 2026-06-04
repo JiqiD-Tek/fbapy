@@ -38,7 +38,7 @@ async def main() -> None:
             f'js61/{client_id}/up/property',
             {"msg_id": "miniprogram_26c3c4d0", "timestamp": 1779087532759, "service": "property",
              "payload": {"online": 1, "battery": 80, "storage": {"total": 8388608, "used": 102400}, "volume": 2,
-                         "repeat_mode": 1, "sleep": {"mode": 0, "value": 0}}}
+                         "light": 50, "repeat_mode": 1, "sleep": {"mode": 0, "value": 0}}}
         )
         await asyncio.sleep(1)
 
