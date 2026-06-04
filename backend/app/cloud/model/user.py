@@ -30,7 +30,7 @@ class User(Base):
     username: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='用户名')
     nickname: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='昵称')
     password: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='密码')
-    salt: Mapped[bytes | None] = mapped_column(sa.LargeBinary(255), default=None, comment='加密盐')
+    salt: Mapped[bytes | None] = mapped_column(sa.LargeBinary(256), default=None, comment='加密盐')
     avatar: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='头像')
     sex: Mapped[int] = mapped_column(default=0, comment='性别(0未知 1男 2女)')
     birthday: Mapped[datetime | None] = mapped_column(TimeZone, default=None, comment='生日')

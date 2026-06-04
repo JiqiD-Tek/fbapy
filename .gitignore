@@ -7,6 +7,7 @@ venv/
 .python-version
 .ruff_cache/
 .pytest_cache/
+logs/
 .claude/
 .cursorrules
 
@@ -30,6 +31,6 @@ celerybeat-schedule.*
 *.docx
 .serena/
 .agents/
-logs/
 .superpowers/
 superpowers/
+.codegraph/
