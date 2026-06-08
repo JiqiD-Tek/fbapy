@@ -25,7 +25,7 @@ class AppSchemaBase(SchemaBase):
     icon: str | None = Field(None, description='图标')
     description: str | None = Field(None, description='描述')
     download_url: str | None = Field(None, description='下载地址')
-    market_code: str | None = Field(None, description='市场区域编码')
+    market_code: str | None = Field(None, description='市场区域编码：global cn tw')
     status: int | None = Field(default=0, description='状态(0禁用 1启用)')
     remark: str | None = Field(None, description='备注')
 

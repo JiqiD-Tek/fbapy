@@ -19,7 +19,7 @@ from uuid import uuid4
 
 import httpx
 import sqlalchemy as sa
-
+from backend.common.log import log
 from backend.app.cloud.model import CloudAlbum, CloudSong
 from backend.database.db import async_db_session
 
@@ -175,7 +175,8 @@ async def _download_resource(
                         if chunk:
                             file_obj.write(chunk)
             await _replace_file_with_retry(temp_path, target_path)
-    except Exception:
+    except Exception as exc:
+        log.error(f'Failed to download resource: {item.play_url}', exc_info=exc)
         temp_path.unlink(missing_ok=True)
         return 'failed'
 
@@ -271,8 +272,8 @@ def dump(
 
 
 def main():
-    run()
-    # dump()
+    # run()
+    dump()
 
 
 if __name__ == '__main__':

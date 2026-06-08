@@ -29,7 +29,7 @@ class CRUDApp(CRUDPlus[App]):
             }.items()
             if value is not None
         }
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
     async def get_by_name(self, db: AsyncSession, name: str) -> App | None:
         return await self.select_model_by_column(db, name=name)

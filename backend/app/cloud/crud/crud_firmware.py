@@ -36,7 +36,7 @@ class CRUDFirmware(CRUDPlus[Firmware]):
         if release_scope is not None:
             filters['release_scope'] = release_scope
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
     async def get_by_name(self, db: AsyncSession, name: str) -> Firmware | None:
         return await self.select_model_by_column(db, name=name)

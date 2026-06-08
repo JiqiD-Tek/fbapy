@@ -41,7 +41,7 @@ class CRUDUser(CRUDPlus[User]):
         if email is not None:
             filters['email__like'] = f'%{email}%'
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
     async def get_by_name(self, db: AsyncSession, name: str) -> User | None:
         return await self.select_model_by_column(db, username=name)

@@ -15,10 +15,10 @@ class CRUDCloudDialogue(CRUDPlus[CloudDialogue]):
         return await self.select_model(db, pk)
 
     async def get_select(
-        self,
-        title: str | None,
-        author: str | None,
-        status: int | None,
+            self,
+            title: str | None,
+            author: str | None,
+            status: int | None,
     ) -> Select:
         filters = {}
 
@@ -29,7 +29,7 @@ class CRUDCloudDialogue(CRUDPlus[CloudDialogue]):
         if status is not None:
             filters['status'] = status
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
     async def get_enabled_ids(self, db: AsyncSession) -> list[int]:
         stmt = sa.select(self.model.id).where(self.model.status == 1).order_by(self.model.id.asc())

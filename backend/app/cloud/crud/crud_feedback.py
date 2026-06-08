@@ -22,7 +22,7 @@ class CRUDFeedback(CRUDPlus[Feedback]):
         if status is not None:
             filters['status'] = status
 
-        return await self.select_order('id', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
     async def get_by_name(self, db: AsyncSession, name: str) -> Feedback | None:
         return await self.select_model_by_column(db, name=name)
