@@ -29,6 +29,20 @@ class DeviceSchemaBase(SchemaBase):
     quota: int = Field(0, description='当前使用时长（秒）')
 
 
+class DeviceCredentialsParam(SchemaBase):
+    """生成设备三元组参数"""
+
+    mac: str = Field(description='MAC 地址')
+
+
+class DeviceCredentialsDetail(SchemaBase):
+    """设备三元组"""
+
+    mac: str = Field(description='标准化后的 MAC 地址')
+    did: str = Field(description='设备 DID')
+    key: str = Field(description='设备 key')
+
+
 class CreateDeviceParam(DeviceSchemaBase):
     """创建设备参数"""
 

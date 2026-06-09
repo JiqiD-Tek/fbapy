@@ -18,6 +18,7 @@ from pyrate_limiter import Duration, Rate
 from starlette.background import BackgroundTasks
 
 from backend.app.cloud.schema.captcha import GetCaptchaDetail
+from backend.app.cloud.schema.device.device import DeviceCredentialsDetail, DeviceCredentialsParam
 from backend.app.cloud.schema.token import (
     CozeToken,
     CurrentLocation,
@@ -48,7 +49,12 @@ from backend.common.context import ctx
 from backend.common.exception import errors
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceAuth, DependsDeviceOrJwtAuth, verify_device_credentials
+from backend.common.security.auth import (
+    DependsDeviceAuth,
+    DependsDeviceOrJwtAuth,
+    identity_verifier,
+    verify_device_credentials,
+)
 from backend.common.security.jwt import DependsJwtAuth, DependsSuperUser
 from backend.common.security.jwt import jwt_encode, jwt_decode
 from backend.core.conf import settings
@@ -218,6 +224,19 @@ async def mqtt_login(
             return {'result': 'deny'}
 
     return {'result': 'allow', 'is_superuser': False}
+
+
+@router.post('/credentials', summary='生成设备三元组', dependencies=[DependsSuperUser])
+def generate_device_credentials(
+        obj: DeviceCredentialsParam,
+) -> ResponseSchemaModel[DeviceCredentialsDetail]:
+    mac = obj.mac.strip()
+    if not MAC_REGEX.fullmatch(mac):
+        raise errors.RequestError(msg='MAC 地址格式不正确')
+
+    credentials = identity_verifier.derive_credentials(mac)
+    data = DeviceCredentialsDetail.model_validate(credentials)
+    return response_base.success(data=data)
 
 
 @router.post('/sts_token', summary='阿里云STS', dependencies=[DependsSuperUser])
