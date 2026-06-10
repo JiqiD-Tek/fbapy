@@ -226,7 +226,8 @@ async def mqtt_login(
     return {'result': 'allow', 'is_superuser': False}
 
 
-@router.post('/credentials', summary='生成设备三元组', dependencies=[DependsSuperUser])
+@router.post('/credentials', summary='生成设备三元组',
+             dependencies=[DependsSuperUser, Depends(RateLimiter(Rate(5, Duration.MINUTE)))])
 def generate_device_credentials(
         obj: DeviceCredentialsParam,
 ) -> ResponseSchemaModel[DeviceCredentialsDetail]:
