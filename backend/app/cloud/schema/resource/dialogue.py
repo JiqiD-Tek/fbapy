@@ -46,6 +46,41 @@ class DialogueContent(SchemaBase):
     )
 
 
+class DialogueUtteranceLite(SchemaBase):
+    speaker: str | None = Field(None, description='Speaker ID')
+    speech_rate: int = Field(0, description='Speech rate')
+    loudness_rate: int = Field(0, description='Voice loudness rate')
+    audio_url: str | None = Field(None, description='Audio URL')
+
+
+class DialogueTurnLite(SchemaBase):
+    sequence: int = Field(ge=1, description='Turn sequence')
+    delta: int | None = Field(
+        None,
+        ge=0,
+        validation_alias=AliasChoices('delta', 'duration'),
+        description='Turn playback delta in seconds',
+    )
+    utterances: list[DialogueUtteranceLite] = Field(
+        default_factory=list,
+        min_length=1,
+        description='One or more utterances in the same turn',
+    )
+
+
+class DialogueContentLite(SchemaBase):
+    speakers: list[str] = Field(
+        default_factory=list,
+        min_length=1,
+        description='Dialogue speakers',
+    )
+    turns: list[DialogueTurnLite] = Field(
+        default_factory=list,
+        min_length=1,
+        description='Dialogue turns',
+    )
+
+
 class DialogueSchemaBase(SchemaBase):
     title: str = Field(description='Title')
     version: int = Field(default=1, ge=1, description='Version')
@@ -78,3 +113,7 @@ class GetDialogueDetail(DialogueSchemaBase):
     id: int = Field(description='Primary key ID')
     created_time: datetime = Field(description='Created time')
     updated_time: datetime | None = Field(None, description='Updated time')
+
+
+class GetRandomDialogueDetail(GetDialogueDetail):
+    content: DialogueContentLite = Field(description='Structured content')
