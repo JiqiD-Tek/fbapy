@@ -28,9 +28,9 @@ router = APIRouter()
 async def get_random_dialogue(
     db: CurrentSession,
     auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> ResponseSchemaModel[GetRandomDialogueDetail]:
+) -> ResponseSchemaModel[GetDialogueDetail]:
     data = await cloud_dialogue_service.get_random_dialogue(db=db, did=auth_ctx.did)
-    return response_base.success(data=GetRandomDialogueDetail.model_validate(data))
+    return response_base.success(data=GetDialogueDetail.model_validate(data))
 
 
 @router.get('/{pk}', summary='获取对话详情', dependencies=[DependsJwtAuth])
