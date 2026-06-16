@@ -21,7 +21,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PROJECT_ENVIRONMENT=/usr/local
 
 # Install Python dependencies first so normal source changes do not invalidate this layer.
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY backend/__init__.py ./backend/__init__.py
 
 RUN --mount=type=cache,target=/root/.cache/uv \
