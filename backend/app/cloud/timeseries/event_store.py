@@ -40,7 +40,7 @@ class EventStore:
     TABLES_BY_MODEL: ClassVar[dict[str, TSDBTable]] = {
         'js61': JS61EventTable.__table__,
     }
-    BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, ttl=600)
+    BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, global_ttl=600)
     DID_LOCKS: ClassVar[dict[str, asyncio.Lock]] = {}
     DID_LOCKS_GUARD: ClassVar[asyncio.Lock] = asyncio.Lock()
 
