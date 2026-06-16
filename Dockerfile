@@ -22,6 +22,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 # Install Python dependencies first so normal source changes do not invalidate this layer.
 COPY pyproject.toml uv.lock ./
+COPY backend/__init__.py ./backend/__init__.py
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-default-groups --group server --no-install-project
