@@ -1,30 +1,26 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-from typing import Any
+from pydantic import AliasChoices, Field
 
-from pydantic import Field
-
-from backend.app.cloud.service.led.domain import SemanticDesign
 from backend.common.schema import SchemaBase
 
 
-class GenerateSemanticDesignParam(SchemaBase):
-    description: str = Field(..., min_length=1, description='Short or detailed LED effect request')
+class LedGenerationRequestBase(SchemaBase):
+    text: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices('text', 'description'),
+        description='Text to preview as LED animation',
+    )
+    design_type: str | None = Field(None, description='Optional explicit design type')
+    font_style: str | None = Field(None, description='Optional explicit font style')
+    background_style: str | None = Field(None, description='Optional explicit background style')
+    style_seed: int | None = Field(None, description='Optional seed for reproducible style decisions')
 
 
-class GenerateFunctionCodeParam(SchemaBase):
-    semantic_design: dict[str, Any] = Field(..., description='Semantic design payload')
-
-    def parse_design(self) -> SemanticDesign:
-        return SemanticDesign.from_dict(self.semantic_design)
-
-
-class GenerateLedAnimationParam(SchemaBase):
-    description: str = Field(..., min_length=1, description='Short or detailed LED effect request')
+class GenerateLedAnimationParam(LedGenerationRequestBase):
+    pass
 
 
 __all__ = [
-    'GenerateFunctionCodeParam',
     'GenerateLedAnimationParam',
-    'GenerateSemanticDesignParam',
 ]

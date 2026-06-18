@@ -1,0 +1,5 @@
+from .builder import HORIZONTAL_STRETCH_REVEAL_SPEC
+
+__all__ = [
+    "HORIZONTAL_STRETCH_REVEAL_SPEC",
+]

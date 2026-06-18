@@ -13,31 +13,20 @@ from typing import Any
 from fastapi import APIRouter
 
 from backend.app.cloud.service.led import led_service
-from backend.app.cloud.service.led.schema import GenerateFunctionCodeParam, GenerateLedAnimationParam, GenerateSemanticDesignParam
+from backend.app.cloud.service.led.schema import GenerateLedAnimationParam
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
 
 router = APIRouter()
 
-
-@router.post('/designs', summary='生成灯效语义设计')
-async def generate_semantic_design(
-    obj: GenerateSemanticDesignParam,
-) -> ResponseSchemaModel[dict[str, Any]]:
-    data = await led_service.generate_semantic_design(description=obj.description)
-    return response_base.success(data=data)
-
-
-@router.post('/functions', summary='生成灯效函数代码')
-async def generate_function_code(
-    obj: GenerateFunctionCodeParam,
-) -> ResponseSchemaModel[dict[str, Any]]:
-    data = await led_service.generate_function_from_design(design=obj.parse_design())
-    return response_base.success(data=data)
-
-
-@router.post('/generations', summary='生成灯效代码')
+@router.post('/generations', summary='生成文字灯效代码')
 async def generate_led_animation(
     obj: GenerateLedAnimationParam,
 ) -> ResponseSchemaModel[dict[str, Any]]:
-    data = await led_service.generate_animation(description=obj.description)
+    data = await led_service.generate_animation(
+        text=obj.text,
+        design_type=obj.design_type,
+        font_style=obj.font_style,
+        background_style=obj.background_style,
+        style_seed=obj.style_seed,
+    )
     return response_base.success(data=data)
