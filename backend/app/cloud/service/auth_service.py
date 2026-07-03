@@ -7,7 +7,7 @@ from starlette.background import BackgroundTask, BackgroundTasks
 
 from backend.app.admin.service.login_log_service import login_log_service
 from backend.app.cloud.crud.crud_user import user_dao
-from backend.app.cloud.crud.device.crud_device import device_dao
+from backend.app.cloud.crud.crud_device import device_dao
 from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.model.user import User
@@ -28,7 +28,6 @@ from backend.app.cloud.schema.user import (
     UserDeviceParam,
 )
 from backend.app.cloud.service.device_service import device_service
-from backend.app.cloud.service.user_service import user_service
 from backend.common.providers.mini_service import mini_service
 from backend.common.context import ctx
 from backend.common.enums import LoginLogStatusType, MiniProvisionStatus

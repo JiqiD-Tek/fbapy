@@ -291,8 +291,7 @@ async def coze_token(
         db: CurrentSessionTransaction,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[CozeToken]:
-    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
-    quota = 600
+    ttl = 600
 
     config = {
         'client_type': 'jwt',
@@ -306,13 +305,13 @@ async def coze_token(
     from cozepy import load_oauth_app_from_config
 
     coze_oauth_app = load_oauth_app_from_config(config)
-    oauth_token = coze_oauth_app.get_access_token(ttl=quota)
+    oauth_token = coze_oauth_app.get_access_token(ttl=ttl)
 
     token = CozeToken(
         token_type=oauth_token.token_type,
         access_token=oauth_token.access_token,
         expires_in=oauth_token.expires_in,
-        ttl=quota,
+        ttl=ttl,
         bot_id=settings.COZE_BOT_ID,
         tw_bot_id="7637473092688134179",  # 台湾版本音色差异
     )
@@ -325,8 +324,7 @@ async def livekit_token(
         obj: LivekitDeviceParam,  # 业务字段（room/name/metadata）
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[LivekitToken]:
-    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
-    quota = 600
+    ttl = 600
 
     token = (
         api
@@ -337,7 +335,7 @@ async def livekit_token(
         .with_identity(identity=auth_ctx.did)
         .with_name(name=obj.name)
         .with_metadata(metadata=obj.metadata)
-        .with_ttl(ttl=datetime.timedelta(seconds=quota))
+        .with_ttl(ttl=datetime.timedelta(seconds=ttl))
         .with_grants(
             api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
         )
@@ -347,7 +345,7 @@ async def livekit_token(
     token = LivekitToken(
         url=settings.LIVEKIT_URL,
         token=token,
-        ttl=quota,
+        ttl=ttl,
     )
     return response_base.success(data=token)
 
@@ -357,13 +355,12 @@ async def fba_token(
         db: CurrentSessionTransaction,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[FbaToken]:
-    # quota = await device_service.allocate_quota(db=db, did=auth_ctx.did)
-    quota = 600
+    ttl = 600
 
     baby = await baby_service.get_by_device_did(db=db, did=auth_ctx.did)
 
     now = timezone.now()
-    expire_time = now + datetime.timedelta(seconds=quota)
+    expire_time = now + datetime.timedelta(seconds=ttl)
     payload = {
         'mac': auth_ctx.mac, 'did': auth_ctx.did, 'sn': auth_ctx.sn, 'model': auth_ctx.model,
         'baby_id': baby.id if baby is not None else 0,
@@ -375,7 +372,7 @@ async def fba_token(
 
     token = FbaToken(
         token=token,
-        ttl=quota,
+        ttl=ttl,
     )
     return response_base.success(data=token)
 
@@ -385,7 +382,6 @@ async def end_usage(
         db: CurrentSessionTransaction,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseModel:
-    # quota = await device_service.end_usage(db=db, did=auth_ctx.did)
-    quota = 600
+    ttl = 600
 
-    return response_base.success(data=quota)
+    return response_base.success(data=ttl)

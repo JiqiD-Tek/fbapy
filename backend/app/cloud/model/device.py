@@ -28,5 +28,3 @@ class Device(Base):
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='设备名称')
     firmware: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='固件版本')
     hardware: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='硬件版本')
-
-    quota: Mapped[int] = mapped_column(BigInteger, default=36000, comment='当前使用时长（秒）')

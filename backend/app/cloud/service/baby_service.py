@@ -13,7 +13,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_baby import baby_dao
-from backend.app.cloud.crud.device.crud_device import device_dao
+from backend.app.cloud.crud.crud_device import device_dao
 from backend.app.cloud.model import Baby
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.baby import CreateBabyData, CreateBabyParam, DeviceBabyParam, UpdateBabyParam

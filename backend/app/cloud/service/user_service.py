@@ -5,7 +5,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_user import user_dao
-from backend.app.cloud.crud.device.crud_device import device_dao
+from backend.app.cloud.crud.crud_device import device_dao
 from backend.app.cloud.model import Baby, Device
 from backend.app.cloud.model.m2m import user_device
 from backend.common.exception import errors
