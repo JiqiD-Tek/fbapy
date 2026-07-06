@@ -6,8 +6,6 @@
 @Date    : 2026/07/01
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Literal
 
@@ -18,6 +16,7 @@ from backend.common.schema import SchemaBase
 BillSubjectType = Literal['USER', 'DEVICE']
 BillAccountStatus = Literal['ACTIVE', 'BLOCKED']
 BillSessionStatus = Literal['OPEN', 'BLOCKED', 'CLOSED', 'ABORTED']
+BillCloseSessionStatus = Literal['BLOCKED', 'CLOSED', 'ABORTED']
 BillUsageKind = Literal['ASR', 'LLM_INPUT', 'LLM_OUTPUT', 'TTS']
 
 
@@ -72,7 +71,7 @@ class BillCloseSessionParam(SchemaBase):
     """关闭计费会话请求。"""
 
     session_id: str = Field(description='会话 ID')
-    status: Literal['CLOSED', 'ABORTED'] = Field(description='关闭后的会话状态')
+    status: BillCloseSessionStatus = Field(description='关闭后的会话状态')
     ended_at: datetime = Field(description='会话结束时间')
 
 

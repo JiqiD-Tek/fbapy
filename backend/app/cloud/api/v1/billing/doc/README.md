@@ -2,27 +2,56 @@
 
 ## 目标
 
-这一版 billing 只解决 `xiaozhi-server` 当前需要的最小闭环：
+当前 billing 只解决 `xiaozhi-server` 实时会话里的最小计费闭环：
 
-1. 打开一个实时计费会话
-2. 在会话过程中按真实消耗扣减平台 `token`
-3. 余额不足时立即返回 `should_stop`
+1. 打开计费会话
+2. 会话过程中按 `usage_token` 扣费
+3. 余额不足时返回 `should_stop`
 4. 关闭会话
 
-当前版本不提前引入套餐、订单、发票、月结等概念。
+当前实现不包含这些能力：
 
-## 计费单位
+- 套餐
+- 充值下单
+- 发票
+- 月结
+- 独立价格表
+- 独立 usage 事实表
 
-统一使用平台内部整数 `token` 记账：
+## 当前代码边界
 
-- 充值得到 `token`
-- 余额使用 `token`
-- 每次扣费结果也是 `token`
+### 统一计量单位
 
-billing 模块不再负责把毫秒、字符数或第三方 token 换算成平台 token。  
-上游在调用 `usage/debit` 之前，必须先完成换算，再把 `usage_token` 传进来。
+billing 内部统一使用整数 `token`：
 
-## 当前表设计
+- 账户余额是 `balance_token`
+- 本次扣费是 `usage_token`
+- 流水变动是 `delta_token`
+
+billing 不负责把毫秒、字符数、第三方 token 再换算成平台 token。  
+上游在调用 `usage/debit` 之前，必须先完成换算。
+
+### 当前接口约束
+
+当前代码仍然保留 `subject_type` 和 `subject_key` 这两个入参，但主路径按 `DEVICE` 使用。
+
+如果 `subject_type == 'DEVICE'`，则必须满足：
+
+- `subject_key == device_did`
+- `device_did == 当前认证设备 did`
+
+也就是说，当前代码虽然保留了“通用计费主体”结构，但实际推荐用法仍然是“设备账户”。
+
+### usage 类型
+
+当前只支持 4 种 `usage_kind`：
+
+- `ASR`
+- `LLM_INPUT`
+- `LLM_OUTPUT`
+- `TTS`
+
+## 表设计
 
 P0 只保留 3 张表：
 
@@ -32,139 +61,291 @@ P0 只保留 3 张表：
 
 ### 1. u_bill_account
 
-账户余额快照表。
+账户快照表，用来承载计费主体和当前余额。
 
-- 一条记录代表一个计费主体
-- 当前推荐主体优先使用 `DEVICE`
-- `balance_token` 是当前余额快照
-- `status` 控制是否允许进入新会话
+核心字段：
+
+- `subject_type`
+- `subject_key`
+- `balance_token`
+- `status`
+- `created_time`
+- `updated_time`
+
+说明：
+
+- 当前唯一键是 `(subject_type, subject_key)`
+- `status` 目前只区分 `ACTIVE / BLOCKED`
+- 当前代码没有单独的充值逻辑，这张表主要承担余额快照和准入控制
 
 ### 2. u_bill_session
 
-运行时会话表，用于承接计费上下文。
+运行时会话表，用来承载设备会话与账户关系，不承担账务真相。
 
-- 绑定 `account_id`
-- 记录 `device_did`
-- 维护 `OPEN / BLOCKED / CLOSED / ABORTED`
-- `last_activity_at` 只做低频更新，不要求每次 usage 精确落库
+核心字段：
 
-它不是账务事实表，也不承载最终扣费明细。
+- `session_id`
+- `account_id`
+- `device_did`
+- `started_at`
+- `status`
+- `last_activity_at`
+- `ended_at`
+- `created_time`
+- `updated_time`
+
+说明：
+
+- `session_id` 全局唯一
+- `status` 支持 `OPEN / BLOCKED / CLOSED / ABORTED`
+- `last_activity_at` 不是每次 usage 都更新，只在需要时更新
 
 ### 3. u_bill_txn
 
-这是同步热路径里的唯一事实表。
+账务流水表，是当前同步热路径中的唯一事实表。
 
-一次应扣费的 usage，只写一条 `DEBIT txn`：
+核心字段：
 
-- 记录 `usage_id`
-- 记录 `charge_id`
-- 记录本次扣减的 `delta_token`
-- 记录扣减后的 `balance_after_token`
-- 记录本次 usage 的 `usage_kind / usage_token / provider`
-- 记录入账后的 `account_status_after / session_status_after`
+- `charge_id`
+- `account_id`
+- `change_type`
+- `delta_token`
+- `balance_after_token`
+- `account_status_after`
+- `session_status_after`
+- `usage_id`
+- `session_id`
+- `turn_no`
+- `stage_no`
+- `usage_kind`
+- `usage_token`
+- `provider`
+- `occurred_at`
+- `created_time`
 
-这一版不再同步写 `u_bill_usage`，也不再保留 `u_bill_price`。
+说明：
 
-## 为什么去掉 u_bill_price
+- 当前代码只写 `DEBIT`
+- `charge_id` 当前直接等于 `usage_id`
+- 真正承担幂等唯一约束的是 `usage_id`
+- `u_bill_txn` 不继承 `DateTimeMixin`，只保留 `created_time`
+- 这是不可变流水，不设计 `updated_time`
 
-当前计费边界已经收缩为：
+## 为什么不保留 u_bill_usage
 
-- 上游负责把实际消耗换算成平台 `token`
-- billing 只负责幂等、扣账、阻断和会话状态
-- `provider` 只作为来源审计字段保留在 `u_bill_txn`
-
-既然 billing 不再负责计价，`u_bill_price` 和价格缓存就没有继续保留的必要。
-
-## 为什么去掉 u_bill_usage
-
-`usage/debit` 是高频接口。如果同步写两张事实表：
-
-1. `u_bill_usage`
-2. `u_bill_txn`
-
-那么每次请求都会多一次 `insert`，重复请求还要多做读取。
-
-当前需求只要求：
+`usage/debit` 是高频接口。当前需求只要求：
 
 - 扣费正确
 - 幂等正确
-- 能审计这笔扣费对应的 usage
+- 能追溯每一笔 usage 对应的扣费
 
-所以把 usage 信息直接并入 `u_bill_txn` 更合适。
+如果再同步写一张 `u_bill_usage`，每次首次扣费都会多一条事实写入，重复请求也会引入更多判断成本。
 
-## 热路径
+当前代码的做法是把 usage 相关字段直接并入 `u_bill_txn`：
 
-### 1. 打开会话
+- `usage_kind`
+- `usage_token`
+- `provider`
+- `turn_no`
+- `stage_no`
+- `occurred_at`
 
-`session/open` 只做这些事：
+这样可以把高频路径收敛到一张事实表。
 
-1. 校验设备身份
-2. 查找或创建 `u_bill_account`
-3. 校验 `u_bill_account.status`
-4. 创建 `u_bill_session`
+## 为什么不保留 u_bill_price
 
-### 2. usage 扣费
+当前 billing 已经不负责计价。
 
-`usage/debit` 是本模块的高频接口，热路径被压缩为：
+职责边界是：
 
-1. 先按 `usage_id` 查 `u_bill_txn`，做幂等短路
-2. 一次查询锁住 `session + account`
-3. 直接使用请求里的 `usage_token`
-4. 写入一条 `u_bill_txn(change_type=DEBIT)`
-5. 更新 `u_bill_account.balance_token`
-6. 只有余额扣穿或活跃时间达到阈值时，才更新 `u_bill_session`
+- 上游负责换算出 `usage_token`
+- billing 负责幂等、扣账、阻断、会话状态
+- `provider` 只做来源记录，不参与扣费计算
 
-正常路径不再同步写第二张事实表，也不再查询价格表。
+因此当前代码不需要：
 
-### 3. 关闭会话
+- `u_bill_price`
+- 价格缓存
+- 历史价格回放
 
-`session/close` 只更新：
+## 运行路径
 
-- `status`
-- `ended_at`
-- `last_activity_at`
+### 1. session/open
 
-## 请求频率与并发模型
+当前代码流程：
 
-这版实现优先保证正确性和稳定性，不承诺未压测前的具体 QPS。
+1. 校验 `device_did` 和认证设备是否一致
+2. 先查 `session_id` 是否已存在
+3. 若会话已存在，校验会话绑定设备并直接返回当前状态
+4. 若会话不存在，则按 `(subject_type, subject_key)` 查找或创建 `u_bill_account`
+5. 校验账户状态必须为 `ACTIVE`
+6. 创建 `u_bill_session`
 
-当前并发特征是：
+### 2. usage/debit
 
-- 幂等命中时，只需要一次 `usage_id` 查询
-- 首次扣费时，固定写一条 `u_bill_txn`
-- 同一 `account` / 同一 `session` 会通过行锁串行扣费
-- 不同 `account` 之间天然分散，可横向放大
+这是当前最重要的高频接口。
 
-也就是说，这版更适合：
+当前代码流程：
+
+1. 先按 `usage_id` 查 `u_bill_txn`，命中则直接返回第一次结果
+2. 若未命中，查询并锁住 `session + account`
+3. 校验认证设备与会话设备一致
+4. 直接使用请求里的 `usage_token`
+5. 写入一条 `u_bill_txn(change_type=DEBIT)`
+6. 更新 `u_bill_account.balance_token`
+7. 如果余额扣穿，则把 `account/session` 标记为 `BLOCKED`
+8. 如果没有扣穿，则只在活跃时间超过阈值时更新 `u_bill_session.last_activity_at`
+
+几个关键点：
+
+- 正常路径不再同步写第二张事实表
+- 重复请求走 `usage_id` 幂等短路
+- `should_stop` 来自 txn 里的 `session_status_after`
+- 非幂等扣费只允许 `OPEN` 会话进入，`BLOCKED` 会话只能走幂等短路返回第一次成功结果
+
+### 3. session/close
+
+当前代码只做：
+
+- 按 `session_id` 加锁查会话
+- 校验设备身份
+- 如果 `ended_at` 已经存在，直接返回
+- 否则更新 `status / ended_at / last_activity_at`
+
+## 并发与稳定性
+
+当前设计优先保证正确性和稳定性，不对未压测前的具体 QPS 做承诺。
+
+并发特征是：
+
+- 幂等命中时，只需要按 `usage_id` 读一次流水
+- 首次扣费时，只新增 1 条事实流水
+- 同一 `account` / 同一 `session` 的扣费会通过行锁串行化
+- 不同 `account` 之间天然分散，可通过设备分散度横向扩展
+
+因此当前实现更适合：
 
 - 主体以 `DEVICE` 为主
 - 单设备单会话
 - 大量分散设备并发写入
 
-如果未来要支持“多个设备共享一个用户账户并高频同时扣费”，再考虑会话预留额度，不放在当前版本内。
+如果未来要支持“多个设备共享同一个账户并高频同时扣费”，再考虑预留额度或更复杂的账户并发模型，不放在当前版本内。
 
-## usage_kind 约定
+## 接口 DB 操作与耗时估算
 
-- `ASR`
-- `LLM_INPUT`
-- `LLM_OUTPUT`
-- `TTS`
+### 统计口径
+
+下面的次数和耗时只统计 billing 自身主链路：
+
+- 只看 billing 三张表：`u_bill_account / u_bill_session / u_bill_txn`
+- 不包含网关、序列化、日志输出等外围耗时
+- 不包含设备鉴权的额外 DB 开销，当前 `DependsDeviceAuth` 本身不查库
+- 不把事务的 `BEGIN / COMMIT` 以及嵌套事务 `SAVEPOINT` 单独算进“业务 DB 操作次数”
+
+耗时是基于“同机房 MySQL、索引命中、无明显锁等待”的经验估算，不是压测结果。
+
+### session/open
+
+1. 会话已存在
+
+- DB 操作：2 次
+- 明细：
+  - `select u_bill_session by session_id`
+  - `select u_bill_account by account_id for update`
+- 预估耗时：`3 ~ 10 ms`
+
+2. 会话不存在，账户已存在
+
+- DB 操作：3 次
+- 明细：
+  - `select u_bill_session by session_id`
+  - `select u_bill_account by (subject_type, subject_key) for update`
+  - `insert u_bill_session`
+- 预估耗时：`5 ~ 12 ms`
+
+3. 会话不存在，账户也不存在
+
+- DB 操作：4 次
+- 明细：
+  - `select u_bill_session by session_id`
+  - `select u_bill_account by (subject_type, subject_key) for update`
+  - `insert u_bill_account`
+  - `insert u_bill_session`
+- 预估耗时：`6 ~ 15 ms`
+
+补充说明：
+
+- 并发竞争下，如果 `insert account` 或 `insert session` 触发唯一键冲突，代码会补一次查询，实际会多 `1` 次 DB 读取
+- 这个接口不是高频热点，更多是会话建立时的准入接口
+
+### usage/debit
+
+1. 幂等命中
+
+- DB 操作：1 次
+- 明细：
+  - `select u_bill_txn by usage_id`
+- 预估耗时：`2 ~ 6 ms`
+
+2. 首次扣费，且不需要更新 session
+
+- DB 操作：4 次
+- 明细：
+  - `select u_bill_txn by usage_id`
+  - `select u_bill_session join u_bill_account for update`
+  - `insert u_bill_txn`
+  - `update u_bill_account`
+- 预估耗时：`6 ~ 15 ms`
+
+3. 首次扣费，且需要更新 session
+
+- DB 操作：5 次
+- 明细：
+  - `select u_bill_txn by usage_id`
+  - `select u_bill_session join u_bill_account for update`
+  - `insert u_bill_txn`
+  - `update u_bill_account`
+  - `update u_bill_session`
+- 触发场景：
+  - 余额扣穿，写入 `BLOCKED`
+  - `last_activity_at` 达到刷新阈值
+- 预估耗时：`8 ~ 20 ms`
+
+补充说明：
+
+- 当前高频路径的主要成本已经收敛到 `u_bill_txn` 单事实写入
+- 真正影响尾延迟的核心不是 SQL 条数，而是“同一 `account/session` 上的锁竞争”
+- 同一账户并发扣费会串行排队，所以热点账户的 P95 / P99 会明显高于分散设备场景
+
+### session/close
+
+1. 会话已经关闭
+
+- DB 操作：1 次
+- 明细：
+  - `select u_bill_session by session_id for update`
+- 预估耗时：`2 ~ 6 ms`
+
+2. 正常关闭会话
+
+- DB 操作：2 次
+- 明细：
+  - `select u_bill_session by session_id for update`
+  - `update u_bill_session`
+- 预估耗时：`4 ~ 10 ms`
+
+### 评估结论
+
+- 从 DB 操作数看，`usage/debit` 正常路径已经比较短，主路径是 `4 ~ 5` 次 billing SQL
+- `session/open` 和 `session/close` 不是主要性能瓶颈
+- 当前版本能否扛住并发，关键取决于同一账户的冲突比例，而不是接口名义上的平均 SQL 次数
 
 ## 幂等规则
 
 - `usage_id` 必须全局唯一
 - 重复调用同一个 `usage_id` 时，直接返回第一次成功入账的结果
-- `charge_id` 在当前 `DEBIT` 场景下直接等于 `usage_id`
+- 当前 `charge_id` 直接等于 `usage_id`
 
-## 当前不做的事
+## 当前文档口径
 
-这些能力不在当前实现范围内：
-
-- 套餐
-- 订单支付
-- 充值接口
-- 发票
-- 月结批次
-- 异步 usage 审计表
-- 会话预留额度
-- 在 billing 内部做价格换算
+这份文档以当前代码为准，不描述尚未实现的充值、价格计算、账单汇总或异步审计能力。
