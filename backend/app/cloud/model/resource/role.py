@@ -39,6 +39,9 @@ class CloudRole(Base):
         sa.SmallInteger, default=None, comment='音色类型：1官方音色 2复刻音色 3自定义音色',
     )
     voice_name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='音色名称')
+    voice_language: Mapped[str | None] = mapped_column(
+        sa.String(32), default=None, comment='音色语言，如 zh-CN、en-US、zh-TW',
+    )
 
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0禁用 1启用')
     sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')

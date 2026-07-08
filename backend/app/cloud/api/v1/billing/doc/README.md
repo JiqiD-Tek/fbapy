@@ -152,9 +152,14 @@ P0 只保留 3 张表：
 
 这样可以把高频路径收敛到一张事实表。
 
-## 为什么不保留 u_bill_price
+## 上游 metering 与定价
+
+### 3.1 职责边界
 
 当前 billing 已经不负责计价。
+
+以下“定价策略”只属于上游 metering 配置口径，不属于 billing 热路径内置逻辑。  
+billing 仍然只接收已经换算完成的 `usage_token`。
 
 职责边界是：
 
@@ -167,6 +172,114 @@ P0 只保留 3 张表：
 - `u_bill_price`
 - 价格缓存
 - 历史价格回放
+
+### 3.2 定价策略
+
+平台售价策略固定为：
+
+- 先确认云厂商真实采购成本
+- 再按产品策略加价
+- 当前推荐基线是“云成本约上浮 10%”
+- 不允许拍脑袋把 `AUDIO_MS / PROVIDER_TOKEN / TEXT_CHAR` 直接映射成平台 token
+
+### 3.3 代码默认资源与当前计费基线
+
+当前仓库里的“代码默认资源”和“当前 billing 使用的计费基线”不是一个概念，不能混写。
+
+当前代码中可直接看到的默认资源如下：
+
+- `ASR`：`volc.bigasr.sauc.duration`
+- `LLM`：默认 chat 模型 `doubao-seed-2-0-lite-260215`
+- `LLM`：默认 story 模型 `doubao-seed-2-0-pro-260215`
+- `TTS`：流式默认资源 `seed-tts-2.0`
+- `TTS`：长文本默认资源 `seed-icl-2.0`
+
+本节下面的“当前推荐参考价”按当前项目准备采用的计费基线模型书写：
+
+- `ASR`：`DoubaoStreamASRProvider + volc.bigasr.sauc.duration`
+- `LLM`：`OpenAILLMProvider + doubao-seed-2-0-mini-260428`
+- `TTS`：`HuoshanStreamTTSProvider + seed-icl-2.0`
+
+也就是说，这里描述的是 `billing.metering.rules` 的配置口径，不等同于“代码里所有地方的默认值”。
+
+### 3.4 当前推荐参考价
+
+当前推荐参考价如下：
+
+| 服务         | 云成本参考                               | 平台目标售价                 | metering 规则                          |
+|------------|-------------------------------------|------------------------|--------------------------------------|
+| ASR        | `4.5 RMB / 小时` 公开刊例保守口径             | `4.95 RMB / 小时`        | `60000ms -> 82500 token`             |
+| TTS        | `8 RMB / 万字符` `seed-icl-2.0` 口径     | `8.8 RMB / 万字符`        | `100 chars -> 88000 token`           |
+| LLM_INPUT  | `0.2 RMB / 百万 tokens` `2.0-mini` 口径 | `0.22 RMB / 百万 tokens` | `1000 provider tokens -> 220 token`  |
+| LLM_OUTPUT | `2 RMB / 百万 tokens` `2.0-mini` 口径   | `2.2 RMB / 百万 tokens`  | `1000 provider tokens -> 2200 token` |
+
+说明：
+
+- 上表基于 `1 RMB = 1,000,000 平台Token`
+- 这是一组针对当前计费基线模型的推荐起始值，不是跨项目通用常量
+- 实际线上价格以当前生效的 `billing.metering.rules` 为准
+- 如果 LLM 模型切到 `lite / pro`，或 TTS 切到 `seed-tts-2.0`，必须单独新增或替换对应规则
+- 如果拿到了实际采购账单，允许把 ASR 从公开刊例保守口径下调到真实成本口径，再重新生成 metering 规则
+- `TTS` 规则建议显式带 `model`，不要只按 `provider` 复用价格
+- 规则里的 `provider` / `model` 命名必须和上游入账时实际上传给 billing 的值保持一致
+
+### 3.5 当前推荐配置示例
+
+```yaml
+billing:
+  enabled: true
+  metering:
+    rules:
+      - kind: ASR
+        provider: DoubaoStreamASRProvider
+        model: volc.bigasr.sauc.duration
+        raw_unit: AUDIO_MS
+        base_units: 60000
+        token_amount: 82500
+
+      - kind: LLM_INPUT
+        provider: OpenAILLMProvider
+        model: doubao-seed-2-0-mini-260428
+        raw_unit: PROVIDER_TOKEN
+        base_units: 1000
+        token_amount: 220
+
+      - kind: LLM_OUTPUT
+        provider: OpenAILLMProvider
+        model: doubao-seed-2-0-mini-260428
+        raw_unit: PROVIDER_TOKEN
+        base_units: 1000
+        token_amount: 2200
+
+      - kind: TTS
+        provider: HuoshanStreamTTSProvider
+        model: seed-icl-2.0
+        raw_unit: TEXT_CHAR
+        base_units: 100
+        token_amount: 88000
+```
+
+### 3.6 官方参考与价格判断（2026-07-07）
+
+下面的判断基于 `2026-07-07` 查阅的火山 / 豆包官方公开资料，以及当前项目给定的采购成本口径。
+
+- 如果 `ASR 4.5 元/小时`、`LLM 2.0-mini 输入 0.2 / 输出 2 元 / 百万 tokens`、`TTS seed-icl-2.0 8 元/万字符`
+  这三组值已经被采购侧或账单侧确认，那么按 10% 上浮生成 `4.95 / 8.8 / 0.22 / 2.2` 的平台售价是合理的。
+- `ASR` 使用 `4.5 元/小时` 作为公开刊例保守口径是可以接受的；如果后续拿到更低的真实采购账单，可以再下调，不需要改 billing
+  主链路。
+- `LLM` 这里已经不再使用“一张统一 LLM 价表”，而是明确绑到 `doubao-seed-2-0-mini-260428`，这个方向是对的；后续如果切到
+  `lite / pro / thinking`，必须单独建规则。
+- `TTS` 这里的关键不是数学换算，而是口径一致：如果线上实际跑的是 `seed-icl-2.0`，就用这条规则；如果实际跑的是 `seed-tts-2.0`
+  ，这条规则不能直接复用。
+- billing 本身不校验 provider 价格对错，所以真正决定计费正确性的，是上游选择了哪条 `metering rule`，以及上游上报的
+  `provider / model / raw_unit` 是否和规则完全一致。
+
+官方参考链接：
+
+- 方舟模型计费说明：`https://www.volcengine.com/docs/6581/2389072?lang=zh`
+- RTC 接入 `resource_id` 映射：`https://www.volcengine.com/docs/6500/1588416`
+- 豆包产品页：`https://www.volcengine.com/product/doubao`
+- 语音处理产品页：`https://www.volcengine.com/products/Audio-editing-and-sound-processing`
 
 ## 运行路径
 
@@ -250,27 +363,27 @@ P0 只保留 3 张表：
 
 - DB 操作：2 次
 - 明细：
-  - `select u_bill_session by session_id`
-  - `select u_bill_account by account_id for update`
+    - `select u_bill_session by session_id`
+    - `select u_bill_account by account_id for update`
 - 预估耗时：`3 ~ 10 ms`
 
 2. 会话不存在，账户已存在
 
 - DB 操作：3 次
 - 明细：
-  - `select u_bill_session by session_id`
-  - `select u_bill_account by (subject_type, subject_key) for update`
-  - `insert u_bill_session`
+    - `select u_bill_session by session_id`
+    - `select u_bill_account by (subject_type, subject_key) for update`
+    - `insert u_bill_session`
 - 预估耗时：`5 ~ 12 ms`
 
 3. 会话不存在，账户也不存在
 
 - DB 操作：4 次
 - 明细：
-  - `select u_bill_session by session_id`
-  - `select u_bill_account by (subject_type, subject_key) for update`
-  - `insert u_bill_account`
-  - `insert u_bill_session`
+    - `select u_bill_session by session_id`
+    - `select u_bill_account by (subject_type, subject_key) for update`
+    - `insert u_bill_account`
+    - `insert u_bill_session`
 - 预估耗时：`6 ~ 15 ms`
 
 补充说明：
@@ -284,31 +397,31 @@ P0 只保留 3 张表：
 
 - DB 操作：1 次
 - 明细：
-  - `select u_bill_txn by usage_id`
+    - `select u_bill_txn by usage_id`
 - 预估耗时：`2 ~ 6 ms`
 
 2. 首次扣费，且不需要更新 session
 
 - DB 操作：4 次
 - 明细：
-  - `select u_bill_txn by usage_id`
-  - `select u_bill_session join u_bill_account for update`
-  - `insert u_bill_txn`
-  - `update u_bill_account`
+    - `select u_bill_txn by usage_id`
+    - `select u_bill_session join u_bill_account for update`
+    - `insert u_bill_txn`
+    - `update u_bill_account`
 - 预估耗时：`6 ~ 15 ms`
 
 3. 首次扣费，且需要更新 session
 
 - DB 操作：5 次
 - 明细：
-  - `select u_bill_txn by usage_id`
-  - `select u_bill_session join u_bill_account for update`
-  - `insert u_bill_txn`
-  - `update u_bill_account`
-  - `update u_bill_session`
+    - `select u_bill_txn by usage_id`
+    - `select u_bill_session join u_bill_account for update`
+    - `insert u_bill_txn`
+    - `update u_bill_account`
+    - `update u_bill_session`
 - 触发场景：
-  - 余额扣穿，写入 `BLOCKED`
-  - `last_activity_at` 达到刷新阈值
+    - 余额扣穿，写入 `BLOCKED`
+    - `last_activity_at` 达到刷新阈值
 - 预估耗时：`8 ~ 20 ms`
 
 补充说明：
@@ -323,15 +436,15 @@ P0 只保留 3 张表：
 
 - DB 操作：1 次
 - 明细：
-  - `select u_bill_session by session_id for update`
+    - `select u_bill_session by session_id for update`
 - 预估耗时：`2 ~ 6 ms`
 
 2. 正常关闭会话
 
 - DB 操作：2 次
 - 明细：
-  - `select u_bill_session by session_id for update`
-  - `update u_bill_session`
+    - `select u_bill_session by session_id for update`
+    - `update u_bill_session`
 - 预估耗时：`4 ~ 10 ms`
 
 ### 评估结论
@@ -348,4 +461,5 @@ P0 只保留 3 张表：
 
 ## 当前文档口径
 
-这份文档以当前代码为准，不描述尚未实现的充值、价格计算、账单汇总或异步审计能力。
+这份文档以当前代码为准，不描述尚未实现的充值、账单汇总或异步审计能力。  
+上面的“定价策略”只描述上游 metering 配置口径，不表示 billing 热路径内置了价格计算。

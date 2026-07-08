@@ -30,8 +30,13 @@ router = APIRouter()
 async def get_enabled_roles(
     db: CurrentSession,
     group_key: Annotated[str | None, Query(description='虚拟角色分组标识')] = None,
+    voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
 ) -> ResponseSchemaModel[list[GetRoleOption]]:
-    roles = await cloud_role_service.get_enabled_role_list(db=db, group_key=group_key)
+    roles = await cloud_role_service.get_enabled_role_list(
+        db=db,
+        group_key=group_key,
+        voice_language=voice_language,
+    )
     data = [GetRoleOption.model_validate(role) for role in roles]
     return response_base.success(data=data)
 
@@ -51,6 +56,7 @@ async def get_role_paginated(
     role_key: Annotated[str | None, Query(description='角色唯一标识')] = None,
     group_key: Annotated[str | None, Query(description='虚拟角色分组标识')] = None,
     name: Annotated[str | None, Query(description='角色名称')] = None,
+    voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetRoleDetail]]:
     page_data = await cloud_role_service.get_role_list(
@@ -58,6 +64,7 @@ async def get_role_paginated(
         role_key=role_key,
         group_key=group_key,
         name=name,
+        voice_language=voice_language,
         status=status,
     )
     page_data['items'] = [GetRoleDetail.model_validate(item) for item in page_data['items']]

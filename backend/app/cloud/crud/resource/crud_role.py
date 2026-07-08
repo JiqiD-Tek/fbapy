@@ -31,6 +31,7 @@ class CRUDCloudRole(CRUDPlus[CloudRole]):
         role_key: str | None,
         group_key: str | None,
         name: str | None,
+        voice_language: str | None,
         status: int | None,
     ) -> Select:
         stmt = sa.select(self.model).where(self.model.deleted == 0)
@@ -41,15 +42,25 @@ class CRUDCloudRole(CRUDPlus[CloudRole]):
             stmt = stmt.where(self.model.group_key == group_key)
         if name is not None:
             stmt = stmt.where(self.model.name.like(f'%{name}%'))
+        if voice_language is not None:
+            stmt = stmt.where(self.model.voice_language == voice_language)
         if status is not None:
             stmt = stmt.where(self.model.status == status)
 
         return stmt.order_by(self.model.sort.asc(), self.model.id.desc())
 
-    async def get_enabled(self, db: AsyncSession, *, group_key: str | None = None) -> Sequence[CloudRole]:
+    async def get_enabled(
+        self,
+        db: AsyncSession,
+        *,
+        group_key: str | None = None,
+        voice_language: str | None = None,
+    ) -> Sequence[CloudRole]:
         stmt = sa.select(self.model).where(self.model.deleted == 0, self.model.status == 1)
         if group_key is not None:
             stmt = stmt.where(self.model.group_key == group_key)
+        if voice_language is not None:
+            stmt = stmt.where(self.model.voice_language == voice_language)
         stmt = stmt.order_by(self.model.sort.asc(), self.model.id.desc())
         result = await db.execute(stmt)
         return result.scalars().all()

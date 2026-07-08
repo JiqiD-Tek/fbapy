@@ -33,22 +33,30 @@ class CloudRoleService:
         role_key: str | None = None,
         group_key: str | None = None,
         name: str | None = None,
+        voice_language: str | None = None,
         status: int | None = None,
     ) -> dict[str, Any]:
         role_select = await cloud_role_dao.get_select(
             role_key=CloudRoleService._normalize_query_text(role_key),
             group_key=CloudRoleService._normalize_query_text(group_key),
             name=CloudRoleService._normalize_query_text(name),
+            voice_language=CloudRoleService._normalize_query_text(voice_language),
             status=status,
         )
         return await paging_data(db, role_select)
 
     @staticmethod
-    async def get_enabled_role_list(*, db: AsyncSession, group_key: str | None = None) -> list[CloudRole]:
+    async def get_enabled_role_list(
+        *,
+        db: AsyncSession,
+        group_key: str | None = None,
+        voice_language: str | None = None,
+    ) -> list[CloudRole]:
         return list(
             await cloud_role_dao.get_enabled(
                 db,
                 group_key=CloudRoleService._normalize_query_text(group_key),
+                voice_language=CloudRoleService._normalize_query_text(voice_language),
             )
         )
 
@@ -118,6 +126,7 @@ class CloudRoleService:
             'voice_provider',
             'voice_id',
             'voice_name',
+            'voice_language',
             'remark',
         )
         for field in text_fields:
