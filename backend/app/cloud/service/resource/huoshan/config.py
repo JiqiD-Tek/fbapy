@@ -91,6 +91,8 @@ PUBLIC_VOICES_V1 = _build_voice_profiles([
 )
 PUBLIC_VOICES_V2 = _build_voice_profiles([
     {'id': 'en_female_stokie_uranus_bigtts', 'name': 'Stokie'},
+    {'id': 'zh_female_xiaohe_uranus_bigtts', 'name': '小何 2.0'},
+    {'id': 'zh_female_linjianvhai_uranus_bigtts', 'name': '邻家女孩 2.0'},
 ],
     source='public',
     resource_id=PUBLIC_VOICE_RESOURCE_ID_V2,
