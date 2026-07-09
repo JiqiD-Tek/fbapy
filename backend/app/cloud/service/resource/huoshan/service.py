@@ -775,17 +775,19 @@ class HuoshanVoiceService:
             )
 
         speech_audio = await client.download_file(url=source_audio_url)
-        mixed_audio = await self._mix_story_audio(
-            speech_audio=speech_audio,
-            bgm_play_url=current_result.bgm.play_url,
-            bgm_volume=current_result.bgm_volume,
-        )
+        output_audio = speech_audio
+        if current_result.bgm is not None:
+            output_audio = await self._mix_story_audio(
+                speech_audio=speech_audio,
+                bgm_play_url=current_result.bgm.play_url,
+                bgm_volume=current_result.bgm_volume,
+            )
 
         oss_key = self._build_story_oss_key(task_id=task_id)
-        download_url = await self._upload_story_audio(key=oss_key, data=mixed_audio)
+        download_url = await self._upload_story_audio(key=oss_key, data=output_audio)
         if not download_url:
             raise errors.GatewayError(
-                msg='Failed to upload mixed story audio to OSS',
+                msg='Failed to upload story audio to OSS',
                 data={'task_id': task_id, 'oss_key': oss_key},
             )
 
@@ -800,7 +802,7 @@ class HuoshanVoiceService:
 
         log.info(
             f'Huoshan story synthesized successfully: task_id={task_id}, speaker={current_result.speaker}, '
-            f'bgm_song_id={current_result.bgm.song_id}, oss_key={oss_key}'
+            f'bgm_song_id={current_result.bgm.song_id if current_result.bgm is not None else None}, oss_key={oss_key}'
         )
         return result
 
@@ -890,7 +892,9 @@ class HuoshanVoiceService:
             db: AsyncSession,
             obj: HuoshanStorySynthesisParam,
     ) -> HuoshanStorySynthesisResult:
-        bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
+        bgm_song = None
+        if obj.bgm_song_id is not None:
+            bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
         public_voice = get_public_voice(obj.speaker)
         voice_status: HuoshanVoiceStatus | None = None
         if public_voice is None:
@@ -935,14 +939,17 @@ class HuoshanVoiceService:
             speaker_state=resolved_voice_status.state if resolved_voice_status else None,
             resource_id=story_client_config.resource_id,
             audio_format=STORY_AUDIO_FORMAT,
-            bgm=HuoshanStoryBgmInfo(
-                song_id=bgm_song.id,
-                title=bgm_song.title,
-                play_url=str(bgm_song.play_url or '').strip(),
-                artist=bgm_song.artist,
-                duration=bgm_song.duration,
+            bgm=(
+                HuoshanStoryBgmInfo(
+                    song_id=bgm_song.id,
+                    title=bgm_song.title,
+                    play_url=str(bgm_song.play_url or '').strip(),
+                    artist=bgm_song.artist,
+                    duration=bgm_song.duration,
+                )
+                if bgm_song is not None else None
             ),
-            bgm_volume=obj.bgm_volume,
+            bgm_volume=obj.bgm_volume if bgm_song is not None else 0,
             speech_rate=obj.speech_rate,
             loudness_rate=obj.loudness_rate,
             is_completed=False,
@@ -953,7 +960,8 @@ class HuoshanVoiceService:
 
         log.info(
             f'Huoshan story synthesis submitted: task_id={task_id}, submit_request_id={submit_request_id}, '
-            f'speaker={obj.speaker}, bgm_song_id={bgm_song.id}, resource_id={story_client_config.resource_id}'
+            f'speaker={obj.speaker}, bgm_song_id={bgm_song.id if bgm_song is not None else None}, '
+            f'resource_id={story_client_config.resource_id}'
         )
 
         return result

@@ -62,7 +62,7 @@ class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     speaker: str = Field(description='Speaker ID, supports cloned or public voices')
     speech_rate: int = Field(0, description='Speech rate')
     loudness_rate: int = Field(0, description='Voice loudness rate')
-    bgm_song_id: int = Field(gt=0, description='Background music song ID')
+    bgm_song_id: int | None = Field(None, gt=0, description='Background music song ID')
     bgm_volume: int = Field(50, ge=0, le=100, description='Background music volume')
 
 
@@ -185,7 +185,7 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     speaker_state: HuoshanVoiceState | None = Field(None, description='Speaker state')
     resource_id: str = Field(description='Resource ID')
     audio_format: HuoshanAudioFormat = Field(description='Audio format')
-    bgm: HuoshanStoryBgmInfo = Field(description='Background music info')
+    bgm: HuoshanStoryBgmInfo | None = Field(None, description='Background music info')
     bgm_volume: int = Field(description='Background music volume percent')
     speech_rate: int = Field(0, description='Speech rate')
     loudness_rate: int = Field(0, description='Voice loudness rate')
