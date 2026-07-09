@@ -10,27 +10,22 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from backend.common.schema import SchemaBase
 
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
 HuoshanAudioFormat = Literal['mp3']
-HuoshanASRAudioInputFormat = Literal['pcm', 'wav']
 
 
 class HuoshanSchemaBase(SchemaBase):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class HuoshanVoiceTagParam(HuoshanSchemaBase):
-    key: str = Field(alias='Key', description='Tag key')
-    value: str = Field(alias='Value', description='Tag value')
-
-
-class HuoshanVoiceResourceTagParam(HuoshanSchemaBase):
-    custom_tags: dict[str, str] | None = Field(None, alias='CustomTags', description='Legacy custom tag mapping')
-    project_name: str | None = Field(None, alias='ProjectName', description='Legacy project name')
+def _strip_required_text(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.strip()
+    return value
 
 
 class HuoshanVoiceListParam(HuoshanSchemaBase):
@@ -47,55 +42,19 @@ class HuoshanVoiceListParam(HuoshanSchemaBase):
         return str(self.speaker_ids[0]).strip() or None
 
 
-class HuoshanVoiceOrderParam(HuoshanSchemaBase):
-    resource_id: str = Field('volc.megatts.voiceclone', alias='ResourceID', description='Resource ID')
-    code: str = Field('Model_storage', alias='Code', description='Billing code')
-    times: int = Field(alias='Times', gt=0, description='Purchase duration in months')
-    quantity: int = Field(alias='Quantity', gt=0, description='Voice quantity')
-    project_name: str | None = Field(None, alias='ProjectName', description='Project name')
-    tags: list[HuoshanVoiceTagParam] | None = Field(None, alias='Tags', description='Resource tags')
-    auto_use_coupon: bool | None = Field(None, alias='AutoUseCoupon', description='Auto coupon flag')
-    coupon_id: str | None = Field(None, alias='CouponID', description='Coupon ID')
-    resource_tag: HuoshanVoiceResourceTagParam | None = Field(
-        None,
-        alias='ResourceTag',
-        description='Legacy resource_tag payload',
-        exclude=True,
-    )
+class HuoshanRoleStoryScriptParam(HuoshanSchemaBase):
+    role_ids: list[int] = Field(min_length=1, max_length=10, description='Role ID list')
+    text: str = Field(min_length=1, max_length=2000, description='Story requirement from the user')
 
-    @model_validator(mode='before')
+    @field_validator('role_ids')
     @classmethod
-    def migrate_legacy_resource_tag(cls, value: Any) -> Any:
-        if not isinstance(value, dict):
-            return value
+    def deduplicate_role_ids(cls, value: list[int]) -> list[int]:
+        return list(dict.fromkeys(value))
 
-        copied = dict(value)
-        resource_tag = copied.get('ResourceTag')
-        if resource_tag is None:
-            resource_tag = copied.get('resource_tag')
-        if not isinstance(resource_tag, dict):
-            return copied
-
-        project_name = copied.get('ProjectName', copied.get('project_name'))
-        if not project_name:
-            legacy_project_name = resource_tag.get('ProjectName', resource_tag.get('project_name'))
-            if legacy_project_name:
-                copied['ProjectName'] = legacy_project_name
-
-        tags = copied.get('Tags', copied.get('tags'))
-        if not tags:
-            custom_tags = resource_tag.get('CustomTags', resource_tag.get('custom_tags'))
-            if isinstance(custom_tags, dict) and custom_tags:
-                copied['Tags'] = [{'Key': key, 'Value': str(val)} for key, val in custom_tags.items()]
-
-        return copied
-
-
-class HuoshanVoiceRenewParam(HuoshanSchemaBase):
-    times: int = Field(alias='Times', gt=0, description='Renew duration in months')
-    speaker_ids: list[str] = Field(alias='SpeakerIDs', min_length=1, description='Speaker IDs to renew')
-    auto_use_coupon: bool | None = Field(None, alias='AutoUseCoupon', description='Auto coupon flag')
-    coupon_id: str | None = Field(None, alias='CouponID', description='Coupon ID')
+    @field_validator('text', mode='before')
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        return _strip_required_text(value)
 
 
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
@@ -122,14 +81,36 @@ class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
 
 
-class HuoshanStreamASRParam(HuoshanSchemaBase):
-    audio_base64: str = Field(min_length=1, description='Base64 encoded PCM or WAV audio')
-    audio_format: HuoshanASRAudioInputFormat = Field('pcm', description='Input audio format')
+class HuoshanRoleStoryScriptLine(HuoshanSchemaBase):
+    role_id: int = Field(gt=0, description='Role ID')
+    text: str = Field(min_length=1, description='Story line content')
+
+    @field_validator('text', mode='before')
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        return _strip_required_text(value)
 
 
-class HuoshanStreamASRResult(HuoshanSchemaBase):
-    request_id: str = Field(description='ASR request ID')
-    text: str = Field('', description='Recognized text')
+class HuoshanRoleStoryRoleInfo(HuoshanSchemaBase):
+    role_id: int = Field(gt=0, description='Role ID')
+    name: str = Field(description='Role name')
+    summary: str = Field('', description='Role summary')
+    system_prompt: str = Field('', description='Role system prompt')
+
+
+class HuoshanRoleStoryScriptResult(HuoshanSchemaBase):
+    task_id: str = Field(description='Story script generation task ID')
+    role_ids: list[int] = Field(description='Requested role IDs')
+    text: str = Field(description='Story requirement from the user')
+    model: str = Field(description='Model name')
+    lines: list[HuoshanRoleStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
+    is_completed: bool = Field(description='Whether story script generation is completed')
+    task_status: int = Field(description='Task status')
+    error_message: str | None = Field(None, description='Task error message')
+
+
+class HuoshanRoleStoryScriptTaskResult(HuoshanRoleStoryScriptResult):
+    roles: list[HuoshanRoleStoryRoleInfo] = Field(default_factory=list, description='Cached role snapshot')
 
 
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):
@@ -140,20 +121,6 @@ class HuoshanStoryGenerateResult(HuoshanSchemaBase):
     is_completed: bool = Field(description='Whether story generation is completed')
     task_status: int = Field(description='Task status')
     error_message: str | None = Field(None, description='Task error message')
-
-
-class HuoshanOpenAPIErrorDetail(HuoshanSchemaBase):
-    code: str | None = Field(None, alias='Code', description='Error code')
-    message: str | None = Field(None, alias='Message', description='Error message')
-
-
-class HuoshanOpenAPIResponseMetadata(HuoshanSchemaBase):
-    request_id: str | None = Field(None, alias='RequestId', description='Request ID')
-    action: str | None = Field(None, alias='Action', description='Action name')
-    version: str | None = Field(None, alias='Version', description='API version')
-    service: str | None = Field(None, alias='Service', description='Service name')
-    region: str | None = Field(None, alias='Region', description='Region')
-    error: HuoshanOpenAPIErrorDetail | None = Field(None, alias='Error', description='Error detail')
 
 
 class HuoshanVoiceModelTypeDetail(HuoshanSchemaBase):
@@ -196,10 +163,6 @@ class HuoshanVoiceListResult(HuoshanSchemaBase):
     statuses: list[HuoshanVoiceStatus] = Field(default_factory=list, alias='Statuses', description='Voice status list')
 
 
-class HuoshanVoiceOrderResult(HuoshanSchemaBase):
-    order_ids: list[str] = Field(default_factory=list, alias='OrderIDs', description='Order ID list')
-
-
 class HuoshanStoryBgmInfo(HuoshanSchemaBase):
     song_id: int = Field(description='Background music ID')
     title: str = Field(description='Background music title')
@@ -233,13 +196,3 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     source_audio_url: str | None = Field(None, description='Original Huoshan audio URL')
     sentences: list[dict[str, Any]] = Field(default_factory=list, description='Sentence timestamp info')
     error_message: str | None = Field(None, description='Task error message')
-
-
-class HuoshanVoiceOrderResponse(HuoshanSchemaBase):
-    response_metadata: HuoshanOpenAPIResponseMetadata = Field(alias='ResponseMetadata', description='Response metadata')
-    result: HuoshanVoiceOrderResult = Field(alias='Result', description='Order result')
-
-
-class HuoshanVoiceRenewResponse(HuoshanSchemaBase):
-    response_metadata: HuoshanOpenAPIResponseMetadata = Field(alias='ResponseMetadata', description='Response metadata')
-    result: HuoshanVoiceOrderResult = Field(alias='Result', description='Renew result')

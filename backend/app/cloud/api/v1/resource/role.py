@@ -13,32 +13,15 @@ from fastapi import APIRouter, Path, Query
 from backend.app.cloud.schema.resource.role import (
     CreateRoleParam,
     GetRoleDetail,
-    GetRoleOption,
     UpdateRoleParam,
 )
 from backend.app.cloud.service.resource.role_service import cloud_role_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
-
-
-@router.get('/enabled', summary='获取启用角色列表', dependencies=[DependsDeviceOrJwtAuth])
-async def get_enabled_roles(
-    db: CurrentSession,
-    group_key: Annotated[str | None, Query(description='虚拟角色分组标识')] = None,
-    voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
-) -> ResponseSchemaModel[list[GetRoleOption]]:
-    roles = await cloud_role_service.get_enabled_role_list(
-        db=db,
-        group_key=group_key,
-        voice_language=voice_language,
-    )
-    data = [GetRoleOption.model_validate(role) for role in roles]
-    return response_base.success(data=data)
 
 
 @router.get('/{pk}', summary='获取角色详情', dependencies=[DependsJwtAuth])
@@ -53,7 +36,6 @@ async def get_role(
 @router.get('', summary='分页获取角色列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_role_paginated(
     db: CurrentSession,
-    role_key: Annotated[str | None, Query(description='角色唯一标识')] = None,
     group_key: Annotated[str | None, Query(description='虚拟角色分组标识')] = None,
     name: Annotated[str | None, Query(description='角色名称')] = None,
     voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
@@ -61,7 +43,6 @@ async def get_role_paginated(
 ) -> ResponseSchemaModel[PageData[GetRoleDetail]]:
     page_data = await cloud_role_service.get_role_list(
         db=db,
-        role_key=role_key,
         group_key=group_key,
         name=name,
         voice_language=voice_language,

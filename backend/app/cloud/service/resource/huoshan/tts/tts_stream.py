@@ -126,16 +126,16 @@ class TTSStreamService:
     def _resolve_stream_config(cls) -> dict[str, Any]:
         return {
             'ws_url': (
-                cls._normalize_text(settings.BYTES_TTS_STREAM_WS_URL)
-                or 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
+                    cls._normalize_text(settings.BYTES_TTS_STREAM_WS_URL)
+                    or 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
             ),
             'resource_id': (
-                cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
-                or 'seed-tts-2.0'
+                    cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
+                    or 'seed-tts-2.0'
             ),
             'audio_format': (
-                cls._normalize_text(settings.BYTES_TTS_STREAM_AUDIO_FORMAT)
-                or 'mp3'
+                    cls._normalize_text(settings.BYTES_TTS_STREAM_AUDIO_FORMAT)
+                    or 'mp3'
             ),
         }
 
@@ -274,8 +274,8 @@ class TTSStreamService:
             if ws is not None:
                 try:
                     await ws.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
 
     @staticmethod
     async def _send_protocol_message(

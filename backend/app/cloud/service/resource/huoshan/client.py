@@ -25,8 +25,6 @@ import volcenginesdkcore
 from volcenginesdkcore.rest import ApiException as VolcengineApiException
 from volcenginesdkspeechsaasprod20250521 import (
     BatchListMegaTTSTrainStatusRequest,
-    OrderAccessResourcePacksRequest,
-    RenewAccessResourcePacksRequest,
     SPEECHSAASPROD20250521Api,
 )
 
@@ -73,20 +71,6 @@ class HuoshanOpenAPIClient:
             **payload,
         )
         return await self._invoke(self._api.batch_list_mega_tts_train_status, request)
-
-    async def order_access_resource_packs(self, payload: dict[str, Any]) -> dict[str, Any]:
-        request = OrderAccessResourcePacksRequest(
-            _configuration=self._api.api_client.configuration,
-            **payload,
-        )
-        return await self._invoke(self._api.order_access_resource_packs, request)
-
-    async def renew_access_resource_packs(self, payload: dict[str, Any]) -> dict[str, Any]:
-        request = RenewAccessResourcePacksRequest(
-            _configuration=self._api.api_client.configuration,
-            **payload,
-        )
-        return await self._invoke(self._api.renew_access_resource_packs, request)
 
     async def _invoke(self, func: Any, request: Any) -> dict[str, Any]:
         try:

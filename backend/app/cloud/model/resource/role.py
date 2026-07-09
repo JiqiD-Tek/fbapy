@@ -18,15 +18,13 @@ class CloudRole(Base):
 
     __tablename__ = 'u_cloud_role'
     __table_args__ = (
-        sa.UniqueConstraint('role_key', name='uk_role_key'),
         sa.Index('idx_status_sort', 'status', 'sort'),
         {'comment': '云资源角色表'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
-    role_key: Mapped[str] = mapped_column(sa.String(64), comment='角色唯一标识')
-    group_key: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='虚拟角色分组标识')
 
+    group_key: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='虚拟角色分组标识：小小星球')
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='角色名称')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='角色头像地址')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='角色简介')
