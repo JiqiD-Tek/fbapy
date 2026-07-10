@@ -15,8 +15,8 @@ from backend.app.cloud.model.device import Device as Device
 from backend.app.cloud.model.m2m import user_device as user_device
 
 from backend.app.cloud.model.resource.album import CloudAlbum as CloudAlbum
-from backend.app.cloud.model.resource.dialogue import CloudDialogue as CloudDialogue
 from backend.app.cloud.model.resource.role import CloudRole as CloudRole
+from backend.app.cloud.model.resource.script import CloudScript as CloudScript
 from backend.app.cloud.model.resource.song import CloudSong as CloudSong
 from backend.app.cloud.model.feedback import Feedback as Feedback
 from backend.app.cloud.model.firmware import Firmware as Firmware

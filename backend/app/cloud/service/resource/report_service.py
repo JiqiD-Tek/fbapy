@@ -48,7 +48,6 @@ ACTIVE_DURATION_SECONDS = 300
 class UsageCounter:
     chat_count: int = 0
     active_count: int = 0
-    dialogue_count: int = 0
     play_count: int = 0
     play_preferences: dict[str, int] = field(default_factory=dict)
 
