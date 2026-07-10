@@ -140,10 +140,6 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
 _VOICE_PROJECTS_BY_NAME = {project.name: project for project in VOICE_PROJECTS}
 
 
-def list_voice_projects() -> tuple[VoiceProject, ...]:
-    return VOICE_PROJECTS
-
-
 def get_voice_project(project_name: str | None = None) -> VoiceProject:
     normalized_name = _normalize_text(project_name)
     return _VOICE_PROJECTS_BY_NAME.get(normalized_name) or _VOICE_PROJECTS_BY_NAME[DEFAULT_PROJECT_NAME]

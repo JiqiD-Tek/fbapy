@@ -28,7 +28,7 @@ def _strip_optional_text(value: Any) -> Any:
 
 
 class RoleReadSchemaBase(SchemaBase):
-    group_key: str | None = Field(None, description='Virtual role group key')
+    group_key: str | None = Field(None, description='剧本角色分组标识')
     name: str | None = Field(None, description='Role name')
     system_prompt: str | None = Field(None, description='System prompt')
     avatar_url: str | None = Field(None, description='Role avatar URL')
@@ -44,7 +44,7 @@ class RoleReadSchemaBase(SchemaBase):
 
 
 class CreateRoleParam(SchemaBase):
-    group_key: str | None = Field(None, max_length=64, description='Virtual role group key')
+    group_key: str | None = Field(None, max_length=64, description='剧本角色分组标识')
     name: str = Field(min_length=1, max_length=128, description='Role name')
     system_prompt: str = Field(min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')
@@ -86,7 +86,7 @@ class CreateRoleParam(SchemaBase):
 
 
 class UpdateRoleParam(SchemaBase):
-    group_key: str | None = Field(None, max_length=64, description='Virtual role group key')
+    group_key: str | None = Field(None, max_length=64, description='剧本角色分组标识')
     name: str | None = Field(None, min_length=1, max_length=128, description='Role name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')

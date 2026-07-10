@@ -22,7 +22,7 @@ router.include_router(ximalaya_router, prefix='/ximalaya', tags=['喜马拉雅']
 
 router.include_router(audio_router, prefix='/audio', tags=['音频资源'])
 
-router.include_router(role_router, prefix='/roles', tags=['虚拟角色'])
+router.include_router(role_router, prefix='/roles', tags=['剧本角色'])
 router.include_router(script_router, prefix='/scripts', tags=['剧本资源'])
 
 router.include_router(report_router, prefix='/report', tags=['使用报告'])

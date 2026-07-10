@@ -10,11 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.resource.role import (
-    CreateRoleParam,
-    GetRoleDetail,
-    UpdateRoleParam,
-)
+from backend.app.cloud.schema.resource.role import CreateRoleParam, GetRoleDetail, UpdateRoleParam
 from backend.app.cloud.service.resource.role_service import cloud_role_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
@@ -24,19 +20,19 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
-@router.get('/{pk}', summary='获取角色详情', dependencies=[DependsJwtAuth])
+@router.get('/{pk}', summary='获取剧本角色详情', dependencies=[DependsJwtAuth])
 async def get_role(
     db: CurrentSession,
-    pk: Annotated[int, Path(description='角色 ID')],
+    pk: Annotated[int, Path(description='剧本角色 ID')],
 ) -> ResponseSchemaModel[GetRoleDetail]:
     role = await cloud_role_service.get_role(db=db, pk=pk)
     return response_base.success(data=GetRoleDetail.model_validate(role))
 
 
-@router.get('', summary='分页获取角色列表', dependencies=[DependsJwtAuth, DependsPagination])
+@router.get('', summary='分页获取剧本角色列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_role_paginated(
     db: CurrentSession,
-    group_key: Annotated[str | None, Query(description='虚拟角色分组标识')] = None,
+    group_key: Annotated[str | None, Query(description='剧本角色分组标识')] = None,
     name: Annotated[str | None, Query(description='角色名称')] = None,
     voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
@@ -52,7 +48,7 @@ async def get_role_paginated(
     return response_base.success(data=page_data)
 
 
-@router.post('', summary='创建角色', dependencies=[DependsJwtAuth])
+@router.post('', summary='创建剧本角色', dependencies=[DependsJwtAuth])
 async def create_role(
     db: CurrentSessionTransaction,
     obj: CreateRoleParam,
@@ -61,10 +57,10 @@ async def create_role(
     return response_base.success(data=GetRoleDetail.model_validate(role))
 
 
-@router.put('/{pk}', summary='更新角色', dependencies=[DependsJwtAuth])
+@router.put('/{pk}', summary='更新剧本角色', dependencies=[DependsJwtAuth])
 async def update_role(
     db: CurrentSessionTransaction,
-    pk: Annotated[int, Path(description='角色 ID')],
+    pk: Annotated[int, Path(description='剧本角色 ID')],
     obj: UpdateRoleParam,
 ) -> ResponseModel:
     count = await cloud_role_service.update_role(db=db, pk=pk, obj=obj)
@@ -73,10 +69,10 @@ async def update_role(
     return response_base.fail()
 
 
-@router.delete('/{pk}', summary='删除角色', dependencies=[DependsJwtAuth])
+@router.delete('/{pk}', summary='删除剧本角色', dependencies=[DependsJwtAuth])
 async def delete_role(
     db: CurrentSessionTransaction,
-    pk: Annotated[int, Path(description='角色 ID')],
+    pk: Annotated[int, Path(description='剧本角色 ID')],
 ) -> ResponseModel:
     count = await cloud_role_service.delete_role(db=db, pk=pk)
     if count > 0:

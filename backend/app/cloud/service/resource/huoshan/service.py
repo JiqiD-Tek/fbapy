@@ -60,7 +60,7 @@ from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from backend.app.cloud.model import CloudRole, CloudSong
+    from backend.app.cloud.model import CloudSong
 
 STORY_AUDIO_FORMAT = 'mp3'
 STORY_TASK_STATUS_PENDING = 0
