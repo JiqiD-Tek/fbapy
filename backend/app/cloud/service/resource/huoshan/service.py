@@ -86,6 +86,10 @@ class HuoshanVoiceService:
         '故事要有自然的开头、推进、转折和结尾，整体完整，适合直接口播。'
         '每个角色的说话方式要符合自己的设定，台词之间要有互动感和推动情节的作用。'
         '语言要自然、顺口、适合朗读，避免空话、重复话、解释性废话。'
+        '角色差异主要通过台词内容、情绪和互动体现，不要在台词里额外解释角色身份。'
+        '不要写“科学家的我”“歌手的我”“冒险家的我”这类人设标签式表达，也不要用“某某的我”作为台词开头。'
+        '只需要纯台词文本，不要加入“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示。'
+        '不要写“哼唱”“接唱”“合唱”“收尾”这类表演说明，也不要用引号包裹整句台词。'
         '如果用户要求“无C位”或“角色均衡”，各角色的出场和台词量要尽量均衡。'
         '除非用户另有要求，整体控制在 15 到 25 行。如果用户明确要求行数范围，必须优先严格满足。'
         '不要输出 Markdown，不要输出标题、说明、序号或 JSON。'
@@ -93,6 +97,8 @@ class HuoshanVoiceService:
     )
     ROLE_STORY_SCRIPT_MARKER_RE = re.compile(r'\[(\d+)\]')
     ROLE_STORY_SCRIPT_LINE_RE = re.compile(r'^\[(\d+)\](.*)$')
+    ROLE_STORY_SCRIPT_TEXT_PREFIX_RE = re.compile(r'^(?:[\(（][^()\n（）]{1,20}[\)）][\s:：,，、-]*)+')
+    ROLE_STORY_SCRIPT_QUOTE_CHARS = '"\'“”‘’'
 
     def __init__(self) -> None:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
@@ -243,13 +249,28 @@ class HuoshanVoiceService:
             '1. 只允许使用提供的 role_id。'
             '2. 每行只写一条角色台词。'
             '3. 每条台词必须严格使用格式：[role_id]台词内容'
-            '4. 台词要体现角色性格、情绪和彼此互动。'
-            '5. 故事要有起承转合，结尾要完整，不要突然结束。'
-            '6. 如果要求无C位或角色均衡，请尽量平均分配台词。'
-            '7. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
+            '4. 台词要体现角色性格、情绪和彼此互动，但不要在台词里自我标注身份。'
+            '5. 不要出现“科学家的我”“歌手的我”“冒险家的我”这类表达，也不要用“某某的我”作为开场白。'
+            '6. 只输出纯台词，不要加“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示，不要写哼唱、接唱、合唱等表演说明。'
+            '7. 不要用引号包裹整句台词。'
+            '8. 故事要有起承转合，结尾要完整，不要突然结束。'
+            '9. 如果要求无C位或角色均衡，请尽量平均分配台词。'
+            '10. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
             '输出示例：\n'
             '[1]今天的风好轻呀，我们一起去看看山那边发生了什么吧。'
         )
+
+    @classmethod
+    def _sanitize_role_story_script_text(cls, text: object) -> str:
+        normalized = str(text or '').strip()
+        if not normalized:
+            return ''
+
+        normalized = cls.ROLE_STORY_SCRIPT_TEXT_PREFIX_RE.sub('', normalized).strip()
+        if len(normalized) >= 2:
+            if normalized[0] in cls.ROLE_STORY_SCRIPT_QUOTE_CHARS and normalized[-1] in cls.ROLE_STORY_SCRIPT_QUOTE_CHARS:
+                normalized = normalized[1:-1].strip()
+        return normalized
 
     @staticmethod
     def _split_role_story_script_buffer(buffer: str) -> tuple[list[str], str]:
@@ -306,7 +327,7 @@ class HuoshanVoiceService:
         if role_id not in role_ids:
             raise errors.GatewayError(msg=f'Story script generation returned unexpected role ID: {role_id}')
 
-        text = str(match.group(2) or '').strip()
+        text = cls._sanitize_role_story_script_text(match.group(2))
         if not text:
             if allow_empty_text:
                 return None

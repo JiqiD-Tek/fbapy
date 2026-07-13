@@ -7,7 +7,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.resource.script import CreateScriptParam, GetScriptDetail, UpdateScriptParam
+from backend.app.cloud.schema.resource.script import (
+    CreateScriptParam,
+    GetScriptDetail,
+    ScriptAICreateParam,
+    ScriptLine,
+    UpdateScriptParam,
+)
 from backend.app.cloud.service.resource.script_service import cloud_script_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
@@ -45,6 +51,14 @@ async def get_script_paginated(
     )
     page_data['items'] = [GetScriptDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)
+
+
+@router.post('/ai-create', summary='AI create script content', dependencies=[DependsJwtAuth])
+async def ai_create_script(
+    obj: ScriptAICreateParam,
+) -> ResponseSchemaModel[list[ScriptLine]]:
+    data = await cloud_script_service.ai_create_script_content(obj=obj)
+    return response_base.success(data=data)
 
 
 @router.post('', summary='Create script', dependencies=[DependsJwtAuth])

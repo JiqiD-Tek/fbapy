@@ -108,6 +108,46 @@ class UpdateScriptParam(SchemaBase):
         return self
 
 
+class ScriptAICreateRole(SchemaBase):
+    role_id: int = Field(gt=0, description='Role ID')
+    name: str = Field(min_length=1, max_length=128, description='Role name')
+    summary: str | None = Field(None, max_length=500, description='Role summary')
+    system_prompt: str | None = Field(None, description='Role system prompt')
+
+    @field_validator('name', mode='before')
+    @classmethod
+    def strip_name(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('summary', 'system_prompt', mode='before')
+    @classmethod
+    def strip_optional_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class ScriptAICreateParam(SchemaBase):
+    title: str = Field(min_length=1, max_length=256, description='Script title')
+    summary: str | None = Field(None, max_length=1000, description='Script summary')
+    roles: list[ScriptAICreateRole] = Field(min_length=1, max_length=10, description='Role list')
+
+    @field_validator('title', mode='before')
+    @classmethod
+    def strip_title(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('summary', mode='before')
+    @classmethod
+    def strip_summary(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+    @model_validator(mode='after')
+    def validate_roles(self) -> 'ScriptAICreateParam':
+        role_ids = [role.role_id for role in self.roles]
+        if len(set(role_ids)) != len(role_ids):
+            raise ValueError('roles contains duplicate role_id')
+        return self
+
+
 class GetScriptDetail(ScriptSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
