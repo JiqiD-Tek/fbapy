@@ -10,7 +10,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.resource.role import CreateRoleParam, GetRoleDetail, UpdateRoleParam
+from backend.app.cloud.schema.resource.role import (
+    CreateRoleParam,
+    GenerateRoleSystemPromptParam,
+    GenerateRoleSystemPromptResult,
+    GetRoleDetail,
+    UpdateRoleParam,
+)
 from backend.app.cloud.service.resource.role_service import cloud_role_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
@@ -46,6 +52,14 @@ async def get_role_paginated(
     )
     page_data['items'] = [GetRoleDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)
+
+
+@router.post('/system-prompt', summary='生成剧本角色系统提示词', dependencies=[DependsJwtAuth])
+async def generate_role_system_prompt(
+    obj: GenerateRoleSystemPromptParam,
+) -> ResponseSchemaModel[GenerateRoleSystemPromptResult]:
+    data = await cloud_role_service.generate_system_prompt(obj)
+    return response_base.success(data=data)
 
 
 @router.post('', summary='创建剧本角色', dependencies=[DependsJwtAuth])

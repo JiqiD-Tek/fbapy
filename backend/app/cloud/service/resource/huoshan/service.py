@@ -87,11 +87,12 @@ class HuoshanVoiceService:
         '每个角色的说话方式要符合自己的设定，台词之间要有互动感和推动情节的作用。'
         '语言要自然、顺口、适合朗读，避免空话、重复话、解释性废话。'
         '如果用户要求“无C位”或“角色均衡”，各角色的出场和台词量要尽量均衡。'
-        '除非用户另有要求，整体控制在 8 到 16 行。'
+        '除非用户另有要求，整体控制在 15 到 25 行。如果用户明确要求行数范围，必须优先严格满足。'
         '不要输出 Markdown，不要输出标题、说明、序号或 JSON。'
         '每一行只能是一句台词，格式必须是：[role_id]台词内容'
     )
-    ROLE_STORY_SCRIPT_LINE_RE = re.compile(r'^\[(\d+)\](.+)$')
+    ROLE_STORY_SCRIPT_MARKER_RE = re.compile(r'\[(\d+)\]')
+    ROLE_STORY_SCRIPT_LINE_RE = re.compile(r'^\[(\d+)\](.*)$')
 
     def __init__(self) -> None:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
@@ -253,10 +254,37 @@ class HuoshanVoiceService:
     @staticmethod
     def _split_role_story_script_buffer(buffer: str) -> tuple[list[str], str]:
         normalized = str(buffer or '').replace('\r\n', '\n').replace('\r', '\n')
-        if '\n' not in normalized:
-            return [], normalized
-        parts = normalized.split('\n')
-        return parts[:-1], parts[-1]
+        if not normalized:
+            return [], ''
+
+        complete_lines: list[str] = []
+        cursor = 0
+
+        while True:
+            current_match = HuoshanVoiceService.ROLE_STORY_SCRIPT_MARKER_RE.search(normalized, cursor)
+            if current_match is None:
+                return complete_lines, normalized[cursor:]
+
+            start = current_match.start()
+            prefix = normalized[cursor:start]
+            if prefix.strip():
+                raise errors.GatewayError(msg=f'Story script generation returned invalid content: {prefix.strip()}')
+
+            next_match = HuoshanVoiceService.ROLE_STORY_SCRIPT_MARKER_RE.search(normalized, start + 1)
+            next_marker_pos = next_match.start() if next_match is not None else -1
+            newline_pos = normalized.find('\n', start)
+
+            delimiter_positions = [position for position in (next_marker_pos, newline_pos) if position != -1]
+            if not delimiter_positions:
+                return complete_lines, normalized[start:]
+
+            end = min(delimiter_positions)
+            complete_lines.append(normalized[start:end])
+
+            if end == newline_pos:
+                cursor = newline_pos + 1
+            else:
+                cursor = end
 
     @classmethod
     def _parse_role_story_script_line(
@@ -264,6 +292,7 @@ class HuoshanVoiceService:
             line: str,
             *,
             role_ids: set[int],
+            allow_empty_text: bool = False,
     ) -> HuoshanRoleStoryScriptLine | None:
         normalized = str(line or '').strip()
         if not normalized:
@@ -277,7 +306,13 @@ class HuoshanVoiceService:
         if role_id not in role_ids:
             raise errors.GatewayError(msg=f'Story script generation returned unexpected role ID: {role_id}')
 
-        return HuoshanRoleStoryScriptLine(role_id=role_id, text=match.group(2))
+        text = str(match.group(2) or '').strip()
+        if not text:
+            if allow_empty_text:
+                return None
+            raise errors.GatewayError(msg=f'Story script generation returned empty line content: {normalized}')
+
+        return HuoshanRoleStoryScriptLine(role_id=role_id, text=text)
 
     @classmethod
     def _parse_role_story_script_lines(
@@ -288,10 +323,38 @@ class HuoshanVoiceService:
     ) -> list[HuoshanRoleStoryScriptLine]:
         parsed_lines: list[HuoshanRoleStoryScriptLine] = []
         for line in lines:
-            parsed_line = cls._parse_role_story_script_line(line, role_ids=role_ids)
+            parsed_line = cls._parse_role_story_script_line(line, role_ids=role_ids, allow_empty_text=True)
             if parsed_line is not None:
                 parsed_lines.append(parsed_line)
         return parsed_lines
+
+    @classmethod
+    def _normalize_role_story_script_lines(
+            cls,
+            lines: list[HuoshanRoleStoryScriptLine],
+            *,
+            role_ids: set[int],
+    ) -> list[HuoshanRoleStoryScriptLine]:
+        if not lines:
+            return []
+
+        raw_content = '\n'.join(f'[{line.role_id}]{line.text}' for line in lines)
+        raw_lines, buffer = cls._split_role_story_script_buffer(f'{raw_content}\n')
+        normalized_lines = cls._parse_role_story_script_lines(raw_lines, role_ids=role_ids)
+
+        trailing_line = cls._parse_role_story_script_line(buffer, role_ids=role_ids, allow_empty_text=True)
+        if trailing_line is not None:
+            normalized_lines.append(trailing_line)
+
+        return normalized_lines
+
+    @classmethod
+    def _normalize_role_story_script_task_result(
+            cls,
+            result: HuoshanRoleStoryScriptTaskResult,
+    ) -> HuoshanRoleStoryScriptTaskResult:
+        normalized_lines = cls._normalize_role_story_script_lines(list(result.lines), role_ids=set(result.role_ids))
+        return result.model_copy(update={'lines': normalized_lines}, deep=True)
 
     @staticmethod
     def _validate_role_story_script_completion(
@@ -450,6 +513,7 @@ class HuoshanVoiceService:
 
     @classmethod
     async def _save_role_story_script_task_result(cls, result: HuoshanRoleStoryScriptTaskResult) -> None:
+        result = cls._normalize_role_story_script_task_result(result)
         try:
             await redis_client.set(
                 cls._role_story_script_task_key(result.task_id),
@@ -468,12 +532,14 @@ class HuoshanVoiceService:
 
         if not payload_raw:
             raise errors.NotFoundError(msg=f'Huoshan role story script task not found, task_id={task_id}')
-        return HuoshanRoleStoryScriptTaskResult.model_validate_json(payload_raw)
+        return cls._normalize_role_story_script_task_result(HuoshanRoleStoryScriptTaskResult.model_validate_json(payload_raw))
 
-    @staticmethod
+    @classmethod
     def _to_public_role_story_script_result(
+            cls,
             result: HuoshanRoleStoryScriptTaskResult,
     ) -> HuoshanRoleStoryScriptResult:
+        result = cls._normalize_role_story_script_task_result(result)
         return HuoshanRoleStoryScriptResult.model_validate(result.model_dump(exclude={'roles'}))
 
     def _start_story_synthesis_processing(self, task_id: str) -> None:

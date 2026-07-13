@@ -121,6 +121,25 @@ class UpdateRoleParam(SchemaBase):
         return _strip_optional_text(value)
 
 
+class GenerateRoleSystemPromptParam(SchemaBase):
+    name: str = Field(min_length=1, max_length=128, description='Role name')
+    summary: str | None = Field(None, max_length=500, description='Role summary')
+
+    @field_validator('name', mode='before')
+    @classmethod
+    def strip_name(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('summary', mode='before')
+    @classmethod
+    def strip_summary(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class GenerateRoleSystemPromptResult(SchemaBase):
+    system_prompt: str = Field(description='Generated system prompt')
+
+
 class GetRoleDetail(RoleReadSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
