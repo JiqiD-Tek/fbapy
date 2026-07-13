@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -16,6 +17,7 @@ import websockets
 from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
+    HuoshanStreamTTSUrlResult,
 )
 from backend.app.cloud.service.resource.huoshan.config import (
     get_voice_project_for_speaker,
@@ -23,7 +25,9 @@ from backend.app.cloud.service.resource.huoshan.config import (
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.common.exception import errors
 from backend.common.log import log
+from backend.common.providers.ali_oss import oss_client
 from backend.core.conf import settings
+from backend.utils.timezone import timezone
 
 PROTOCOL_VERSION = 0b0001
 DEFAULT_HEADER_SIZE = 0b0001
@@ -266,7 +270,8 @@ class TTSStreamService:
                 if event in (EVENT_SESSION_FINISHED, EVENT_CONNECTION_FINISHED):
                     break
 
-            await self._send_protocol_event(ws, event=EVENT_FINISH_CONNECTION)
+            with suppress(Exception):
+                await self._send_protocol_event(ws, event=EVENT_FINISH_CONNECTION)
         except Exception as exc:
             log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
         finally:
@@ -276,6 +281,32 @@ class TTSStreamService:
                     await ws.close()
                 except Exception as exc:
                     log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
+
+    @staticmethod
+    async def get_download_result(*, request_id: str) -> HuoshanStreamTTSUrlResult:
+        chunks: list[bytes] = []
+        try:
+            async with tts_cache.stream_audio_generator(request_id) as stream:
+                async for chunk in stream:
+                    chunks.append(chunk)
+        except ValueError as exc:
+            raise errors.NotFoundError(msg=f'TTS task not found, request_id={request_id}') from exc
+
+        audio_data = b''.join(chunks)
+        if not audio_data:
+            raise errors.GatewayError(msg='TTS cache returned empty audio data')
+
+        date_path = timezone.now().strftime('%Y%m%d')
+        oss_key = f"cloud/huoshan/tts/{date_path}/{request_id}.mp3"
+        download_url = await oss_client.upload_bytes(key=oss_key, data=audio_data)
+        if not download_url:
+            raise errors.GatewayError(msg='Failed to upload TTS audio to OSS')
+
+        return HuoshanStreamTTSUrlResult(
+            request_id=request_id,
+            oss_key=oss_key,
+            download_url=download_url,
+        )
 
     @staticmethod
     async def _send_protocol_message(

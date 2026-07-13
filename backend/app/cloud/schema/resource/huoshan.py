@@ -16,8 +16,6 @@ from backend.common.schema import SchemaBase
 
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
 HuoshanAudioFormat = Literal['mp3']
-
-
 class HuoshanSchemaBase(SchemaBase):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -79,6 +77,12 @@ class HuoshanStreamTTSParam(HuoshanSchemaBase):
 
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
+
+
+class HuoshanStreamTTSUrlResult(HuoshanSchemaBase):
+    request_id: str = Field(description='TTS request ID')
+    oss_key: str = Field(description='OSS object key')
+    download_url: str = Field(description='Uploaded audio download URL')
 
 
 class HuoshanToyStoryScriptLine(HuoshanSchemaBase):

@@ -15,6 +15,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanPublicVoiceInfo,
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
+    HuoshanStreamTTSUrlResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStorySynthesisParam,
@@ -147,6 +148,22 @@ async def submit_huoshan_stream_tts(
     obj: HuoshanStreamTTSParam,
 ) -> ResponseSchemaModel[HuoshanStreamTTSResult]:
     data = await tts_stream_service.submit(obj)
+    return response_base.success(data=data)
+
+
+@router.get(
+    '/tts/url',
+    summary='Query uploaded TTS audio URL',
+    description='Query uploaded TTS audio URL',
+    response_model_by_alias=False,
+)
+async def get_tts_url(
+    token: Annotated[str, Query(description='TTS token, usually request_id')],
+) -> ResponseSchemaModel[HuoshanStreamTTSUrlResult]:
+    if not token:
+        raise KeyError('Invalid TTS token')
+
+    data = await tts_stream_service.get_download_result(request_id=token)
     return response_base.success(data=data)
 
 
