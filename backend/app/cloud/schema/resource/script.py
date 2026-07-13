@@ -11,10 +11,10 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from backend.common.schema import SchemaBase
 
 
-def _normalize_role_ids(value: list[int] | None) -> list[int] | None:
+def _normalize_toy_ids(value: list[int] | None) -> list[int] | None:
     if value is None:
         return None
-    return sorted(dict.fromkeys(int(role_id) for role_id in value))
+    return sorted(dict.fromkeys(int(toy_id) for toy_id in value))
 
 
 def _strip_required_text(value: Any) -> Any:
@@ -30,21 +30,21 @@ def _strip_optional_text(value: Any) -> Any:
     return value
 
 
-def _validate_script_role_ids(*, role_ids: list[int], content: list['ScriptLine']) -> None:
-    role_id_set = set(role_ids)
-    content_role_ids = {line.role_id for line in content}
+def _validate_script_toy_ids(*, toy_ids: list[int], content: list['ScriptLine']) -> None:
+    toy_id_set = set(toy_ids)
+    content_toy_ids = {line.toy_id for line in content}
 
-    invalid_role_ids = sorted(content_role_ids - role_id_set)
-    if invalid_role_ids:
-        raise ValueError(f'content contains role_ids not present in role_ids: {", ".join(str(role_id) for role_id in invalid_role_ids)}')
+    invalid_toy_ids = sorted(content_toy_ids - toy_id_set)
+    if invalid_toy_ids:
+        raise ValueError(f'content contains toy_ids not present in toy_ids: {", ".join(str(toy_id) for toy_id in invalid_toy_ids)}')
 
-    missing_role_ids = sorted(role_id_set - content_role_ids)
-    if missing_role_ids:
-        raise ValueError(f'role_ids missing from content: {", ".join(str(role_id) for role_id in missing_role_ids)}')
+    missing_toy_ids = sorted(toy_id_set - content_toy_ids)
+    if missing_toy_ids:
+        raise ValueError(f'toy_ids missing from content: {", ".join(str(toy_id) for toy_id in missing_toy_ids)}')
 
 
 class ScriptLine(SchemaBase):
-    role_id: int = Field(gt=0, description='Role ID')
+    toy_id: int = Field(gt=0, description='Toy ID')
     text: str = Field(min_length=1, description='Line text')
     audio_url: str | None = Field(None, description='Line audio URL')
 
@@ -65,19 +65,19 @@ class ScriptSchemaBase(SchemaBase):
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
     author: str | None = Field(None, description='Author')
-    role_ids: list[int] = Field(min_length=1, description='Role ID list')
+    toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
     content: list[ScriptLine] = Field(min_length=1, description='Script line content')
     status: int = Field(default=0, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
 
-    @field_validator('role_ids')
+    @field_validator('toy_ids')
     @classmethod
-    def normalize_role_ids(cls, value: list[int]) -> list[int]:
-        return _normalize_role_ids(value) or []
+    def normalize_toy_ids(cls, value: list[int]) -> list[int]:
+        return _normalize_toy_ids(value) or []
 
     @model_validator(mode='after')
-    def validate_role_ids_content(self) -> 'ScriptSchemaBase':
-        _validate_script_role_ids(role_ids=self.role_ids, content=self.content)
+    def validate_toy_ids_content(self) -> 'ScriptSchemaBase':
+        _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
         return self
 
 
@@ -91,28 +91,28 @@ class UpdateScriptParam(SchemaBase):
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
     author: str | None = Field(None, description='Author')
-    role_ids: list[int] | None = Field(None, min_length=1, description='Role ID list')
+    toy_ids: list[int] | None = Field(None, min_length=1, description='Toy ID list')
     content: list[ScriptLine] | None = Field(None, min_length=1, description='Script line content')
     status: int | None = Field(None, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
 
-    @field_validator('role_ids')
+    @field_validator('toy_ids')
     @classmethod
-    def normalize_role_ids(cls, value: list[int] | None) -> list[int] | None:
-        return _normalize_role_ids(value)
+    def normalize_toy_ids(cls, value: list[int] | None) -> list[int] | None:
+        return _normalize_toy_ids(value)
 
     @model_validator(mode='after')
-    def validate_role_ids_content(self) -> 'UpdateScriptParam':
-        if self.role_ids is not None and self.content is not None:
-            _validate_script_role_ids(role_ids=self.role_ids, content=self.content)
+    def validate_toy_ids_content(self) -> 'UpdateScriptParam':
+        if self.toy_ids is not None and self.content is not None:
+            _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
         return self
 
 
-class ScriptAICreateRole(SchemaBase):
-    role_id: int = Field(gt=0, description='Role ID')
-    name: str = Field(min_length=1, max_length=128, description='Role name')
-    summary: str | None = Field(None, max_length=500, description='Role summary')
-    system_prompt: str | None = Field(None, description='Role system prompt')
+class ScriptAICreateToy(SchemaBase):
+    toy_id: int = Field(gt=0, description='Toy ID')
+    name: str = Field(min_length=1, max_length=128, description='Toy name')
+    summary: str | None = Field(None, max_length=500, description='Toy summary')
+    system_prompt: str | None = Field(None, description='Toy system prompt')
 
     @field_validator('name', mode='before')
     @classmethod
@@ -128,7 +128,7 @@ class ScriptAICreateRole(SchemaBase):
 class ScriptAICreateParam(SchemaBase):
     title: str = Field(min_length=1, max_length=256, description='Script title')
     summary: str | None = Field(None, max_length=1000, description='Script summary')
-    roles: list[ScriptAICreateRole] = Field(min_length=1, max_length=10, description='Role list')
+    toys: list[ScriptAICreateToy] = Field(min_length=1, max_length=10, description='Toy list')
 
     @field_validator('title', mode='before')
     @classmethod
@@ -141,10 +141,10 @@ class ScriptAICreateParam(SchemaBase):
         return _strip_optional_text(value)
 
     @model_validator(mode='after')
-    def validate_roles(self) -> 'ScriptAICreateParam':
-        role_ids = [role.role_id for role in self.roles]
-        if len(set(role_ids)) != len(role_ids):
-            raise ValueError('roles contains duplicate role_id')
+    def validate_toys(self) -> 'ScriptAICreateParam':
+        toy_ids = [toy.toy_id for toy in self.toys]
+        if len(set(toy_ids)) != len(toy_ids):
+            raise ValueError('toys contains duplicate toy_id')
         return self
 
 

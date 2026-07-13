@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : crud_role.py
+@File    : crud_toy.py
 @Author  : OpenAI
 @Date    : 2026/07/06
 """
@@ -15,12 +15,12 @@ from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import CloudRole
-from backend.app.cloud.schema.resource.role import CreateRoleParam, UpdateRoleParam
+from backend.app.cloud.model import CloudToy
+from backend.app.cloud.schema.resource.toy import CreateToyParam, UpdateToyParam
 
 
-class CRUDCloudRole(CRUDPlus[CloudRole]):
-    async def get(self, db: AsyncSession, pk: int) -> CloudRole | None:
+class CRUDCloudToy(CRUDPlus[CloudToy]):
+    async def get(self, db: AsyncSession, pk: int) -> CloudToy | None:
         return await self.select_model(db, pk)
 
     async def get_by_ids(
@@ -29,7 +29,7 @@ class CRUDCloudRole(CRUDPlus[CloudRole]):
         *,
         ids: Sequence[int],
         enabled_only: bool = False,
-    ) -> Sequence[CloudRole]:
+    ) -> Sequence[CloudToy]:
         if not ids:
             return []
 
@@ -63,14 +63,14 @@ class CRUDCloudRole(CRUDPlus[CloudRole]):
 
         return stmt.order_by(self.model.sort.asc(), self.model.id.desc())
 
-    async def create(self, db: AsyncSession, obj: CreateRoleParam) -> CloudRole:
+    async def create(self, db: AsyncSession, obj: CreateToyParam) -> CloudToy:
         return await self.create_model(db, obj, flush=True)
 
-    async def update(self, db: AsyncSession, pk: int, obj: UpdateRoleParam | dict[str, Any]) -> int:
+    async def update(self, db: AsyncSession, pk: int, obj: UpdateToyParam | dict[str, Any]) -> int:
         return await self.update_model(db, pk, obj)
 
     async def delete(self, db: AsyncSession, pk: int) -> int:
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
 
-cloud_role_dao: CRUDCloudRole = CRUDCloudRole(CloudRole)
+cloud_toy_dao: CRUDCloudToy = CRUDCloudToy(CloudToy)

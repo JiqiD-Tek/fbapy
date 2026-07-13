@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : role.py
+@File    : toy.py
 @Author  : OpenAI
 @Date    : 2026/07/06
 """
@@ -27,12 +27,12 @@ def _strip_optional_text(value: Any) -> Any:
     return value
 
 
-class RoleReadSchemaBase(SchemaBase):
+class ToyReadSchemaBase(SchemaBase):
     series_name: str | None = Field(None, description='Series name')
-    name: str | None = Field(None, description='Role name')
+    name: str | None = Field(None, description='Toy name')
     system_prompt: str | None = Field(None, description='System prompt')
-    avatar_url: str | None = Field(None, description='Role avatar URL')
-    summary: str | None = Field(None, description='Role summary')
+    avatar_url: str | None = Field(None, description='Toy avatar URL')
+    summary: str | None = Field(None, description='Toy summary')
     nfc_code: str | None = Field(None, description='NFC code')
     voice_provider: str | None = Field(None, description='Voice provider')
     voice_id: str | None = Field(None, description='Voice ID')
@@ -44,12 +44,12 @@ class RoleReadSchemaBase(SchemaBase):
     remark: str | None = Field(None, description='Remark')
 
 
-class CreateRoleParam(SchemaBase):
+class CreateToyParam(SchemaBase):
     series_name: str | None = Field(None, max_length=64, description='Series name')
-    name: str = Field(min_length=1, max_length=128, description='Role name')
+    name: str = Field(min_length=1, max_length=128, description='Toy name')
     system_prompt: str = Field(min_length=1, description='System prompt')
-    avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')
-    summary: str | None = Field(None, max_length=500, description='Role summary')
+    avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
+    summary: str | None = Field(None, max_length=500, description='Toy summary')
     nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
@@ -82,18 +82,18 @@ class CreateRoleParam(SchemaBase):
         return _strip_optional_text(value)
 
     @model_validator(mode='after')
-    def validate_voice_binding(self) -> 'CreateRoleParam':
+    def validate_voice_binding(self) -> 'CreateToyParam':
         if (self.voice_provider is None) != (self.voice_id is None):
             raise ValueError('voice_provider and voice_id must both be empty or both have values')
         return self
 
 
-class UpdateRoleParam(SchemaBase):
+class UpdateToyParam(SchemaBase):
     series_name: str | None = Field(None, max_length=64, description='Series name')
-    name: str | None = Field(None, min_length=1, max_length=128, description='Role name')
+    name: str | None = Field(None, min_length=1, max_length=128, description='Toy name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
-    avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')
-    summary: str | None = Field(None, max_length=500, description='Role summary')
+    avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
+    summary: str | None = Field(None, max_length=500, description='Toy summary')
     nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
@@ -126,9 +126,9 @@ class UpdateRoleParam(SchemaBase):
         return _strip_optional_text(value)
 
 
-class GenerateRoleSystemPromptParam(SchemaBase):
-    name: str = Field(min_length=1, max_length=128, description='Role name')
-    summary: str | None = Field(None, max_length=500, description='Role summary')
+class GenerateToySystemPromptParam(SchemaBase):
+    name: str = Field(min_length=1, max_length=128, description='Toy name')
+    summary: str | None = Field(None, max_length=500, description='Toy summary')
 
     @field_validator('name', mode='before')
     @classmethod
@@ -141,13 +141,13 @@ class GenerateRoleSystemPromptParam(SchemaBase):
         return _strip_optional_text(value)
 
 
-class GenerateRoleSystemPromptResult(SchemaBase):
+class GenerateToySystemPromptResult(SchemaBase):
     system_prompt: str = Field(description='Generated system prompt')
 
 
-class GetRoleDetail(RoleReadSchemaBase):
+class GetToyDetail(ToyReadSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    id: int = Field(description='Role ID')
+    id: int = Field(description='Toy ID')
     created_time: datetime = Field(description='Created time')
     updated_time: datetime | None = Field(None, description='Updated time')

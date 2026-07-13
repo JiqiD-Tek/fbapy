@@ -29,7 +29,7 @@ def _strip_required_text(value: Any) -> Any:
 
 
 class HuoshanVoiceListParam(HuoshanSchemaBase):
-    project_name: str | None = Field("default", alias='ProjectName', description='Project name')
+    project_name: str | None = Field('default', alias='ProjectName', description='Project name')
     speaker_ids: list[str] | None = Field(None, alias='SpeakerIDs', description='Speaker ID list')
     state: HuoshanVoiceState | None = Field('Success', alias='State', description='Voice state filter')
     page_number: int | None = Field(None, alias='PageNumber', gt=0, description='Page number')
@@ -42,13 +42,13 @@ class HuoshanVoiceListParam(HuoshanSchemaBase):
         return str(self.speaker_ids[0]).strip() or None
 
 
-class HuoshanRoleStoryScriptParam(HuoshanSchemaBase):
-    role_ids: list[int] = Field(min_length=1, max_length=10, description='Role ID list')
+class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
+    toy_ids: list[int] = Field(min_length=1, max_length=10, description='Toy ID list')
     text: str = Field(min_length=1, max_length=2000, description='Story requirement from the user')
 
-    @field_validator('role_ids')
+    @field_validator('toy_ids')
     @classmethod
-    def deduplicate_role_ids(cls, value: list[int]) -> list[int]:
+    def deduplicate_toy_ids(cls, value: list[int]) -> list[int]:
         return list(dict.fromkeys(value))
 
     @field_validator('text', mode='before')
@@ -81,8 +81,8 @@ class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
 
 
-class HuoshanRoleStoryScriptLine(HuoshanSchemaBase):
-    role_id: int = Field(gt=0, description='Role ID')
+class HuoshanToyStoryScriptLine(HuoshanSchemaBase):
+    toy_id: int = Field(gt=0, description='Toy ID')
     text: str = Field(min_length=1, description='Story line content')
 
     @field_validator('text', mode='before')
@@ -91,26 +91,26 @@ class HuoshanRoleStoryScriptLine(HuoshanSchemaBase):
         return _strip_required_text(value)
 
 
-class HuoshanRoleStoryRoleInfo(HuoshanSchemaBase):
-    role_id: int = Field(gt=0, description='Role ID')
-    name: str = Field(description='Role name')
-    summary: str = Field('', description='Role summary')
-    system_prompt: str = Field('', description='Role system prompt')
+class HuoshanToyStoryToyInfo(HuoshanSchemaBase):
+    toy_id: int = Field(gt=0, description='Toy ID')
+    name: str = Field(description='Toy name')
+    summary: str = Field('', description='Toy summary')
+    system_prompt: str = Field('', description='Toy system prompt')
 
 
-class HuoshanRoleStoryScriptResult(HuoshanSchemaBase):
+class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     task_id: str = Field(description='Story script generation task ID')
-    role_ids: list[int] = Field(description='Requested role IDs')
+    toy_ids: list[int] = Field(description='Requested toy IDs')
     text: str = Field(description='Story requirement from the user')
     model: str = Field(description='Model name')
-    lines: list[HuoshanRoleStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
+    lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
     is_completed: bool = Field(description='Whether story script generation is completed')
     task_status: int = Field(description='Task status')
     error_message: str | None = Field(None, description='Task error message')
 
 
-class HuoshanRoleStoryScriptTaskResult(HuoshanRoleStoryScriptResult):
-    roles: list[HuoshanRoleStoryRoleInfo] = Field(default_factory=list, description='Cached role snapshot')
+class HuoshanToyStoryScriptTaskResult(HuoshanToyStoryScriptResult):
+    toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
 
 
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):
@@ -142,11 +142,7 @@ class HuoshanVoiceStatus(HuoshanSchemaBase):
     expire_time: int | None = Field(None, alias='ExpireTime', description='Expire time')
     order_time: int | None = Field(None, alias='OrderTime', description='Order time')
     speaker_alias: str | None = Field(None, alias='Alias', description='Speaker alias')
-    available_training_times: int | None = Field(
-        None,
-        alias='AvailableTrainingTimes',
-        description='Remaining trainings',
-    )
+    available_training_times: int | None = Field(None, alias='AvailableTrainingTimes', description='Remaining trainings')
     model_type_details: list[HuoshanVoiceModelTypeDetail] = Field(
         default_factory=list,
         alias='ModelTypeDetails',

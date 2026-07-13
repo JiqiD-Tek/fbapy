@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : role.py
+@File    : toy.py
 @Author  : OpenAI
 @Date    : 2026/07/06
 """
@@ -13,21 +13,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.common.model import Base, UniversalText, id_key
 
 
-class CloudRole(Base):
-    """Cloud role table."""
+class CloudToy(Base):
+    """Cloud toy table."""
 
-    __tablename__ = 'u_cloud_role'
+    __tablename__ = 'u_cloud_toy'
     __table_args__ = (
         sa.Index('idx_status_sort', 'status', 'sort'),
-        {'comment': 'Cloud role table'},
+        {'comment': 'Cloud toy table'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
 
     series_name: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Toy series name')
-    name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Role name')
-    avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Role avatar URL')
-    summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Role summary')
+    name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Toy name')
+    avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy avatar URL')
+    summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy summary')
     nfc_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, unique=True, index=True, comment='NFC code')
 
     system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='System prompt')

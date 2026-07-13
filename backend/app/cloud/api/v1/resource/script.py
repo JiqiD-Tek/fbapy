@@ -38,16 +38,16 @@ async def get_script_paginated(
     title: Annotated[str | None, Query(description='Title')] = None,
     author: Annotated[str | None, Query(description='Author')] = None,
     status: Annotated[int | None, Query(description='Status')] = None,
-    role_ids: Annotated[list[int] | None, Query(description='Contains all specified role IDs')] = None,
-    exact_role_ids: Annotated[list[int] | None, Query(description='Exactly matches the specified role ID set')] = None,
+    toy_ids: Annotated[list[int] | None, Query(description='Contains all specified toy IDs')] = None,
+    exact_toy_ids: Annotated[list[int] | None, Query(description='Exactly matches the specified toy ID set')] = None,
 ) -> ResponseSchemaModel[PageData[GetScriptDetail]]:
     page_data = await cloud_script_service.get_script_list(
         db=db,
         title=title,
         author=author,
         status=status,
-        role_ids=role_ids,
-        exact_role_ids=exact_role_ids,
+        toy_ids=toy_ids,
+        exact_toy_ids=exact_toy_ids,
     )
     page_data['items'] = [GetScriptDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)

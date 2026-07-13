@@ -1,4 +1,4 @@
-# -*- coding: UTF-8 -*-
+﻿# -*- coding: UTF-8 -*-
 """
 @Project : fbapy
 @File    : service.py
@@ -21,11 +21,11 @@ from typing import TYPE_CHECKING
 from openai import AsyncOpenAI
 
 from backend.app.cloud.schema.resource.huoshan import (
-    HuoshanRoleStoryRoleInfo,
-    HuoshanRoleStoryScriptLine,
-    HuoshanRoleStoryScriptParam,
-    HuoshanRoleStoryScriptResult,
-    HuoshanRoleStoryScriptTaskResult,
+    HuoshanToyStoryToyInfo,
+    HuoshanToyStoryScriptLine,
+    HuoshanToyStoryScriptParam,
+    HuoshanToyStoryScriptResult,
+    HuoshanToyStoryScriptTaskResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
@@ -35,7 +35,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceListResult,
     HuoshanVoiceStatus,
 )
-from backend.app.cloud.service.resource.role_service import cloud_role_service
+from backend.app.cloud.service.resource.toy_service import cloud_toy_service
 from backend.app.cloud.service.resource.song_service import cloud_song_service
 from backend.common.providers.ali_oss import oss_client
 from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL, create_async_doubao_client, doubao_provider
@@ -80,30 +80,30 @@ class HuoshanVoiceService:
     STORY_SYNTHESIS_TASK_CACHE_PREFIX = 'fba:huoshan:story:synthesis'
     STORY_GENERATE_TASK_CACHE_PREFIX = 'fba:huoshan:story:generate'
     STORY_SCRIPT_TASK_CACHE_PREFIX = 'fba:huoshan:story:script'
-    ROLE_STORY_SCRIPT_SYSTEM_PROMPT = (
+    TOY_STORY_SCRIPT_SYSTEM_PROMPT = (
         '你是儿童故事对话编剧。'
-        '请只使用提供的角色信息和用户要求创作故事台词，不要新增角色。'
+        '请只使用提供的玩偶信息和用户要求创作故事台词，不要新增玩偶。'
         '故事要有自然的开头、推进、转折和结尾，整体完整，适合直接口播。'
-        '每个角色的说话方式要符合自己的设定，台词之间要有互动感和推动情节的作用。'
+        '每个玩偶的说话方式要符合自己的设定，台词之间要有互动感和推动情节的作用。'
         '语言要自然、顺口、适合朗读，避免空话、重复话、解释性废话。'
-        '角色差异主要通过台词内容、情绪和互动体现，不要在台词里额外解释角色身份。'
+        '玩偶差异主要通过台词内容、情绪和互动体现，不要在台词里额外解释玩偶身份。'
         '不要写“科学家的我”“歌手的我”“冒险家的我”这类人设标签式表达，也不要用“某某的我”作为台词开头。'
         '只需要纯台词文本，不要加入“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示。'
         '不要写“哼唱”“接唱”“合唱”“收尾”这类表演说明，也不要用引号包裹整句台词。'
-        '如果用户要求“无C位”或“角色均衡”，各角色的出场和台词量要尽量均衡。'
+        '如果用户要求“无C位”或“玩偶均衡”，各玩偶的出场和台词量要尽量均衡。'
         '除非用户另有要求，整体控制在 15 到 25 行。如果用户明确要求行数范围，必须优先严格满足。'
         '不要输出 Markdown，不要输出标题、说明、序号或 JSON。'
-        '每一行只能是一句台词，格式必须是：[role_id]台词内容'
+        '每一行只能是一句台词，格式必须是：[toy_id]台词内容'
     )
-    ROLE_STORY_SCRIPT_MARKER_RE = re.compile(r'\[(\d+)\]')
-    ROLE_STORY_SCRIPT_LINE_RE = re.compile(r'^\[(\d+)\](.*)$')
-    ROLE_STORY_SCRIPT_TEXT_PREFIX_RE = re.compile(r'^(?:[\(（][^()\n（）]{1,20}[\)）][\s:：,，、-]*)+')
-    ROLE_STORY_SCRIPT_QUOTE_CHARS = '"\'“”‘’'
+    TOY_STORY_SCRIPT_MARKER_RE = re.compile(r'\[(\d+)\]')
+    TOY_STORY_SCRIPT_LINE_RE = re.compile(r'^\[(\d+)\](.*)$')
+    TOY_STORY_SCRIPT_TEXT_PREFIX_RE = re.compile(r'^(?:[\(（][^()\n（）]{1,20}[\)）][\s:：,，、-]*)+')
+    TOY_STORY_SCRIPT_QUOTE_CHARS = '"\'“”‘’'
 
     def __init__(self) -> None:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
         self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
-        self._role_story_script_tasks: dict[str, asyncio.Task[HuoshanRoleStoryScriptTaskResult]] = {}
+        self._toy_story_script_tasks: dict[str, asyncio.Task[HuoshanToyStoryScriptTaskResult]] = {}
 
     @classmethod
     def _attach_voice_alias(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
@@ -211,8 +211,8 @@ class HuoshanVoiceService:
     @staticmethod
     def _story_generation_system_prompt() -> str:
         return (
-            '你是儿童睡前故事写作助手，擅长创作适合 2 到 6 岁儿童聆听的中文晚安故事。'
-            '你的文字要像温柔的大人坐在床边轻声讲述，细腻、安静、柔软，适合直接做 TTS 口播。'
+            '你是儿童睡前故事写作助手，擅长创作适合 2 到 6 岁儿童收听的中文晚安故事。'
+            '你的文字要像温柔的大人坐在床边轻声讲述，细腻、安静、柔和，适合直接做 TTS 口播。'
         )
 
     @staticmethod
@@ -223,7 +223,7 @@ class HuoshanVoiceService:
             '写作要求：'
             '1. 采用温柔、轻声、安抚式的讲述口吻，像月亮妈妈在床边讲故事。'
             '2. 以第二人称或亲昵称呼和孩子说话，让孩子有被陪伴的感觉。'
-            '3. 从一个小而具体的生活意象展开想象，比如小脚丫、小被子、小枕头、小月亮、小手、小雨声。'
+            '3. 从一个小而具体的生活意象展开想象，比如小被子、小枕头、小月亮、小雨声。'
             '4. 多写触觉、温度、声音、气味、动作等细节，要有画面感和身体感。'
             '5. 句子尽量短一点，段落尽量短一点，节奏轻柔，适合幼儿睡前聆听。'
             '6. 可以适度使用重复、拟声和轻微停顿，让语言更有安抚感。'
@@ -234,46 +234,46 @@ class HuoshanVoiceService:
         )
 
     @classmethod
-    def _build_role_story_script_prompt(
+    def _build_toy_story_script_prompt(
             cls,
             *,
-            roles: list[HuoshanRoleStoryRoleInfo],
+            toys: list[HuoshanToyStoryToyInfo],
             text: str,
     ) -> str:
-        role_payload = json.dumps([role.model_dump(mode='json') for role in roles], ensure_ascii=False)
+        toy_payload = json.dumps([toy.model_dump(mode='json') for toy in toys], ensure_ascii=False)
         return (
-            f'可用角色如下：\n{role_payload}\n\n'
+            f'可用玩偶如下：\n{toy_payload}\n\n'
             f'用户要求如下：\n{text}\n\n'
-            '请基于以上角色设定和用户要求，创作一个完整的小故事对话。'
+            '请基于以上玩偶设定和用户要求，创作一个完整的小故事对话。'
             '要求如下：'
-            '1. 只允许使用提供的 role_id。'
-            '2. 每行只写一条角色台词。'
-            '3. 每条台词必须严格使用格式：[role_id]台词内容'
-            '4. 台词要体现角色性格、情绪和彼此互动，但不要在台词里自我标注身份。'
+            '1. 只允许使用提供的 toy_id。'
+            '2. 每行只写一条玩偶台词。'
+            '3. 每条台词必须严格使用格式：[toy_id]台词内容'
+            '4. 台词要体现玩偶性格、情绪和彼此互动，但不要在台词里自我标注身份。'
             '5. 不要出现“科学家的我”“歌手的我”“冒险家的我”这类表达，也不要用“某某的我”作为开场白。'
             '6. 只输出纯台词，不要加“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示，不要写哼唱、接唱、合唱等表演说明。'
             '7. 不要用引号包裹整句台词。'
             '8. 故事要有起承转合，结尾要完整，不要突然结束。'
-            '9. 如果要求无C位或角色均衡，请尽量平均分配台词。'
+            '9. 如果要求无C位或玩偶均衡，请尽量平均分配台词。'
             '10. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
             '输出示例：\n'
             '[1]今天的风好轻呀，我们一起去看看山那边发生了什么吧。'
         )
 
     @classmethod
-    def _sanitize_role_story_script_text(cls, text: object) -> str:
+    def _sanitize_toy_story_script_text(cls, text: object) -> str:
         normalized = str(text or '').strip()
         if not normalized:
             return ''
 
-        normalized = cls.ROLE_STORY_SCRIPT_TEXT_PREFIX_RE.sub('', normalized).strip()
+        normalized = cls.TOY_STORY_SCRIPT_TEXT_PREFIX_RE.sub('', normalized).strip()
         if len(normalized) >= 2:
-            if normalized[0] in cls.ROLE_STORY_SCRIPT_QUOTE_CHARS and normalized[-1] in cls.ROLE_STORY_SCRIPT_QUOTE_CHARS:
+            if normalized[0] in cls.TOY_STORY_SCRIPT_QUOTE_CHARS and normalized[-1] in cls.TOY_STORY_SCRIPT_QUOTE_CHARS:
                 normalized = normalized[1:-1].strip()
         return normalized
 
     @staticmethod
-    def _split_role_story_script_buffer(buffer: str) -> tuple[list[str], str]:
+    def _split_toy_story_script_buffer(buffer: str) -> tuple[list[str], str]:
         normalized = str(buffer or '').replace('\r\n', '\n').replace('\r', '\n')
         if not normalized:
             return [], ''
@@ -282,7 +282,7 @@ class HuoshanVoiceService:
         cursor = 0
 
         while True:
-            current_match = HuoshanVoiceService.ROLE_STORY_SCRIPT_MARKER_RE.search(normalized, cursor)
+            current_match = HuoshanVoiceService.TOY_STORY_SCRIPT_MARKER_RE.search(normalized, cursor)
             if current_match is None:
                 return complete_lines, normalized[cursor:]
 
@@ -291,7 +291,7 @@ class HuoshanVoiceService:
             if prefix.strip():
                 raise errors.GatewayError(msg=f'Story script generation returned invalid content: {prefix.strip()}')
 
-            next_match = HuoshanVoiceService.ROLE_STORY_SCRIPT_MARKER_RE.search(normalized, start + 1)
+            next_match = HuoshanVoiceService.TOY_STORY_SCRIPT_MARKER_RE.search(normalized, start + 1)
             next_marker_pos = next_match.start() if next_match is not None else -1
             newline_pos = normalized.find('\n', start)
 
@@ -308,89 +308,89 @@ class HuoshanVoiceService:
                 cursor = end
 
     @classmethod
-    def _parse_role_story_script_line(
+    def _parse_toy_story_script_line(
             cls,
             line: str,
             *,
-            role_ids: set[int],
+            toy_ids: set[int],
             allow_empty_text: bool = False,
-    ) -> HuoshanRoleStoryScriptLine | None:
+    ) -> HuoshanToyStoryScriptLine | None:
         normalized = str(line or '').strip()
         if not normalized:
             return None
 
-        match = cls.ROLE_STORY_SCRIPT_LINE_RE.match(normalized)
+        match = cls.TOY_STORY_SCRIPT_LINE_RE.match(normalized)
         if match is None:
             raise errors.GatewayError(msg=f'Story script generation returned invalid line format: {normalized}')
 
-        role_id = int(match.group(1))
-        if role_id not in role_ids:
-            raise errors.GatewayError(msg=f'Story script generation returned unexpected role ID: {role_id}')
+        toy_id = int(match.group(1))
+        if toy_id not in toy_ids:
+            raise errors.GatewayError(msg=f'Story script generation returned unexpected toy ID: {toy_id}')
 
-        text = cls._sanitize_role_story_script_text(match.group(2))
+        text = cls._sanitize_toy_story_script_text(match.group(2))
         if not text:
             if allow_empty_text:
                 return None
             raise errors.GatewayError(msg=f'Story script generation returned empty line content: {normalized}')
 
-        return HuoshanRoleStoryScriptLine(role_id=role_id, text=text)
+        return HuoshanToyStoryScriptLine(toy_id=toy_id, text=text)
 
     @classmethod
-    def _parse_role_story_script_lines(
+    def _parse_toy_story_script_lines(
             cls,
             lines: list[str],
             *,
-            role_ids: set[int],
-    ) -> list[HuoshanRoleStoryScriptLine]:
-        parsed_lines: list[HuoshanRoleStoryScriptLine] = []
+            toy_ids: set[int],
+    ) -> list[HuoshanToyStoryScriptLine]:
+        parsed_lines: list[HuoshanToyStoryScriptLine] = []
         for line in lines:
-            parsed_line = cls._parse_role_story_script_line(line, role_ids=role_ids, allow_empty_text=True)
+            parsed_line = cls._parse_toy_story_script_line(line, toy_ids=toy_ids, allow_empty_text=True)
             if parsed_line is not None:
                 parsed_lines.append(parsed_line)
         return parsed_lines
 
     @classmethod
-    def _normalize_role_story_script_lines(
+    def _normalize_toy_story_script_lines(
             cls,
-            lines: list[HuoshanRoleStoryScriptLine],
+            lines: list[HuoshanToyStoryScriptLine],
             *,
-            role_ids: set[int],
-    ) -> list[HuoshanRoleStoryScriptLine]:
+            toy_ids: set[int],
+    ) -> list[HuoshanToyStoryScriptLine]:
         if not lines:
             return []
 
-        raw_content = '\n'.join(f'[{line.role_id}]{line.text}' for line in lines)
-        raw_lines, buffer = cls._split_role_story_script_buffer(f'{raw_content}\n')
-        normalized_lines = cls._parse_role_story_script_lines(raw_lines, role_ids=role_ids)
+        raw_content = '\n'.join(f'[{line.toy_id}]{line.text}' for line in lines)
+        raw_lines, buffer = cls._split_toy_story_script_buffer(f'{raw_content}\n')
+        normalized_lines = cls._parse_toy_story_script_lines(raw_lines, toy_ids=toy_ids)
 
-        trailing_line = cls._parse_role_story_script_line(buffer, role_ids=role_ids, allow_empty_text=True)
+        trailing_line = cls._parse_toy_story_script_line(buffer, toy_ids=toy_ids, allow_empty_text=True)
         if trailing_line is not None:
             normalized_lines.append(trailing_line)
 
         return normalized_lines
 
     @classmethod
-    def _normalize_role_story_script_task_result(
+    def _normalize_toy_story_script_task_result(
             cls,
-            result: HuoshanRoleStoryScriptTaskResult,
-    ) -> HuoshanRoleStoryScriptTaskResult:
-        normalized_lines = cls._normalize_role_story_script_lines(list(result.lines), role_ids=set(result.role_ids))
+            result: HuoshanToyStoryScriptTaskResult,
+    ) -> HuoshanToyStoryScriptTaskResult:
+        normalized_lines = cls._normalize_toy_story_script_lines(list(result.lines), toy_ids=set(result.toy_ids))
         return result.model_copy(update={'lines': normalized_lines}, deep=True)
 
     @staticmethod
-    def _validate_role_story_script_completion(
-            lines: list[HuoshanRoleStoryScriptLine],
+    def _validate_toy_story_script_completion(
+            lines: list[HuoshanToyStoryScriptLine],
             *,
-            role_ids: list[int],
+            toy_ids: list[int],
     ) -> None:
         if not lines:
             raise errors.GatewayError(msg='Story script generation returned an empty script list')
 
-        used_role_ids = {item.role_id for item in lines}
-        missing_role_ids = [role_id for role_id in role_ids if role_id not in used_role_ids]
-        if missing_role_ids:
+        used_toy_ids = {item.toy_id for item in lines}
+        missing_toy_ids = [toy_id for toy_id in toy_ids if toy_id not in used_toy_ids]
+        if missing_toy_ids:
             raise errors.GatewayError(
-                msg=f'Story script generation did not use all requested roles: {", ".join(str(role_id) for role_id in missing_role_ids)}'
+                msg=f'Story script generation did not use all requested toys: {", ".join(str(toy_id) for toy_id in missing_toy_ids)}'
             )
 
     @staticmethod
@@ -481,7 +481,7 @@ class HuoshanVoiceService:
         return f'{cls.STORY_GENERATE_TASK_CACHE_PREFIX}:{task_id}'
 
     @classmethod
-    def _role_story_script_task_key(cls, task_id: str) -> str:
+    def _toy_story_script_task_key(cls, task_id: str) -> str:
         return f'{cls.STORY_SCRIPT_TASK_CACHE_PREFIX}:{task_id}'
 
     @staticmethod
@@ -533,11 +533,11 @@ class HuoshanVoiceService:
         return HuoshanStoryGenerateResult.model_validate_json(payload_raw)
 
     @classmethod
-    async def _save_role_story_script_task_result(cls, result: HuoshanRoleStoryScriptTaskResult) -> None:
-        result = cls._normalize_role_story_script_task_result(result)
+    async def _save_toy_story_script_task_result(cls, result: HuoshanToyStoryScriptTaskResult) -> None:
+        result = cls._normalize_toy_story_script_task_result(result)
         try:
             await redis_client.set(
-                cls._role_story_script_task_key(result.task_id),
+                cls._toy_story_script_task_key(result.task_id),
                 result.model_dump_json(),
                 ex=cls._story_task_ttl_seconds(),
             )
@@ -545,23 +545,23 @@ class HuoshanVoiceService:
             raise errors.GatewayError(msg='Failed to save Huoshan role story script task result') from exc
 
     @classmethod
-    async def _get_role_story_script_task_result(cls, task_id: str) -> HuoshanRoleStoryScriptTaskResult:
+    async def _get_toy_story_script_task_result(cls, task_id: str) -> HuoshanToyStoryScriptTaskResult:
         try:
-            payload_raw = await redis_client.get(cls._role_story_script_task_key(task_id))
+            payload_raw = await redis_client.get(cls._toy_story_script_task_key(task_id))
         except Exception as exc:
             raise errors.GatewayError(msg='Failed to load Huoshan role story script task result') from exc
 
         if not payload_raw:
             raise errors.NotFoundError(msg=f'Huoshan role story script task not found, task_id={task_id}')
-        return cls._normalize_role_story_script_task_result(HuoshanRoleStoryScriptTaskResult.model_validate_json(payload_raw))
+        return cls._normalize_toy_story_script_task_result(HuoshanToyStoryScriptTaskResult.model_validate_json(payload_raw))
 
     @classmethod
-    def _to_public_role_story_script_result(
+    def _to_public_toy_story_script_result(
             cls,
-            result: HuoshanRoleStoryScriptTaskResult,
-    ) -> HuoshanRoleStoryScriptResult:
-        result = cls._normalize_role_story_script_task_result(result)
-        return HuoshanRoleStoryScriptResult.model_validate(result.model_dump(exclude={'roles'}))
+            result: HuoshanToyStoryScriptTaskResult,
+    ) -> HuoshanToyStoryScriptResult:
+        result = cls._normalize_toy_story_script_task_result(result)
+        return HuoshanToyStoryScriptResult.model_validate(result.model_dump(exclude={'toys'}))
 
     def _start_story_synthesis_processing(self, task_id: str) -> None:
         current_task = self._story_synthesis_tasks.get(task_id)
@@ -597,20 +597,20 @@ class HuoshanVoiceService:
 
         task.add_done_callback(_cleanup)
 
-    def _start_role_story_script_processing(self, task_id: str) -> None:
-        current_task = self._role_story_script_tasks.get(task_id)
+    def _start_toy_story_script_processing(self, task_id: str) -> None:
+        current_task = self._toy_story_script_tasks.get(task_id)
         if current_task is not None and not current_task.done():
             return
 
         task = asyncio.create_task(
-            self._process_role_story_script(task_id),
+            self._process_toy_story_script(task_id),
             name=f'huoshan-story-script-{task_id}',
         )
-        self._role_story_script_tasks[task_id] = task
+        self._toy_story_script_tasks[task_id] = task
 
-        def _cleanup(done_task: asyncio.Task[HuoshanRoleStoryScriptTaskResult]) -> None:
-            if self._role_story_script_tasks.get(task_id) is done_task:
-                self._role_story_script_tasks.pop(task_id, None)
+        def _cleanup(done_task: asyncio.Task[HuoshanToyStoryScriptTaskResult]) -> None:
+            if self._toy_story_script_tasks.get(task_id) is done_task:
+                self._toy_story_script_tasks.pop(task_id, None)
 
         task.add_done_callback(_cleanup)
 
@@ -677,59 +677,59 @@ class HuoshanVoiceService:
         result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
 
-    async def _process_role_story_script(
+    async def _process_toy_story_script(
             self,
             task_id: str,
-    ) -> HuoshanRoleStoryScriptTaskResult:
-        result = await self._get_role_story_script_task_result(task_id)
-        allowed_role_ids = set(result.role_ids)
+    ) -> HuoshanToyStoryScriptTaskResult:
+        result = await self._get_toy_story_script_task_result(task_id)
+        allowed_toy_ids = set(result.toy_ids)
         buffer = ''
         lines = list(result.lines)
 
         try:
             async for chunk in doubao_provider.stream_chat(
                     [
-                        {'role': 'system', 'content': self.ROLE_STORY_SCRIPT_SYSTEM_PROMPT},
+                        {'role': 'system', 'content': self.TOY_STORY_SCRIPT_SYSTEM_PROMPT},
                         {'role': 'user',
-                         'content': self._build_role_story_script_prompt(roles=list(result.roles), text=result.text)},
+                         'content': self._build_toy_story_script_prompt(toys=list(result.toys), text=result.text)},
                     ],
                     model_name=result.model,
                     reasoning_effort='minimal',
                     temperature=0.8,
             ):
                 buffer += chunk
-                raw_lines, buffer = self._split_role_story_script_buffer(buffer)
-                parsed_lines = self._parse_role_story_script_lines(raw_lines, role_ids=allowed_role_ids)
+                raw_lines, buffer = self._split_toy_story_script_buffer(buffer)
+                parsed_lines = self._parse_toy_story_script_lines(raw_lines, toy_ids=allowed_toy_ids)
                 if not parsed_lines:
                     continue
                 lines.extend(parsed_lines)
                 result = result.model_copy(update={'lines': list(lines)}, deep=True)
-                await self._save_role_story_script_task_result(result)
+                await self._save_toy_story_script_task_result(result)
 
-            trailing_line = self._parse_role_story_script_line(buffer, role_ids=allowed_role_ids)
+            trailing_line = self._parse_toy_story_script_line(buffer, toy_ids=allowed_toy_ids)
             if trailing_line is not None:
                 lines.append(trailing_line)
 
-            self._validate_role_story_script_completion(lines, role_ids=result.role_ids)
+            self._validate_toy_story_script_completion(lines, toy_ids=result.toy_ids)
             result = result.model_copy(update={
                 'lines': list(lines),
                 'is_completed': True,
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
             }, deep=True)
-            await self._save_role_story_script_task_result(result)
+            await self._save_toy_story_script_task_result(result)
             log.info(
-                f'Huoshan role story script generation completed: task_id={task_id}, role_ids={result.role_ids}, '
+                f'Huoshan toy story script generation completed: task_id={task_id}, toy_ids={result.toy_ids}, '
                 f'text={result.text!r}'
             )
             return result
         except Exception as exc:
-            log.error(f'Huoshan role story script generation failed: task_id={task_id}, error={exc!r}')
+            log.error(f'Huoshan toy story script generation failed: task_id={task_id}, error={exc!r}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),
             }, deep=True)
-            await self._save_role_story_script_task_result(result)
+            await self._save_toy_story_script_task_result(result)
             return result
 
     async def _generate_story_content_once(
@@ -809,43 +809,43 @@ class HuoshanVoiceService:
     async def get_story_generation(self, *, task_id: str) -> HuoshanStoryGenerateResult:
         return await self._get_story_generate_task_result(task_id)
 
-    async def submit_role_story_script(
+    async def submit_toy_story_script(
             self,
             *,
             db: AsyncSession,
-            obj: HuoshanRoleStoryScriptParam,
-    ) -> HuoshanRoleStoryScriptResult:
-        roles = await cloud_role_service.get_roles_by_ids(db=db, role_ids=obj.role_ids)
-        task_result = HuoshanRoleStoryScriptTaskResult(
+            obj: HuoshanToyStoryScriptParam,
+    ) -> HuoshanToyStoryScriptResult:
+        toys = await cloud_toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
+        task_result = HuoshanToyStoryScriptTaskResult(
             task_id=uuid.uuid4().hex,
-            role_ids=list(obj.role_ids),
+            toy_ids=list(obj.toy_ids),
             text=obj.text,
             model=DEFAULT_DOUBAO_STORY_MODEL,
             lines=[],
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
-            roles=[
-                HuoshanRoleStoryRoleInfo(
-                    role_id=int(role.id),
-                    name=str(role.name or '').strip(),
-                    summary=str(role.summary or '').strip(),
-                    system_prompt=str(role.system_prompt or '').strip(),
+            toys=[
+                HuoshanToyStoryToyInfo(
+                    toy_id=int(toy.id),
+                    name=str(toy.name or '').strip(),
+                    summary=str(toy.summary or '').strip(),
+                    system_prompt=str(toy.system_prompt or '').strip(),
                 )
-                for role in roles
+                for toy in toys
             ],
         )
-        await self._save_role_story_script_task_result(task_result)
-        self._start_role_story_script_processing(task_result.task_id)
+        await self._save_toy_story_script_task_result(task_result)
+        self._start_toy_story_script_processing(task_result.task_id)
         log.info(
-            f'Huoshan role story script generation submitted: task_id={task_result.task_id}, '
-            f'role_ids={task_result.role_ids}, text={task_result.text!r}'
+            f'Huoshan toy story script generation submitted: task_id={task_result.task_id}, '
+            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}'
         )
-        return self._to_public_role_story_script_result(task_result)
+        return self._to_public_toy_story_script_result(task_result)
 
-    async def get_role_story_script(self, *, task_id: str) -> HuoshanRoleStoryScriptResult:
-        result = await self._get_role_story_script_task_result(task_id)
-        return self._to_public_role_story_script_result(result)
+    async def get_toy_story_script(self, *, task_id: str) -> HuoshanToyStoryScriptResult:
+        result = await self._get_toy_story_script_task_result(task_id)
+        return self._to_public_toy_story_script_result(result)
 
     async def _finalize_story_synthesis(
             self,
@@ -1067,3 +1067,7 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
+
+
+
