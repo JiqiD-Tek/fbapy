@@ -51,6 +51,7 @@ class CloudScriptService:
         title: str | None = None,
         author: str | None = None,
         status: int | None = None,
+        owner_id: int | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -58,6 +59,7 @@ class CloudScriptService:
             title=title,
             author=author,
             status=status,
+            owner_id=owner_id,
             toy_ids=CloudScriptService._normalize_toy_ids_filter(toy_ids),
             exact_toy_ids=CloudScriptService._normalize_toy_ids_filter(exact_toy_ids),
         )
@@ -117,6 +119,7 @@ class CloudScriptService:
         if 'toy_ids' in payload or 'content' in payload:
             validated_script = CreateScriptParam.model_validate(
                 {
+                    'owner_id': payload.get('owner_id', script.owner_id),
                     'title': payload.get('title', script.title),
                     'version': payload.get('version', script.version),
                     'summary': payload.get('summary', script.summary),

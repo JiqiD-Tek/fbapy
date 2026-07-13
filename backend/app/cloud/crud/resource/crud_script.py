@@ -21,6 +21,7 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
         title: str | None,
         author: str | None,
         status: int | None,
+        owner_id: int | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
     ) -> Select:
@@ -32,6 +33,8 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
             filters['author__like'] = f'%{author}%'
         if status is not None:
             filters['status'] = status
+        if owner_id is not None:
+            filters['owner_id'] = owner_id
 
         stmt = await self.select_order('id', 'desc', **filters)
 

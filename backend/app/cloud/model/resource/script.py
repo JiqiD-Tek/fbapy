@@ -24,6 +24,7 @@ class CloudScript(Base):
     author: Mapped[str | None] = mapped_column(sa.String(128), index=True, comment='Author')
     toy_ids: Mapped[list[int]] = mapped_column(sa.JSON, comment='Toy ID list')
     content: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, comment='Script line content')
+    owner_id: Mapped[int] = mapped_column(default=0, index=True, comment='Owner ID, 0 means platform')
     version: Mapped[int] = mapped_column(default=1, comment='Version')
     status: Mapped[int] = mapped_column(default=0, index=True, comment='Status (0 disabled, 1 enabled)')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Remark')

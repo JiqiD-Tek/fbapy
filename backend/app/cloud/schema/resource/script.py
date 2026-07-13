@@ -61,12 +61,13 @@ class ScriptLine(SchemaBase):
 
 class ScriptSchemaBase(SchemaBase):
     title: str = Field(description='Title')
+    toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
+    content: list[ScriptLine] = Field(min_length=1, description='Script line content')
+    owner_id: int = Field(default=0, ge=0, description='Owner ID, 0 means platform')
     version: int = Field(default=1, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
     author: str | None = Field(None, description='Author')
-    toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
-    content: list[ScriptLine] = Field(min_length=1, description='Script line content')
     status: int = Field(default=0, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
 
@@ -86,6 +87,7 @@ class CreateScriptParam(ScriptSchemaBase):
 
 
 class UpdateScriptParam(SchemaBase):
+    owner_id: int | None = Field(None, ge=0, description='Owner ID, 0 means platform')
     title: str | None = Field(None, description='Title')
     version: int | None = Field(None, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
