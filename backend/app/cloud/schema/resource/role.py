@@ -28,11 +28,12 @@ def _strip_optional_text(value: Any) -> Any:
 
 
 class RoleReadSchemaBase(SchemaBase):
-    group_key: str | None = Field(None, description='剧本角色分组标识')
+    series_name: str | None = Field(None, description='Series name')
     name: str | None = Field(None, description='Role name')
     system_prompt: str | None = Field(None, description='System prompt')
     avatar_url: str | None = Field(None, description='Role avatar URL')
     summary: str | None = Field(None, description='Role summary')
+    nfc_code: str | None = Field(None, description='NFC code')
     voice_provider: str | None = Field(None, description='Voice provider')
     voice_id: str | None = Field(None, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -44,11 +45,12 @@ class RoleReadSchemaBase(SchemaBase):
 
 
 class CreateRoleParam(SchemaBase):
-    group_key: str | None = Field(None, max_length=64, description='剧本角色分组标识')
+    series_name: str | None = Field(None, max_length=64, description='Series name')
     name: str = Field(min_length=1, max_length=128, description='Role name')
     system_prompt: str = Field(min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')
     summary: str | None = Field(None, max_length=500, description='Role summary')
+    nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -64,9 +66,10 @@ class CreateRoleParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
-        'group_key',
+        'series_name',
         'avatar_url',
         'summary',
+        'nfc_code',
         'voice_provider',
         'voice_id',
         'voice_name',
@@ -86,11 +89,12 @@ class CreateRoleParam(SchemaBase):
 
 
 class UpdateRoleParam(SchemaBase):
-    group_key: str | None = Field(None, max_length=64, description='剧本角色分组标识')
+    series_name: str | None = Field(None, max_length=64, description='Series name')
     name: str | None = Field(None, min_length=1, max_length=128, description='Role name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Role avatar URL')
     summary: str | None = Field(None, max_length=500, description='Role summary')
+    nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -106,9 +110,10 @@ class UpdateRoleParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
-        'group_key',
+        'series_name',
         'avatar_url',
         'summary',
+        'nfc_code',
         'voice_provider',
         'voice_id',
         'voice_name',

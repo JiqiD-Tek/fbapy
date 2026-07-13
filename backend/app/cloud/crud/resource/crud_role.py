@@ -42,17 +42,20 @@ class CRUDCloudRole(CRUDPlus[CloudRole]):
     async def get_select(
         self,
         *,
-        group_key: str | None,
+        series_name: str | None,
         name: str | None,
+        nfc_code: str | None,
         voice_language: str | None,
         status: int | None,
     ) -> Select:
         stmt = sa.select(self.model).where(self.model.deleted == 0)
 
-        if group_key is not None:
-            stmt = stmt.where(self.model.group_key == group_key)
+        if series_name is not None:
+            stmt = stmt.where(self.model.series_name == series_name)
         if name is not None:
             stmt = stmt.where(self.model.name.like(f'%{name}%'))
+        if nfc_code is not None:
+            stmt = stmt.where(self.model.nfc_code == nfc_code)
         if voice_language is not None:
             stmt = stmt.where(self.model.voice_language == voice_language)
         if status is not None:

@@ -38,15 +38,17 @@ async def get_role(
 @router.get('', summary='分页获取剧本角色列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_role_paginated(
     db: CurrentSession,
-    group_key: Annotated[str | None, Query(description='剧本角色分组标识')] = None,
+    series_name: Annotated[str | None, Query(description='系列名')] = None,
     name: Annotated[str | None, Query(description='角色名称')] = None,
+    nfc_code: Annotated[str | None, Query(description='NFC 编码')] = None,
     voice_language: Annotated[str | None, Query(description='音色语言，如 zh-CN、en-US、zh-TW')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetRoleDetail]]:
     page_data = await cloud_role_service.get_role_list(
         db=db,
-        group_key=group_key,
+        series_name=series_name,
         name=name,
+        nfc_code=nfc_code,
         voice_language=voice_language,
         status=status,
     )

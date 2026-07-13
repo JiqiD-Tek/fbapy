@@ -46,14 +46,16 @@ class CloudRoleService:
     async def get_role_list(
             *,
             db: AsyncSession,
-            group_key: str | None = None,
+            series_name: str | None = None,
             name: str | None = None,
+            nfc_code: str | None = None,
             voice_language: str | None = None,
             status: int | None = None,
     ) -> dict[str, Any]:
         role_select = await cloud_role_dao.get_select(
-            group_key=CloudRoleService._normalize_query_text(group_key),
+            series_name=CloudRoleService._normalize_query_text(series_name),
             name=CloudRoleService._normalize_query_text(name),
+            nfc_code=CloudRoleService._normalize_query_text(nfc_code),
             voice_language=CloudRoleService._normalize_query_text(voice_language),
             status=status,
         )

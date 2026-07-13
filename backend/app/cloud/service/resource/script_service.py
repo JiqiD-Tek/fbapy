@@ -162,7 +162,7 @@ class CloudScriptService:
         )
         summary = str(obj.summary or '').strip() or '请根据标题自由补全一个完整、自然、适合儿童收听的角色剧本。'
         return (
-            f'标题：{obj.title}\n'
+            f'剧本标题：{obj.title}\n'
             f'剧本摘要：{summary}\n'
             f'角色列表：{role_payload}\n\n'
             '创作要求：\n'

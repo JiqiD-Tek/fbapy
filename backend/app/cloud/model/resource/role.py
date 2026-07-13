@@ -24,10 +24,11 @@ class CloudRole(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
 
-    group_key: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Script role group key')
+    series_name: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Toy series name')
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Role name')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Role avatar URL')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Role summary')
+    nfc_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, unique=True, index=True, comment='NFC code')
 
     system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='System prompt')
 
