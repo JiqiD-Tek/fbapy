@@ -6,21 +6,33 @@
 @Date    : 2025/12/09 13:50
 """
 
+from contextlib import suppress
 from collections.abc import Sequence
 from typing import Any
 
+import sqlalchemy as sa
+
 from sqlalchemy import delete, insert, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from fastapi_pagination.api import create_page, resolve_params
 
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.crud_device import device_dao
-from backend.app.cloud.model import Baby, Device, User
-from backend.app.cloud.model.m2m import user_device
-from backend.app.cloud.schema.device.device import UpdateDeviceParam, UpdateFirmwareParam
+from backend.app.cloud.model import Baby, CloudToy, Device, User
+from backend.app.cloud.model.m2m import device_toy, user_device
+from backend.app.cloud.schema.device.device import (
+    DeviceToyListItem,
+    DeviceToyUnlockParam,
+    UpdateDeviceParam,
+    UpdateFirmwareParam,
+)
 from backend.app.cloud.schema.user import UserDeviceParam
 from backend.app.cloud.timeseries.state_store import StateStore
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
+from backend.database.redis import redis_client
 
 MAX_ALLOW_QUOTA = 600
 SHARED_BIND_MODELS = {'k11'}
@@ -29,20 +41,23 @@ SHARED_BIND_MODELS = {'k11'}
 class DeviceService:
     """Device service"""
 
+    DEVICE_TOY_UNLOCK_CACHE_PREFIX = 'fba:device:toy:unlock'
+    DEVICE_TOY_UNLOCK_CACHE_TTL_SECONDS = 600
+
     @staticmethod
     async def _ensure_user_has_device(*, db: AsyncSession, user_id: int, device_id: int) -> Device:
         device = await device_dao.get(db, device_id)
         if not device:
             raise errors.NotFoundError(msg='设备不存在')
 
-        result = await db.execute(
-            select(user_device.c.device_id).where(
-                user_device.c.user_id == user_id,
-                user_device.c.device_id == device_id,
-            )
-        )
-        if result.scalar_one_or_none() is None:
-            raise errors.ForbiddenError(msg='无权操作该设备')
+        # result = await db.execute(
+        #     select(user_device.c.device_id).where(
+        #         user_device.c.user_id == user_id,
+        #         user_device.c.device_id == device_id,
+        #     )
+        # )
+        # if result.scalar_one_or_none() is None:
+        #     raise errors.NotFoundError(msg='设备不存在')
 
         return device
 
@@ -97,6 +112,23 @@ class DeviceService:
         return device
 
     @staticmethod
+    async def _get_enabled_toy_by_nfc_code(*, db: AsyncSession, nfc_code: str) -> CloudToy:
+        stmt = (
+            select(CloudToy)
+            .where(
+                CloudToy.deleted == 0,
+                CloudToy.status == 1,
+                CloudToy.nfc_code == nfc_code,
+            )
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        toy = result.scalar_one_or_none()
+        if not toy:
+            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
+        return toy
+
+    @staticmethod
     async def get_bind_state(*, db: AsyncSession, did: str) -> dict[str, Any]:
         device = await DeviceService.get_by_did(db=db, did=did)
 
@@ -113,6 +145,113 @@ class DeviceService:
             'is_bound': user is not None,
             'user': user,
         }
+
+    @classmethod
+    async def unlock_toy(
+            cls,
+            *,
+            db: AsyncSession,
+            did: str,
+            obj: DeviceToyUnlockParam,
+    ) -> None:
+        lock_key = f'{cls.DEVICE_TOY_UNLOCK_CACHE_PREFIX}:{did}:{obj.nfc_code}'
+        try:
+            marked = await redis_client.set(lock_key, '1', ex=cls.DEVICE_TOY_UNLOCK_CACHE_TTL_SECONDS, nx=True)
+            if not marked:
+                return None
+
+            device = await DeviceService.get_by_did(db=db, did=did)
+            toy = await DeviceService._get_enabled_toy_by_nfc_code(db=db, nfc_code=obj.nfc_code)
+
+            try:
+                await db.execute(
+                    insert(device_toy).values(
+                        device_id=device.id,
+                        toy_id=toy.id,
+                    )
+                )
+            except IntegrityError:
+                return None
+            return None
+        except Exception:
+            with suppress(Exception):
+                await redis_client.delete(lock_key)
+            raise
+
+    @staticmethod
+    async def get_device_toy_list(
+            *,
+            db: AsyncSession,
+            user_id: int,
+            device_id: int,
+    ) -> dict[str, Any]:
+        await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=device_id)
+        params = resolve_params()
+        raw_params = params.to_raw_params()
+
+        unlocked_toy_subquery = (
+            select(
+                device_toy.c.toy_id.label('toy_id'),
+                device_toy.c.created_time.label('unlocked_at'),
+            )
+            .where(device_toy.c.device_id == device_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                CloudToy.id.label('toy_id'),
+                CloudToy.series_name,
+                CloudToy.name,
+                CloudToy.avatar_url,
+                CloudToy.summary,
+                unlocked_toy_subquery.c.unlocked_at,
+            )
+            .select_from(CloudToy)
+            .outerjoin(unlocked_toy_subquery, unlocked_toy_subquery.c.toy_id == CloudToy.id)
+            .where(
+                CloudToy.deleted == 0,
+                CloudToy.status == 1,
+            )
+            .order_by(
+                sa.case((unlocked_toy_subquery.c.unlocked_at.is_(None), 1), else_=0).asc(),
+                unlocked_toy_subquery.c.unlocked_at.desc(),
+                CloudToy.sort.asc(),
+                CloudToy.id.desc(),
+            )
+        )
+        count_stmt = select(sa.func.count()).select_from(CloudToy).where(
+            CloudToy.deleted == 0,
+            CloudToy.status == 1,
+        )
+
+        if raw_params.limit is not None:
+            stmt = stmt.limit(raw_params.limit)
+        if raw_params.offset is not None:
+            stmt = stmt.offset(raw_params.offset)
+
+        total_result = await db.execute(count_stmt)
+        total = int(total_result.scalar_one() or 0)
+
+        result = await db.execute(stmt)
+        rows = result.mappings().all()
+
+        items: list[DeviceToyListItem] = []
+        for row in rows:
+            unlocked_at = row['unlocked_at']
+            items.append(
+                DeviceToyListItem(
+                    toy_id=int(row['toy_id']),
+                    series_name=row['series_name'],
+                    name=row['name'],
+                    avatar_url=row['avatar_url'],
+                    summary=row['summary'],
+                    is_unlocked=unlocked_at is not None,
+                    unlocked_at=unlocked_at,
+                )
+            )
+
+        return create_page(items, total=total, params=params).model_dump()
 
     @staticmethod
     async def get_all(*, db: AsyncSession) -> Sequence[Device]:
@@ -155,6 +294,7 @@ class DeviceService:
         device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
         await db.execute(update(Baby).where(Baby.device_id == pk).values(device_id=None))
         await db.execute(delete(user_device).where(user_device.c.device_id == pk))
+        await db.execute(delete(device_toy).where(device_toy.c.device_id == pk))
         count = await device_dao.delete(db, pk)
         if count <= 0:
             return None

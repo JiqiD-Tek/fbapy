@@ -14,8 +14,10 @@ from backend.common.mqtt_broker import MQTTDependency
 from backend.app.cloud.service.device.messaging import MessagingService
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import (
+    DeviceToyUnlockParam,
     GetDeviceBindStateDetail,
     GetDeviceDetail,
+    DeviceToyListItem,
     UpdateDeviceParam, UpdateFirmwareParam,
 )
 from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
@@ -74,6 +76,26 @@ async def unbind_device_baby(
 ) -> ResponseModel:
     await baby_service.unbind_device_baby(db=db, user_id=request.user.id, obj=obj)
     return response_base.success()
+
+
+@router.post('/toys/unlock', summary='设备解锁玩偶', dependencies=[DependsDeviceAuth])
+async def unlock_device_toy(
+        db: CurrentSessionTransaction,
+        obj: DeviceToyUnlockParam,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseModel:
+    await device_service.unlock_toy(db=db, did=auth_ctx.did, obj=obj)
+    return response_base.success()
+
+
+@router.get('/{pk}/toys', summary='分页获取设备玩偶列表', dependencies=[DependsJwtAuth, DependsPagination])
+async def get_device_toys(
+        request: Request,
+        db: CurrentSession,
+        pk: Annotated[int, Path(description='设备 ID')],
+) -> ResponseSchemaModel[PageData[DeviceToyListItem]]:
+    data = await device_service.get_device_toy_list(db=db, user_id=request.user.id, device_id=pk)
+    return response_base.success(data=data)
 
 
 @router.get('/{pk}', summary='获取设备详情', dependencies=[DependsJwtAuth])
