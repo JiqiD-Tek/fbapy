@@ -16,6 +16,8 @@ from backend.common.schema import SchemaBase
 
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
 HuoshanAudioFormat = Literal['mp3']
+
+
 class HuoshanSchemaBase(SchemaBase):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -23,6 +25,13 @@ class HuoshanSchemaBase(SchemaBase):
 def _strip_required_text(value: Any) -> Any:
     if isinstance(value, str):
         return value.strip()
+    return value
+
+
+def _strip_optional_text(value: Any) -> Any:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
     return value
 
 
@@ -55,6 +64,26 @@ class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
         return _strip_required_text(value)
 
 
+class HuoshanToyStoryScriptSaveParam(HuoshanSchemaBase):
+    title: str = Field(min_length=1, max_length=256, description='Script title')
+    summary: str | None = Field(None, max_length=1000, description='Script summary')
+    cover_url: str | None = Field(None, max_length=512, description='Script cover URL')
+    author: str | None = Field(None, max_length=128, description='Script author')
+    owner_id: int = Field(0, ge=0, description='Owner ID, 0 means platform')
+    status: int = Field(0, description='Status (0 draft, 1 enabled, 2 disabled)')
+    remark: str | None = Field(None, max_length=500, description='Remark')
+
+    @field_validator('title', mode='before')
+    @classmethod
+    def strip_title(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('summary', 'cover_url', 'author', 'remark', mode='before')
+    @classmethod
+    def strip_optional_fields(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
     speaker: str = Field(description='Speaker ID, supports cloned or public voices')
@@ -78,16 +107,10 @@ class HuoshanStreamTTSParam(HuoshanSchemaBase):
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
 
-
-class HuoshanStreamTTSUrlResult(HuoshanSchemaBase):
-    request_id: str = Field(description='TTS request ID')
-    oss_key: str = Field(description='OSS object key')
-    download_url: str = Field(description='Uploaded audio download URL')
-
-
 class HuoshanToyStoryScriptLine(HuoshanSchemaBase):
     toy_id: int = Field(gt=0, description='Toy ID')
     text: str = Field(min_length=1, description='Story line content')
+    tts_token: str | None = Field(None, description='TTS token for direct playback')
 
     @field_validator('text', mode='before')
     @classmethod
@@ -100,6 +123,8 @@ class HuoshanToyStoryToyInfo(HuoshanSchemaBase):
     name: str = Field(description='Toy name')
     summary: str = Field('', description='Toy summary')
     system_prompt: str = Field('', description='Toy system prompt')
+    speaker: str = Field('', description='TTS speaker ID')
+    voice_name: str = Field('', description='TTS voice name')
 
 
 class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
@@ -107,14 +132,11 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     toy_ids: list[int] = Field(description='Requested toy IDs')
     text: str = Field(description='Story requirement from the user')
     model: str = Field(description='Model name')
+    toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
     is_completed: bool = Field(description='Whether story script generation is completed')
     task_status: int = Field(description='Task status')
     error_message: str | None = Field(None, description='Task error message')
-
-
-class HuoshanToyStoryScriptTaskResult(HuoshanToyStoryScriptResult):
-    toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
 
 
 class HuoshanStoryGenerateResult(HuoshanSchemaBase):
@@ -146,7 +168,8 @@ class HuoshanVoiceStatus(HuoshanSchemaBase):
     expire_time: int | None = Field(None, alias='ExpireTime', description='Expire time')
     order_time: int | None = Field(None, alias='OrderTime', description='Order time')
     speaker_alias: str | None = Field(None, alias='Alias', description='Speaker alias')
-    available_training_times: int | None = Field(None, alias='AvailableTrainingTimes', description='Remaining trainings')
+    available_training_times: int | None = Field(None, alias='AvailableTrainingTimes',
+                                                 description='Remaining trainings')
     model_type_details: list[HuoshanVoiceModelTypeDetail] = Field(
         default_factory=list,
         alias='ModelTypeDetails',

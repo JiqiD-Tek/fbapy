@@ -17,7 +17,6 @@ import websockets
 from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
-    HuoshanStreamTTSUrlResult,
 )
 from backend.app.cloud.service.resource.huoshan.config import (
     get_voice_project_for_speaker,
@@ -158,15 +157,34 @@ class TTSStreamService:
             'X-Api-Connect-Id': uuid.uuid4().hex,
         }
 
-    async def submit(self, obj: HuoshanStreamTTSParam) -> HuoshanStreamTTSResult:
-        request_id = await tts_cache.create_new_request()
+    def _start_task(self, *, obj: HuoshanStreamTTSParam, request_id: str) -> asyncio.Task[None]:
+        if not request_id:
+            raise errors.RequestError(msg='request_id is required')
+
+        existing_task = self._tasks.get(request_id)
+        if existing_task is not None and not existing_task.done():
+            raise errors.ConflictError(msg=f'TTS task is already running, request_id={request_id}')
+
         task = asyncio.create_task(
             self._run_stream_task(request_id=request_id, obj=obj),
             name=f'tts-stream:{request_id}',
         )
         self._tasks[request_id] = task
         task.add_done_callback(lambda _: self._tasks.pop(request_id, None))
+        return task
+
+    async def query(self, obj: HuoshanStreamTTSParam, request_id: str) -> HuoshanStreamTTSResult:
+        self._start_task(obj=obj, request_id=request_id)
         return HuoshanStreamTTSResult(request_id=request_id)
+
+    async def query_and_wait(self, obj: HuoshanStreamTTSParam, request_id: str) -> HuoshanStreamTTSResult:
+        task = self._start_task(obj=obj, request_id=request_id)
+        await task
+        return HuoshanStreamTTSResult(request_id=request_id)
+
+    async def submit(self, obj: HuoshanStreamTTSParam) -> HuoshanStreamTTSResult:
+        request_id = await tts_cache.create_new_request()
+        return await self.query(obj, request_id)
 
     async def _run_stream_task(
             self,
@@ -283,7 +301,7 @@ class TTSStreamService:
                     log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
 
     @staticmethod
-    async def get_download_result(*, request_id: str) -> HuoshanStreamTTSUrlResult:
+    async def upload_audio_to_oss(*, request_id: str) -> str:
         chunks: list[bytes] = []
         try:
             async with tts_cache.stream_audio_generator(request_id) as stream:
@@ -302,11 +320,7 @@ class TTSStreamService:
         if not download_url:
             raise errors.GatewayError(msg='Failed to upload TTS audio to OSS')
 
-        return HuoshanStreamTTSUrlResult(
-            request_id=request_id,
-            oss_key=oss_key,
-            download_url=download_url,
-        )
+        return download_url
 
     @staticmethod
     async def _send_protocol_message(

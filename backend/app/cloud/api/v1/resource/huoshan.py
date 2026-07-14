@@ -15,23 +15,24 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanPublicVoiceInfo,
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
-    HuoshanStreamTTSUrlResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
     HuoshanToyStoryScriptParam,
+    HuoshanToyStoryScriptSaveParam,
     HuoshanToyStoryScriptResult,
     HuoshanVoiceListParam,
     HuoshanVoiceStatus,
 )
+from backend.app.cloud.schema.resource.script import GetScriptDetail
 from backend.app.cloud.service.resource.huoshan.config import list_public_voices
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
-from backend.database.db import CurrentSession
+from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
 
@@ -88,6 +89,20 @@ async def get_huoshan_toy_story_script(
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
     data = await huoshan_voice_service.get_toy_story_script(task_id=task_id)
     return response_base.success(data=data)
+
+
+@router.post(
+    '/stories/script/{task_id}/save',
+    summary='Save completed toy story script task as a script',
+    response_model_by_alias=False,
+)
+async def save_huoshan_toy_story_script(
+    db: CurrentSessionTransaction,
+    obj: HuoshanToyStoryScriptSaveParam,
+    task_id: str = Path(description='Story script generation task ID'),
+) -> ResponseSchemaModel[GetScriptDetail]:
+    data = await huoshan_voice_service.save_toy_story_script(db=db, task_id=task_id, obj=obj)
+    return response_base.success(data=GetScriptDetail.model_validate(data))
 
 
 @router.post(
@@ -148,22 +163,6 @@ async def submit_huoshan_stream_tts(
     obj: HuoshanStreamTTSParam,
 ) -> ResponseSchemaModel[HuoshanStreamTTSResult]:
     data = await tts_stream_service.submit(obj)
-    return response_base.success(data=data)
-
-
-@router.get(
-    '/tts/url',
-    summary='Query uploaded TTS audio URL',
-    description='Query uploaded TTS audio URL',
-    response_model_by_alias=False,
-)
-async def get_tts_url(
-    token: Annotated[str, Query(description='TTS token, usually request_id')],
-) -> ResponseSchemaModel[HuoshanStreamTTSUrlResult]:
-    if not token:
-        raise KeyError('Invalid TTS token')
-
-    data = await tts_stream_service.get_download_result(request_id=token)
     return response_base.success(data=data)
 
 

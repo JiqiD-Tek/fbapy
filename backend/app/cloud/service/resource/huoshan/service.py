@@ -12,8 +12,9 @@ import asyncio
 import json
 import re
 import uuid
+from contextlib import suppress
 
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import monotonic
 from typing import TYPE_CHECKING
@@ -21,11 +22,12 @@ from typing import TYPE_CHECKING
 from openai import AsyncOpenAI
 
 from backend.app.cloud.schema.resource.huoshan import (
+    HuoshanStreamTTSParam,
     HuoshanToyStoryToyInfo,
     HuoshanToyStoryScriptLine,
     HuoshanToyStoryScriptParam,
+    HuoshanToyStoryScriptSaveParam,
     HuoshanToyStoryScriptResult,
-    HuoshanToyStoryScriptTaskResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
@@ -35,8 +37,12 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceListResult,
     HuoshanVoiceStatus,
 )
+from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
 from backend.app.cloud.service.resource.toy_service import cloud_toy_service
 from backend.app.cloud.service.resource.song_service import cloud_song_service
+from backend.app.cloud.service.resource.script_service import cloud_script_service
+from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
+from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.providers.ali_oss import oss_client
 from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL, create_async_doubao_client, doubao_provider
 from backend.common.exception import errors
@@ -60,7 +66,7 @@ from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from backend.app.cloud.model import CloudSong
+    from backend.app.cloud.model import CloudScript, CloudSong
 
 STORY_AUDIO_FORMAT = 'mp3'
 STORY_TASK_STATUS_PENDING = 0
@@ -103,7 +109,7 @@ class HuoshanVoiceService:
     def __init__(self) -> None:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
         self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
-        self._toy_story_script_tasks: dict[str, asyncio.Task[HuoshanToyStoryScriptTaskResult]] = {}
+        self._toy_story_script_tasks: dict[str, asyncio.Task[HuoshanToyStoryScriptResult]] = {}
 
     @classmethod
     def _attach_voice_alias(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
@@ -367,31 +373,22 @@ class HuoshanVoiceService:
         if trailing_line is not None:
             normalized_lines.append(trailing_line)
 
-        return normalized_lines
+        result_lines: list[HuoshanToyStoryScriptLine] = []
+        for index, normalized_line in enumerate(normalized_lines):
+            current_line = lines[index] if index < len(lines) else None
+            if current_line is not None and current_line.toy_id == normalized_line.toy_id:
+                normalized_line = normalized_line.model_copy(update={'tts_token': current_line.tts_token}, deep=True)
+            result_lines.append(normalized_line)
+
+        return result_lines
 
     @classmethod
-    def _normalize_toy_story_script_task_result(
+    def _normalize_toy_story_script_result(
             cls,
-            result: HuoshanToyStoryScriptTaskResult,
-    ) -> HuoshanToyStoryScriptTaskResult:
+            result: HuoshanToyStoryScriptResult,
+    ) -> HuoshanToyStoryScriptResult:
         normalized_lines = cls._normalize_toy_story_script_lines(list(result.lines), toy_ids=set(result.toy_ids))
         return result.model_copy(update={'lines': normalized_lines}, deep=True)
-
-    @staticmethod
-    def _validate_toy_story_script_completion(
-            lines: list[HuoshanToyStoryScriptLine],
-            *,
-            toy_ids: list[int],
-    ) -> None:
-        if not lines:
-            raise errors.GatewayError(msg='Story script generation returned an empty script list')
-
-        used_toy_ids = {item.toy_id for item in lines}
-        missing_toy_ids = [toy_id for toy_id in toy_ids if toy_id not in used_toy_ids]
-        if missing_toy_ids:
-            raise errors.GatewayError(
-                msg=f'Story script generation did not use all requested toys: {", ".join(str(toy_id) for toy_id in missing_toy_ids)}'
-            )
 
     @staticmethod
     def _build_error_data(exc: HuoshanAPIError) -> dict[str, object]:
@@ -434,36 +431,9 @@ class HuoshanVoiceService:
         }
 
     @staticmethod
-    def _clean_path_segment(value: str) -> str:
-        cleaned: list[str] = []
-        previous_dash = False
-
-        for char in value.strip().lower():
-            if char.isascii() and char.isalnum():
-                cleaned.append(char)
-                previous_dash = False
-                continue
-            if char in ('-', '_'):
-                if not previous_dash:
-                    cleaned.append('-')
-                    previous_dash = True
-                continue
-            if not previous_dash:
-                cleaned.append('-')
-                previous_dash = True
-
-        return ''.join(cleaned).strip('-') or 'story'
-
-    @classmethod
-    def _build_story_oss_key(cls, *, task_id: str) -> str:
-        prefix = 'cloud/huoshan'
-        filename = cls._clean_path_segment(f'icl-{task_id}')
+    def _build_story_oss_key(*, task_id: str) -> str:
         date_path = timezone.now().strftime('%Y%m%d')
-        return str(PurePosixPath(prefix) / date_path / f'{filename}.{STORY_AUDIO_FORMAT}')
-
-    @staticmethod
-    async def _upload_story_audio(*, key: str, data: bytes) -> str:
-        return await oss_client.upload_bytes(key=key, data=data)
+        return f'cloud/huoshan/{date_path}/icl-{task_id}.{STORY_AUDIO_FORMAT}'
 
     @staticmethod
     async def _get_bgm_song(db: AsyncSession, bgm_song_id: int) -> CloudSong:
@@ -533,8 +503,8 @@ class HuoshanVoiceService:
         return HuoshanStoryGenerateResult.model_validate_json(payload_raw)
 
     @classmethod
-    async def _save_toy_story_script_task_result(cls, result: HuoshanToyStoryScriptTaskResult) -> None:
-        result = cls._normalize_toy_story_script_task_result(result)
+    async def _save_toy_story_script_task_result(cls, result: HuoshanToyStoryScriptResult) -> None:
+        result = cls._normalize_toy_story_script_result(result)
         try:
             await redis_client.set(
                 cls._toy_story_script_task_key(result.task_id),
@@ -542,26 +512,18 @@ class HuoshanVoiceService:
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to save Huoshan role story script task result') from exc
+            raise errors.GatewayError(msg='Failed to save Huoshan toy story script task result') from exc
 
     @classmethod
-    async def _get_toy_story_script_task_result(cls, task_id: str) -> HuoshanToyStoryScriptTaskResult:
+    async def _get_toy_story_script_task_result(cls, task_id: str) -> HuoshanToyStoryScriptResult:
         try:
             payload_raw = await redis_client.get(cls._toy_story_script_task_key(task_id))
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to load Huoshan role story script task result') from exc
+            raise errors.GatewayError(msg='Failed to load Huoshan toy story script task result') from exc
 
         if not payload_raw:
-            raise errors.NotFoundError(msg=f'Huoshan role story script task not found, task_id={task_id}')
-        return cls._normalize_toy_story_script_task_result(HuoshanToyStoryScriptTaskResult.model_validate_json(payload_raw))
-
-    @classmethod
-    def _to_public_toy_story_script_result(
-            cls,
-            result: HuoshanToyStoryScriptTaskResult,
-    ) -> HuoshanToyStoryScriptResult:
-        result = cls._normalize_toy_story_script_task_result(result)
-        return HuoshanToyStoryScriptResult.model_validate(result.model_dump(exclude={'toys'}))
+            raise errors.NotFoundError(msg=f'Huoshan toy story script task not found, task_id={task_id}')
+        return cls._normalize_toy_story_script_result(HuoshanToyStoryScriptResult.model_validate_json(payload_raw))
 
     def _start_story_synthesis_processing(self, task_id: str) -> None:
         current_task = self._story_synthesis_tasks.get(task_id)
@@ -608,7 +570,7 @@ class HuoshanVoiceService:
         )
         self._toy_story_script_tasks[task_id] = task
 
-        def _cleanup(done_task: asyncio.Task[HuoshanToyStoryScriptTaskResult]) -> None:
+        def _cleanup(done_task: asyncio.Task[HuoshanToyStoryScriptResult]) -> None:
             if self._toy_story_script_tasks.get(task_id) is done_task:
                 self._toy_story_script_tasks.pop(task_id, None)
 
@@ -677,14 +639,48 @@ class HuoshanVoiceService:
         result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
 
+    @staticmethod
+    async def _process_toy_story_script_tts_queue(
+            queue: 'asyncio.Queue[tuple[str, HuoshanStreamTTSParam] | None]',
+    ) -> None:
+        while True:
+            queue_item = await queue.get()
+            if queue_item is None:
+                return
+
+            request_id, tts_param = queue_item
+            await tts_stream_service.query_and_wait(obj=tts_param, request_id=request_id)
+
     async def _process_toy_story_script(
             self,
             task_id: str,
-    ) -> HuoshanToyStoryScriptTaskResult:
+    ) -> HuoshanToyStoryScriptResult:
         result = await self._get_toy_story_script_task_result(task_id)
         allowed_toy_ids = set(result.toy_ids)
+        toy_map = {toy.toy_id: toy for toy in result.toys}
         buffer = ''
         lines = list(result.lines)
+
+        tts_queue: asyncio.Queue[tuple[str, HuoshanStreamTTSParam] | None] = asyncio.Queue()
+        tts_worker = asyncio.create_task(
+            self._process_toy_story_script_tts_queue(tts_queue),
+            name=f'huoshan-story-script-tts-{task_id}',
+        )
+
+        async def _process_line(_line: HuoshanToyStoryScriptLine) -> None:
+            toy = toy_map.get(_line.toy_id)
+            if toy is None:
+                raise errors.GatewayError(msg=f'Toy info is missing for toy_id={_line.toy_id}')
+            request_id = await tts_cache.create_new_request()
+            lines.append(_line.model_copy(update={'tts_token': request_id}, deep=True))
+            tts_queue.put_nowait(
+                (
+                    request_id,
+                    HuoshanStreamTTSParam(
+                        text=_line.text, speaker=toy.speaker, speech_rate=0, loudness_rate=0,
+                    ),
+                )
+            )
 
         try:
             async for chunk in doubao_provider.stream_chat(
@@ -702,17 +698,20 @@ class HuoshanVoiceService:
                 parsed_lines = self._parse_toy_story_script_lines(raw_lines, toy_ids=allowed_toy_ids)
                 if not parsed_lines:
                     continue
-                lines.extend(parsed_lines)
+                for parsed_line in parsed_lines:
+                    await _process_line(parsed_line)
                 result = result.model_copy(update={'lines': list(lines)}, deep=True)
                 await self._save_toy_story_script_task_result(result)
 
             trailing_line = self._parse_toy_story_script_line(buffer, toy_ids=allowed_toy_ids)
             if trailing_line is not None:
-                lines.append(trailing_line)
+                await _process_line(trailing_line)
+                result = result.model_copy(update={'lines': list(lines)}, deep=True)
+                await self._save_toy_story_script_task_result(result)
 
-            self._validate_toy_story_script_completion(lines, toy_ids=result.toy_ids)
+            tts_queue.put_nowait(None)
+            await tts_worker
             result = result.model_copy(update={
-                'lines': list(lines),
                 'is_completed': True,
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
@@ -725,6 +724,13 @@ class HuoshanVoiceService:
             return result
         except Exception as exc:
             log.error(f'Huoshan toy story script generation failed: task_id={task_id}, error={exc!r}')
+            if tts_worker.done():
+                with suppress(Exception):
+                    await tts_worker
+            else:
+                tts_worker.cancel()
+                with suppress(asyncio.CancelledError):
+                    await tts_worker
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),
@@ -816,24 +822,37 @@ class HuoshanVoiceService:
             obj: HuoshanToyStoryScriptParam,
     ) -> HuoshanToyStoryScriptResult:
         toys = await cloud_toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
-        task_result = HuoshanToyStoryScriptTaskResult(
-            task_id=uuid.uuid4().hex,
-            toy_ids=list(obj.toy_ids),
-            text=obj.text,
-            model=DEFAULT_DOUBAO_STORY_MODEL,
-            lines=[],
-            is_completed=False,
-            task_status=STORY_TASK_STATUS_PROCESSING,
-            error_message=None,
-            toys=[
+        toy_infos: list[HuoshanToyStoryToyInfo] = []
+        invalid_toys: list[str] = []
+        for toy in toys:
+            speaker = str(toy.voice_id or '').strip()
+            if not speaker:
+                invalid_toys.append(f'{int(toy.id)}:{str(toy.name or "").strip() or "Unnamed"}')
+                continue
+            toy_infos.append(
                 HuoshanToyStoryToyInfo(
                     toy_id=int(toy.id),
                     name=str(toy.name or '').strip(),
                     summary=str(toy.summary or '').strip(),
                     system_prompt=str(toy.system_prompt or '').strip(),
+                    speaker=speaker,
+                    voice_name=str(toy.voice_name or get_voice_name(speaker) or '').strip(),
                 )
-                for toy in toys
-            ],
+            )
+
+        if invalid_toys:
+            raise errors.RequestError(msg=f'Toy voice_id is required for story playback: {", ".join(invalid_toys)}')
+
+        task_result = HuoshanToyStoryScriptResult(
+            task_id=uuid.uuid4().hex,
+            toy_ids=list(obj.toy_ids),
+            text=obj.text,
+            model=DEFAULT_DOUBAO_STORY_MODEL,
+            toys=toy_infos,
+            lines=[],
+            is_completed=False,
+            task_status=STORY_TASK_STATUS_PROCESSING,
+            error_message=None,
         )
         await self._save_toy_story_script_task_result(task_result)
         self._start_toy_story_script_processing(task_result.task_id)
@@ -841,11 +860,56 @@ class HuoshanVoiceService:
             f'Huoshan toy story script generation submitted: task_id={task_result.task_id}, '
             f'toy_ids={task_result.toy_ids}, text={task_result.text!r}'
         )
-        return self._to_public_toy_story_script_result(task_result)
+        return task_result
 
     async def get_toy_story_script(self, *, task_id: str) -> HuoshanToyStoryScriptResult:
+        return await self._get_toy_story_script_task_result(task_id)
+
+    async def save_toy_story_script(
+            self,
+            *,
+            db: AsyncSession,
+            task_id: str,
+            obj: HuoshanToyStoryScriptSaveParam,
+    ) -> CloudScript:
         result = await self._get_toy_story_script_task_result(task_id)
-        return self._to_public_toy_story_script_result(result)
+        if result.task_status != STORY_TASK_STATUS_COMPLETED or not result.is_completed:
+            raise errors.RequestError(msg=f'Toy story script task is not completed, task_id={task_id}')
+        if result.error_message:
+            raise errors.RequestError(msg=f'Toy story script task failed, task_id={task_id}')
+        if not result.lines:
+            raise errors.RequestError(msg=f'Toy story script task has no lines, task_id={task_id}')
+
+        content: list[ScriptLine] = []
+        for line in result.lines:
+            request_id = str(line.tts_token or '').strip()
+            if not request_id:
+                raise errors.GatewayError(
+                    msg=f'Toy story script line is missing tts_token, task_id={task_id}, toy_id={line.toy_id}'
+                )
+
+            download_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
+            content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=download_url))
+
+        script = await cloud_script_service.create_script(
+            db=db,
+            obj=CreateScriptParam(
+                title=obj.title,
+                summary=obj.summary or result.text,
+                cover_url=obj.cover_url,
+                author=obj.author,
+                toy_ids=list(result.toy_ids),
+                content=content,
+                owner_id=obj.owner_id,
+                status=obj.status,
+                remark=obj.remark,
+            ),
+        )
+        log.info(
+            f'Huoshan toy story script saved as script: task_id={task_id}, script_id={script.id}, '
+            f'toy_ids={result.toy_ids}'
+        )
+        return script
 
     async def _finalize_story_synthesis(
             self,
@@ -871,7 +935,7 @@ class HuoshanVoiceService:
             )
 
         oss_key = self._build_story_oss_key(task_id=task_id)
-        download_url = await self._upload_story_audio(key=oss_key, data=output_audio)
+        download_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
         if not download_url:
             raise errors.GatewayError(
                 msg='Failed to upload story audio to OSS',
@@ -1058,16 +1122,3 @@ class HuoshanVoiceService:
 
 
 huoshan_voice_service = HuoshanVoiceService()
-
-
-async def main():
-    voice_status = await huoshan_voice_service._get_voice_status(speaker='S_7V2ryDOZ1')
-    print(voice_status)
-
-
-if __name__ == '__main__':
-    asyncio.run(main())
-
-
-
-
