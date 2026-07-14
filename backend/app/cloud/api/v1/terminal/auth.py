@@ -42,7 +42,7 @@ from backend.app.cloud.schema.user import (
 )
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.resource.storage import StorageService
+from backend.app.cloud.service.resource.providers.storage import StorageService
 from backend.common.providers.ali_sms import sms_client
 from backend.common.providers.ali_sts import sts_client
 from backend.common.context import ctx

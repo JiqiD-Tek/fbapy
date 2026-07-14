@@ -10,7 +10,7 @@ from fastapi import APIRouter
 
 from backend.app.cloud.schema.intent import AlarmToolParam, ControlToolParam, MusicToolParam, WeatherParam
 from backend.app.cloud.service.device.messaging import MessagingService
-from backend.app.cloud.service.resource.weather import weather_service
+from backend.app.cloud.service.resource.providers.weather import weather_service
 from backend.common.mqtt_broker import MQTTDependency
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 

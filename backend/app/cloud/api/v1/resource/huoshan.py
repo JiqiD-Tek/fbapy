@@ -182,7 +182,7 @@ async def tts(
 async def _generate_mp3_response(request_id: str) -> StreamingResponse:
     async def audio_generator() -> AsyncGenerator[bytes, None]:
         try:
-            async with tts_cache.stream_audio_generator(request_id) as stream:
+            async with tts_cache.stream_audio_generator(request_id=request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as exc:
@@ -231,7 +231,7 @@ async def _generate_wav_response(request_id: str) -> StreamingResponse:
         yield generate_wav_header(sample_rate=24000, channels=1, bit_depth=16)
 
         try:
-            async with tts_cache.stream_audio_generator(request_id) as stream:
+            async with tts_cache.stream_audio_generator(request_id=request_id) as stream:
                 async for chunk in stream:
                     yield chunk
         except Exception as exc:

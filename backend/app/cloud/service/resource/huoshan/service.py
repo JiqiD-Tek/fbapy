@@ -667,6 +667,12 @@ class HuoshanVoiceService:
             name=f'huoshan-story-script-tts-{task_id}',
         )
 
+        async def _cancel_tts_worker() -> None:
+            if not tts_worker.done():
+                tts_worker.cancel()
+            with suppress(Exception, asyncio.CancelledError):
+                await tts_worker
+
         async def _process_line(_line: HuoshanToyStoryScriptLine) -> None:
             toy = toy_map.get(_line.toy_id)
             if toy is None:
@@ -722,15 +728,18 @@ class HuoshanVoiceService:
                 f'text={result.text!r}'
             )
             return result
+        except asyncio.CancelledError:
+            log.warning(f'Huoshan toy story script generation cancelled: task_id={task_id}')
+            await _cancel_tts_worker()
+            result = result.model_copy(update={
+                'task_status': STORY_TASK_STATUS_FAILED,
+                'error_message': 'cancelled',
+            }, deep=True)
+            await self._save_toy_story_script_task_result(result)
+            raise
         except Exception as exc:
             log.error(f'Huoshan toy story script generation failed: task_id={task_id}, error={exc!r}')
-            if tts_worker.done():
-                with suppress(Exception):
-                    await tts_worker
-            else:
-                tts_worker.cancel()
-                with suppress(asyncio.CancelledError):
-                    await tts_worker
+            await _cancel_tts_worker()
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),

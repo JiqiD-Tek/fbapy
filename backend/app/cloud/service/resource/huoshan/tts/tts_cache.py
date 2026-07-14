@@ -12,7 +12,7 @@ import uuid
 from collections import deque
 from cachetools import TTLCache
 from contextlib import asynccontextmanager, suppress
-from typing import Optional, AsyncGenerator
+from typing import AsyncGenerator
 
 from backend.common.log import log
 
@@ -38,8 +38,6 @@ class TTSCache:
         - 使用asyncio时间戳保证事件循环一致性
         - 双层级缓存结构（请求ID -> 音频队列）
         """
-        self._request_id: Optional[str] = None
-
         self._audio_queues: TTLCache[str, asyncio.Queue[bytes]] = TTLCache(
             maxsize=maxsize,
             ttl=ttl,
@@ -47,29 +45,23 @@ class TTSCache:
         )
         self._lock = asyncio.Lock()  # 异步互斥锁
 
-    @property
-    def request_id(self) -> Optional[str]:
-        """获取当前活跃的请求ID（线程安全）
-        """
-        return self._request_id
-
     async def create_new_request(self, maxsize: int = 10_000) -> str:
         """创建新的语音合成请求会话
         """
         async with self._lock:
-            self._request_id = f"tts_{uuid.uuid4().hex}"
-            self._audio_queues[self._request_id] = asyncio.Queue(maxsize=maxsize)
-            return self._request_id
+            request_id = f"tts_{uuid.uuid4().hex}"
+            self._audio_queues[request_id] = asyncio.Queue(maxsize=maxsize)
+            return request_id
 
     @asynccontextmanager
     async def stream_audio_generator(
             self,
-            request_id: Optional[str] = None,
-            timeout: Optional[float] = 30.,
+            request_id: str,
+            timeout: float | None = 30.,
     ) -> AsyncGenerator[AsyncGenerator[bytes, None], None]:
         """流式音频生成器上下文管理器（带数据缓存和恢复功能）
         """
-        target_id = request_id or self._request_id
+        target_id = str(request_id).strip()
         if not target_id:
             raise ValueError("必须指定有效的请求ID")
 
@@ -116,12 +108,12 @@ class TTSCache:
             self,
             delta: bytes,
             *,
-            request_id: Optional[str] = None,
+            request_id: str,
     ) -> None:
         """向当前语音请求队列追加音频数据块
         """
-        target_id = request_id or self._request_id
-        if target_id is None:
+        target_id = str(request_id).strip()
+        if not target_id:
             raise ValueError("必须指定有效的请求ID")
 
         queue = self._audio_queues.get(target_id)
@@ -137,33 +129,13 @@ class TTSCache:
             log.error(f"追加音频数据异常 - {e}", exc_info=True)
             raise
 
-    async def finish_request(self, *, request_id: Optional[str] = None) -> None:
-        target_id = request_id or self._request_id
-        if target_id is None:
+    async def finish_request(self, *, request_id: str) -> None:
+        target_id = str(request_id).strip()
+        if not target_id:
             return
 
         with suppress(Exception):
             await self.append_audio_delta(b'', request_id=target_id)
-
-    async def close(self) -> bool:
-        """安全关闭并清理所有TTS缓存资源"""
-        try:
-            async with self._lock:
-                # 清空所有队列
-                for queue in self._audio_queues.values():
-                    while not queue.empty():
-                        with suppress(Exception):  # 安全忽略所有队列操作异常
-                            queue.get_nowait()
-
-                self._audio_queues.clear()
-                self._request_id = None
-                log.debug(f"TTS缓存已安全关闭")
-
-            return True
-
-        except Exception as e:
-            log.error(f"缓存关闭时发生异常 - {e}", exc_info=True)
-            return False
 
 
 tts_cache = TTSCache(maxsize=10000, ttl=1800)

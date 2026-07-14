@@ -304,7 +304,7 @@ class TTSStreamService:
     async def upload_audio_to_oss(*, request_id: str) -> str:
         chunks: list[bytes] = []
         try:
-            async with tts_cache.stream_audio_generator(request_id) as stream:
+            async with tts_cache.stream_audio_generator(request_id=request_id) as stream:
                 async for chunk in stream:
                     chunks.append(chunk)
         except ValueError as exc:
