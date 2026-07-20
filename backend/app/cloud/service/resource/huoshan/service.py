@@ -246,7 +246,9 @@ class HuoshanVoiceService:
             toys: list[HuoshanToyStoryToyInfo],
             text: str,
     ) -> str:
-        toy_payload = json.dumps([toy.model_dump(mode='json') for toy in toys], ensure_ascii=False)
+        toy_payload = json.dumps([
+            {'toy_id': toy.toy_id, 'name': toy.name, 'summary': toy.summary} for toy in toys
+        ], ensure_ascii=False)
         return (
             f'可用玩偶如下：\n{toy_payload}\n\n'
             f'用户要求如下：\n{text}\n\n'
@@ -260,7 +262,7 @@ class HuoshanVoiceService:
             '6. 只输出纯台词，不要加“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示，不要写哼唱、接唱、合唱等表演说明。不要用引号包裹整句台词。'
             '7. 默认控制在 20 到 30 条 content 之间，句子自然、口语化、顺口。'
             '8. 故事要有起承转合，结尾要完整，不要突然结束。'
-            '9. 如果要求无C位或玩偶均衡，请尽量平均分配台词。'
+            '9. 如果要求无C位或玩偶均衡，请尽量平均分配普通玩偶的台词；如果存在旁白，旁白单独统计，不参与普通玩偶的均衡分配。'
             '10. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
             '输出示例：\n'
             '[1]今天的风好轻呀，我们一起去看看山那边发生了什么吧。'
@@ -831,7 +833,7 @@ class HuoshanVoiceService:
             obj: HuoshanToyStoryScriptParam,
     ) -> HuoshanToyStoryScriptResult:
         toys = await cloud_toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
-        toy_infos: list[HuoshanToyStoryToyInfo] = []
+        toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
         invalid_toys: list[str] = []
         for toy in toys:
             speaker = str(toy.voice_id or '').strip()
