@@ -248,6 +248,9 @@ class AuthService:
                     .where(Baby.user_id.in_(stale_user_ids), Baby.device_id == device_model.id)
                     .values(device_id=None)
                 )
+                from backend.app.cloud.service.baby_service import baby_service
+
+                await baby_service.invalidate_device_baby_cache_by_did(device_model.did)
 
                 await db.execute(
                     delete(user_device).where(

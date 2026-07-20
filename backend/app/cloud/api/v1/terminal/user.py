@@ -87,7 +87,7 @@ async def delete_cloud_user(
     count, device_ids = await user_service.delete_current_user(db=db, user_id=request.user.id)
     await db.commit()
     for device_id in device_ids:
-        await baby_service.invalidate_timeseries_baby_cache(db=db, device_id=device_id)
+        await baby_service.invalidate_device_baby_cache(db=db, device_id=device_id)
     if count > 0:
         return response_base.success()
     return response_base.fail()
@@ -117,7 +117,7 @@ async def unbind_device(
 
     device = await device_service.unbind_device(db=db, obj=obj)
     await db.commit()
-    await baby_service.invalidate_timeseries_baby_cache(db=db, device_id=device.id)
+    await baby_service.invalidate_device_baby_cache(db=db, device_id=device.id)
 
     # 设备解绑
     mqtt_client = await MQTTDependency.get_manager()

@@ -39,6 +39,19 @@ class CRUDCloudToy(CRUDPlus[CloudToy]):
         result = await db.execute(stmt)
         return result.scalars().all()
 
+    async def get_by_nfc_code(
+        self,
+        db: AsyncSession,
+        *,
+        nfc_code: str,
+        enabled_only: bool = False,
+    ) -> CloudToy | None:
+        stmt = sa.select(self.model).where(self.model.deleted == 0, self.model.nfc_code == nfc_code)
+        if enabled_only:
+            stmt = stmt.where(self.model.status == 1)
+        result = await db.execute(stmt.limit(1))
+        return result.scalar_one_or_none()
+
     async def get_select(
         self,
         *,

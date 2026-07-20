@@ -20,7 +20,7 @@ from backend.app.cloud.schema.resource.script import (
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.pagination import paging_data
-from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
+from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL, doubao_provider
 
 
 class CloudScriptService:
@@ -86,7 +86,7 @@ class CloudScriptService:
                 {'role': 'system', 'content': self.SCRIPT_AI_CREATE_SYSTEM_PROMPT},
                 {'role': 'user', 'content': self._build_ai_create_script_prompt(obj=obj)},
             ],
-            model_name=DEFAULT_DOUBAO_CHAT_MODEL,
+            model_name=DEFAULT_DOUBAO_STORY_MODEL,
             reasoning_effort='minimal',
             temperature=0.7,
         )

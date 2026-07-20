@@ -82,7 +82,7 @@ class EventStore:
             return baby.id if baby is not None else None
 
     @classmethod
-    async def _resolve_baby_id(cls, did: str) -> int | str:
+    async def _resolve_baby_id(cls, did: str) -> int | None:
         cache_key = cls.cache_key(did)
         if cache_key in cls.BABY_ID_CACHE:
             return cls.BABY_ID_CACHE[cache_key]
@@ -165,6 +165,17 @@ class EventStore:
         return 'mqtt'
 
     @classmethod
+    def _resolve_toy_ids(cls, payload: object) -> list[str]:
+        if not isinstance(payload, dict):
+            return ['']
+
+        raw_toy_ids = payload.get('toy_ids')
+        if isinstance(raw_toy_ids, list | tuple | set):
+            return list(raw_toy_ids)
+
+        return ['']
+
+    @classmethod
     def _normalize_time_filter(cls, value: datetime | str | None) -> datetime | None:
         if value is None:
             return None
@@ -204,6 +215,7 @@ class EventStore:
             end_time: datetime | None,
             category: str | None,
             service: str | None,
+            toy_id: str | None,
     ) -> list[str]:
         filters: list[str] = [f'{quote_identifier("baby_id")} = {quote_value(str(baby_id))}']
 
@@ -215,6 +227,7 @@ class EventStore:
         for field_name, field_value in (
                 ('category', category),
                 ('service', service),
+                ('toy_id', toy_id),
         ):
             normalized_value = cls._normalize_text(field_value)
             if normalized_value is None:
@@ -224,7 +237,7 @@ class EventStore:
         return filters
 
     @classmethod
-    def _build_insert_tags(cls, *, baby_id: int) -> dict[str, str]:
+    def _build_insert_tags(cls, *, baby_id: int | str) -> dict[str, str]:
         return {
             'baby_id': str(baby_id),
         }
@@ -235,6 +248,7 @@ class EventStore:
             message_ctx: MQTTMessageContext,
             route: MQTTEventRoute,
             payload: object,
+            toy_id: str,
     ) -> dict[str, object]:
         return {
             'ts': int(message_ctx.timestamp * 1000),
@@ -243,6 +257,7 @@ class EventStore:
             'category': route.category,
             'service': cls._resolve_service_name(payload),
             'topic': message_ctx.topic,
+            'toy_id': toy_id,
             'payload': cls._serialize_message_payload(message_ctx.topic, payload),
         }
 
@@ -375,17 +390,19 @@ class EventStore:
             return
 
         model_key, table = resolved_table
+        toy_ids = cls._resolve_toy_ids(payload)
         try:
-            item = TSDBInsertItem(
-                table=table,
-                subtable_name=cls._resolve_subtable_name(model_key, baby_id),
-                tags=cls._build_insert_tags(baby_id=baby_id),
-                values=cls._build_insert_values(message_ctx, route, payload),
-            )
-            await asyncio.wait_for(
-                cls.TSDB_WRITE_QUEUE.put(item),
-                timeout=settings.TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS,
-            )
+            for toy_id in toy_ids:
+                item = TSDBInsertItem(
+                    table=table,
+                    subtable_name=cls._resolve_subtable_name(model_key, baby_id),
+                    tags=cls._build_insert_tags(baby_id=baby_id),
+                    values=cls._build_insert_values(message_ctx, route, payload, toy_id),
+                )
+                await asyncio.wait_for(
+                    cls.TSDB_WRITE_QUEUE.put(item),
+                    timeout=settings.TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS,
+                )
             observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
         except asyncio.TimeoutError:
             inc_queue_exception(queue_name='tsdb_write')
@@ -405,6 +422,7 @@ class EventStore:
             end_time: datetime | str | None = None,
             category: str | None = None,
             service: str | None = None,
+            toy_id: str | None = None,
             limit: int = 10000,
     ) -> list[dict[str, object]]:
         """Query device event messages from the model stable."""
@@ -426,6 +444,7 @@ class EventStore:
             end_time=range_end,
             category=category,
             service=service,
+            toy_id=toy_id,
         )
 
         sql = cls._build_query_sql(

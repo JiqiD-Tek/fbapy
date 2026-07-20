@@ -6,6 +6,7 @@
 @Date    : 2026/07/06
 """
 
+from contextlib import suppress
 from typing import Any, Sequence
 
 from sqlalchemy.exc import IntegrityError
@@ -23,9 +24,12 @@ from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.pagination import paging_data
 from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
+from backend.database.redis import redis_client
 
 
 class CloudToyService:
+    DEVICE_TOY_NFC_CACHE_PREFIX = 'fba:device:toy:nfc'
+    DEVICE_TOY_NFC_CACHE_TTL_SECONDS = 600
     TOY_SYSTEM_PROMPT_DEFAULT_SUMMARY = '你是一个适合儿童陪伴、自然亲切、容易让孩子信任的玩偶角色。'
     TOY_SYSTEM_PROMPT_POLISH_SYSTEM_PROMPT = (
         '你是儿童玩偶 system prompt 优化助手。'
@@ -44,13 +48,13 @@ class CloudToyService:
 
     @staticmethod
     async def get_toy_list(
-        *,
-        db: AsyncSession,
-        series_name: str | None = None,
-        name: str | None = None,
-        nfc_code: str | None = None,
-        voice_language: str | None = None,
-        status: int | None = None,
+            *,
+            db: AsyncSession,
+            series_name: str | None = None,
+            name: str | None = None,
+            nfc_code: str | None = None,
+            voice_language: str | None = None,
+            status: int | None = None,
     ) -> dict[str, Any]:
         toy_select = await cloud_toy_dao.get_select(
             series_name=CloudToyService._normalize_query_text(series_name),
@@ -63,9 +67,9 @@ class CloudToyService:
 
     @staticmethod
     async def get_toys_by_ids(
-        *,
-        db: AsyncSession,
-        toy_ids: list[int],
+            *,
+            db: AsyncSession,
+            toy_ids: list[int],
     ) -> Sequence[CloudToy]:
         if not toy_ids:
             return []
@@ -96,9 +100,13 @@ class CloudToyService:
         if not payload:
             raise errors.RequestError(msg='Update payload cannot be empty')
 
+        old_nfc_code = toy.nfc_code
         CloudToyService._validate_voice_binding(payload, current_toy=toy)
         try:
-            return await cloud_toy_dao.update(db, pk, payload)
+            count = await cloud_toy_dao.update(db, pk, payload)
+            await CloudToyService._delete_nfc_cache(old_nfc_code)
+            await CloudToyService._delete_nfc_cache(payload.get('nfc_code'))
+            return count
         except IntegrityError:
             raise errors.ServerError(msg='Failed to update toy, please try again later') from None
 
@@ -107,12 +115,14 @@ class CloudToyService:
         toy = await cloud_toy_dao.get(db, pk)
         if not toy:
             raise errors.NotFoundError(msg='Toy does not exist')
-        return await cloud_toy_dao.delete(db, pk)
+        count = await cloud_toy_dao.delete(db, pk)
+        await CloudToyService._delete_nfc_cache(toy.nfc_code)
+        return count
 
     @classmethod
     def _build_system_prompt_template(
-        cls,
-        obj: GenerateToySystemPromptParam,
+            cls,
+            obj: GenerateToySystemPromptParam,
     ) -> str:
         name = obj.name.strip()
         summary = str(obj.summary or '').strip() or cls.TOY_SYSTEM_PROMPT_DEFAULT_SUMMARY
@@ -158,11 +168,11 @@ class CloudToyService:
 
     @classmethod
     def _build_system_prompt_polish_prompt(
-        cls,
-        *,
-        name: str,
-        summary: str,
-        template_prompt: str,
+            cls,
+            *,
+            name: str,
+            summary: str,
+            template_prompt: str,
     ) -> str:
         return (
             '请基于以下玩偶信息和基础 system prompt，输出一版润色后的最终 system prompt。\n\n'
@@ -194,8 +204,8 @@ class CloudToyService:
 
     @classmethod
     async def generate_system_prompt(
-        cls,
-        obj: GenerateToySystemPromptParam,
+            cls,
+            obj: GenerateToySystemPromptParam,
     ) -> GenerateToySystemPromptResult:
         name = obj.name.strip()
         summary = str(obj.summary or '').strip() or cls.TOY_SYSTEM_PROMPT_DEFAULT_SUMMARY
@@ -233,11 +243,50 @@ class CloudToyService:
         normalized = value.strip()
         return normalized or None
 
+    @classmethod
+    def _toy_nfc_cache_key(cls, nfc_code: str) -> str:
+        return f'{cls.DEVICE_TOY_NFC_CACHE_PREFIX}:{nfc_code}'
+
+    @classmethod
+    async def get_enabled_toy_id_by_nfc_code(cls, *, db: AsyncSession, nfc_code: str) -> int:
+        normalized_nfc_code = cls._normalize_query_text(nfc_code)
+        if normalized_nfc_code is None:
+            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
+
+        cache_key = cls._toy_nfc_cache_key(normalized_nfc_code)
+        with suppress(Exception):
+            cached_toy_id = await redis_client.get(cache_key)
+            if cached_toy_id:
+                return int(cached_toy_id)
+
+        toy = await cloud_toy_dao.get_by_nfc_code(db, nfc_code=normalized_nfc_code, enabled_only=True)
+        if toy is None:
+            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
+
+        with suppress(Exception):
+            await redis_client.set(cache_key, str(toy.id), ex=cls.DEVICE_TOY_NFC_CACHE_TTL_SECONDS)
+
+        return int(toy.id)
+
+    @classmethod
+    async def _delete_nfc_cache(cls, nfc_code: object) -> None:
+        if not isinstance(nfc_code, str):
+            return
+
+        normalized_nfc_code = cls._normalize_query_text(nfc_code)
+        if normalized_nfc_code is None:
+            return
+
+        try:
+            await redis_client.delete(cls._toy_nfc_cache_key(normalized_nfc_code))
+        except Exception as exc:
+            log.warning('failed to delete toy nfc cache, nfc_code={}, error={}', normalized_nfc_code, exc)
+
     @staticmethod
     def _validate_voice_binding(
-        payload: dict[str, Any],
-        *,
-        current_toy: CloudToy | None = None,
+            payload: dict[str, Any],
+            *,
+            current_toy: CloudToy | None = None,
     ) -> None:
         voice_provider = payload.get('voice_provider')
         voice_id = payload.get('voice_id')

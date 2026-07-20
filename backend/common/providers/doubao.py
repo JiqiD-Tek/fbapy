@@ -17,7 +17,7 @@ from backend.core.conf import settings
 DoubaoMessage = dict[str, Any]
 
 DEFAULT_DOUBAO_CHAT_MODEL = 'doubao-seed-2-0-mini-260428'
-DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-mini-260428'
+DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-lite-260428'
 VALID_REASONING_EFFORTS = frozenset({'minimal', 'low', 'medium', 'high'})
 
 DOUBAO_HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=30.0)

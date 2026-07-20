@@ -11,6 +11,7 @@ from backend.app.cloud.model.baby import Baby as Baby
 from backend.app.cloud.model.billing import BillAccount as BillAccount
 from backend.app.cloud.model.billing import BillTxn as BillTxn
 from backend.app.cloud.model.billing import BillSession as BillSession
+from backend.app.cloud.model.device_chat import DeviceChat as DeviceChat
 from backend.app.cloud.model.device import Device as Device
 from backend.app.cloud.model.m2m import device_toy as device_toy
 from backend.app.cloud.model.m2m import user_device as user_device

@@ -18,10 +18,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi_pagination.api import create_page, resolve_params
 
-from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.crud_device import device_dao
-from backend.app.cloud.model import Baby, CloudToy, Device, User
+from backend.app.cloud.crud.crud_device_chat import device_chat_dao
+from backend.app.cloud.crud.crud_user import user_dao
+from backend.app.cloud.model import Baby, CloudToy, Device, DeviceChat, User
 from backend.app.cloud.model.m2m import device_toy, user_device
+from backend.app.cloud.schema.device_chat import CreateDeviceChatParam
 from backend.app.cloud.schema.device.device import (
     DeviceToyListItem,
     DeviceToyUnlockParam,
@@ -50,14 +52,14 @@ class DeviceService:
         if not device:
             raise errors.NotFoundError(msg='设备不存在')
 
-        # result = await db.execute(
-        #     select(user_device.c.device_id).where(
-        #         user_device.c.user_id == user_id,
-        #         user_device.c.device_id == device_id,
-        #     )
-        # )
-        # if result.scalar_one_or_none() is None:
-        #     raise errors.NotFoundError(msg='设备不存在')
+        result = await db.execute(
+            select(user_device.c.device_id).where(
+                user_device.c.user_id == user_id,
+                user_device.c.device_id == device_id,
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise errors.NotFoundError(msg='设备不存在')
 
         return device
 
@@ -91,11 +93,14 @@ class DeviceService:
     @staticmethod
     async def unbind_device(*, db: AsyncSession, obj: UserDeviceParam) -> Device:
         device = await DeviceService._ensure_user_has_device(db=db, user_id=obj.user_id, device_id=obj.device_id)
+        from backend.app.cloud.service.baby_service import baby_service
+
         await db.execute(
             update(Baby)
             .where(Baby.user_id == obj.user_id, Baby.device_id == obj.device_id)
             .values(device_id=None)
         )
+        await baby_service.invalidate_device_baby_cache_by_did(device.did)
         await db.execute(
             delete(user_device).where(
                 user_device.c.user_id == obj.user_id,
@@ -112,21 +117,42 @@ class DeviceService:
         return device
 
     @staticmethod
-    async def _get_enabled_toy_by_nfc_code(*, db: AsyncSession, nfc_code: str) -> CloudToy:
-        stmt = (
-            select(CloudToy)
-            .where(
-                CloudToy.deleted == 0,
-                CloudToy.status == 1,
-                CloudToy.nfc_code == nfc_code,
-            )
-            .limit(1)
+    async def create_chat(
+            *,
+            db: AsyncSession,
+            did: str,
+            obj: CreateDeviceChatParam,
+    ) -> DeviceChat:
+        from backend.app.cloud.service.resource.toy_service import cloud_toy_service
+        from backend.app.cloud.service.baby_service import baby_service
+
+        toy_id = await cloud_toy_service.get_enabled_toy_id_by_nfc_code(db=db, nfc_code=obj.nfc_code)
+        baby = await baby_service.get_by_device_did(db=db, did=did)
+        payload = obj.model_dump(exclude={'nfc_code'})
+        payload['toy_id'] = toy_id
+        if baby is not None:
+            payload['device_id'] = baby.device_id
+            payload['user_id'] = baby.user_id
+            payload['baby_id'] = baby.id
+        return await device_chat_dao.create(db, payload)
+
+    @classmethod
+    async def get_chat_list(
+            cls,
+            *,
+            db: AsyncSession,
+            device_id: int | None = None,
+            toy_id: int | None = None,
+            user_id: int | None = None,
+            baby_id: int | None = None,
+    ) -> dict[str, Any]:
+        chat_select = await device_chat_dao.get_select(
+            device_id=device_id,
+            toy_id=toy_id,
+            user_id=user_id,
+            baby_id=baby_id,
         )
-        result = await db.execute(stmt)
-        toy = result.scalar_one_or_none()
-        if not toy:
-            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
-        return toy
+        return await paging_data(db, chat_select)
 
     @staticmethod
     async def get_bind_state(*, db: AsyncSession, did: str) -> dict[str, Any]:
@@ -160,14 +186,16 @@ class DeviceService:
             if not marked:
                 return None
 
+            from backend.app.cloud.service.resource.toy_service import cloud_toy_service
+
             device = await DeviceService.get_by_did(db=db, did=did)
-            toy = await DeviceService._get_enabled_toy_by_nfc_code(db=db, nfc_code=obj.nfc_code)
+            toy_id = await cloud_toy_service.get_enabled_toy_id_by_nfc_code(db=db, nfc_code=obj.nfc_code)
 
             try:
                 await db.execute(
                     insert(device_toy).values(
                         device_id=device.id,
-                        toy_id=toy.id,
+                        toy_id=toy_id,
                     )
                 )
             except IntegrityError:
@@ -281,8 +309,15 @@ class DeviceService:
 
     @staticmethod
     async def update(*, db: AsyncSession, user_id: int, pk: int, obj: UpdateDeviceParam) -> int:
-        await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
-        return await device_dao.update(db, pk, obj)
+        device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
+        old_did = device.did
+        count = await device_dao.update(db, pk, obj)
+        if obj.did is not None and obj.did != old_did:
+            from backend.app.cloud.service.baby_service import baby_service
+
+            await baby_service.invalidate_device_baby_cache_by_did(old_did)
+            await baby_service.invalidate_device_baby_cache_by_did(obj.did)
+        return count
 
     @staticmethod
     async def update_firmware(*, db: AsyncSession, did: str, obj: UpdateFirmwareParam) -> int:
@@ -292,7 +327,10 @@ class DeviceService:
     @staticmethod
     async def delete(*, db: AsyncSession, user_id: int, pk: int) -> Device | None:
         device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
+        from backend.app.cloud.service.baby_service import baby_service
+
         await db.execute(update(Baby).where(Baby.device_id == pk).values(device_id=None))
+        await baby_service.invalidate_device_baby_cache_by_did(device.did)
         await db.execute(delete(user_device).where(user_device.c.device_id == pk))
         await db.execute(delete(device_toy).where(device_toy.c.device_id == pk))
         count = await device_dao.delete(db, pk)

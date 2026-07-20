@@ -9,6 +9,7 @@ class JS61EventTable(TSDBBase):
         TSDBField(name='ts', definition='TIMESTAMP', description='Event timestamp'),
         TSDBField(name='event_id', definition='VARCHAR(64) COMPOSITE KEY', description='Unique event id'),
         TSDBField(name='did', definition='VARCHAR(64)', description='device id'),
+        TSDBField(name='toy_id', definition='VARCHAR(64)', description='Toy id'),
         TSDBField(name='category', definition='VARCHAR(32)', description='Business event category'),
         TSDBField(name='service', definition='VARCHAR(32)', description='Source service name'),
         TSDBField(name='topic', definition='VARCHAR(128)', description='Original message topic'),
