@@ -113,7 +113,9 @@ def init_otel(app: FastAPI) -> None:
 
     AsyncioInstrumentor().instrument()
     HTTPXClientInstrumentor().instrument()
-    LoggingInstrumentor().instrument(set_logging_format=True)
+    # 禁止自动将 OTel handler 安装到 stdlib root logger，
+    # 避免与上面注册的 LoggingHandler（loguru sink）重复推送。
+    LoggingInstrumentor().instrument(set_logging_format=True, enable_log_auto_instrumentation=False)
     RedisInstrumentor.instrument_client(client=redis_client)  # type: ignore
     SQLAlchemyInstrumentor().instrument(engine=async_engine.sync_engine)
     FastAPIInstrumentor.instrument_app(app)

@@ -23,12 +23,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
+            cls,
+            settings_cls: type[BaseSettings],
+            init_settings: PydanticBaseSettingsSource,
+            env_settings: PydanticBaseSettingsSource,
+            dotenv_settings: PydanticBaseSettingsSource,
+            file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级"""
         return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     TOKEN_EXTRA_INFO_REDIS_PREFIX: str = 'fba:token_extra_info'
     TOKEN_ONLINE_REDIS_PREFIX: str = 'fba:token_online'
     TOKEN_REFRESH_REDIS_PREFIX: str = 'fba:refresh_token'
+    TOKEN_REQUEST_UNDERLYING_SECURITY: bool = True
     TOKEN_REQUEST_PATH_EXCLUDE: list[str] = [  # JWT / RBAC 路由白名单
         f'{FASTAPI_API_V1_PATH}/auth/login',
         f'{FASTAPI_API_V1_PATH}/live/coze/v1/chat',  # 聊天
