@@ -23,7 +23,7 @@ from backend.app.cloud.schema.resource.toy import (
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.pagination import paging_data
-from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
+from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, doubao_provider
 from backend.database.redis import redis_client
 
 
@@ -224,7 +224,7 @@ class CloudToyService:
                         ),
                     },
                 ],
-                model_name=DEFAULT_DOUBAO_CHAT_MODEL,
+                model_name=DEFAULT_DOUBAO_LITE_MODEL,
                 reasoning_effort='minimal',
                 temperature=0.3,
             )

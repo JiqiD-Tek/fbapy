@@ -15,7 +15,7 @@ from backend.app.cloud.schema.resource.huoshan import (
 )
 from backend.app.cloud.service.resource.huoshan import service as huoshan_service_module
 from backend.app.cloud.service.resource.huoshan.service import HuoshanVoiceService
-from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL
+from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL
 
 
 def test_huoshan_role_story_script_param_normalizes_input() -> None:
@@ -56,7 +56,7 @@ def test_submit_role_story_script_saves_task_and_starts_processing(monkeypatch: 
     assert result.task_id == 'task-role-story'
     assert result.role_ids == [1, 2]
     assert result.text == 'No lead role, create a random story'
-    assert result.model == DEFAULT_DOUBAO_STORY_MODEL
+    assert result.model == DEFAULT_DOUBAO_LITE_MODEL
     assert result.lines == []
     assert result.is_completed is False
     assert result.task_status == huoshan_service_module.STORY_TASK_STATUS_PROCESSING
@@ -76,7 +76,7 @@ def test_process_role_story_script_completes_task(monkeypatch: pytest.MonkeyPatc
             task_id='task-role-story',
             role_ids=[1, 2],
             text='Create a balanced random story',
-            model=DEFAULT_DOUBAO_STORY_MODEL,
+            model=DEFAULT_DOUBAO_LITE_MODEL,
             lines=[],
             is_completed=False,
             task_status=huoshan_service_module.STORY_TASK_STATUS_PROCESSING,
@@ -108,7 +108,7 @@ def test_process_role_story_script_completes_task(monkeypatch: pytest.MonkeyPatc
     result = asyncio.run(service._process_role_story_script('task-role-story'))
 
     assert captured['kwargs'] == {
-        'model_name': DEFAULT_DOUBAO_STORY_MODEL,
+        'model_name': DEFAULT_DOUBAO_LITE_MODEL,
         'reasoning_effort': 'minimal',
         'temperature': 0.8,
     }
@@ -128,7 +128,7 @@ def test_process_role_story_script_marks_failure(monkeypatch: pytest.MonkeyPatch
             task_id='task-role-story',
             role_ids=[1, 2],
             text='Create a random story',
-            model=DEFAULT_DOUBAO_STORY_MODEL,
+            model=DEFAULT_DOUBAO_LITE_MODEL,
             lines=[],
             is_completed=False,
             task_status=huoshan_service_module.STORY_TASK_STATUS_PROCESSING,
@@ -164,7 +164,7 @@ def test_get_role_story_script_returns_public_result(monkeypatch: pytest.MonkeyP
         task_id='task-role-story',
         role_ids=[1, 2],
         text='Create a random story',
-        model=DEFAULT_DOUBAO_STORY_MODEL,
+        model=DEFAULT_DOUBAO_LITE_MODEL,
         lines=[],
         is_completed=False,
         task_status=huoshan_service_module.STORY_TASK_STATUS_PROCESSING,

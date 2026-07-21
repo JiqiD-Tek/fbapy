@@ -4,9 +4,8 @@ Device chat schemas.
 """
 
 from datetime import datetime
-from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
 from backend.common.schema import SchemaBase
 
@@ -14,16 +13,9 @@ from backend.common.schema import SchemaBase
 class CreateDeviceChatParam(SchemaBase):
     """Create device chat request."""
 
-    nfc_code: str = Field(min_length=1, max_length=64, description='Toy NFC code')
+    toy_id: int = Field(gt=0, description='Toy ID')
     user_message: str = Field(min_length=1, description='User message content')
     reply_message: str = Field(min_length=1, description='Reply message content')
-
-    @field_validator('nfc_code', mode='before')
-    @classmethod
-    def strip_identifier(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip()
-        return value
 
 
 class GetDeviceChatDetail(SchemaBase):

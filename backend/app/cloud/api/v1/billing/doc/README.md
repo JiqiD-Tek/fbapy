@@ -1,465 +1,313 @@
 # Billing Design
 
-## 目标
+## 1. 模块定位
 
-当前 billing 只解决 `xiaozhi-server` 实时会话里的最小计费闭环：
+Billing 模块负责 `xiaozhi-server` 实时会话中的最小计费闭环，目标是：
 
-1. 打开计费会话
-2. 会话过程中按 `usage_token` 扣费
-3. 余额不足时返回 `should_stop`
-4. 关闭会话
+1. 管理计费账户与余额快照
+2. 控制计费会话的打开、阻断和关闭
+3. 按对话轮次（Turn）执行幂等扣费
+4. 在余额耗尽时返回阻断信号
 
-当前实现不包含这些能力：
+当前版本明确不覆盖以下能力：
 
-- 套餐
+- 套餐管理
 - 充值下单
 - 发票
 - 月结
-- 独立价格表
-- 独立 usage 事实表
+- 价格表管理
+- 分项账务明细（ASR / LLM / TTS）
+- 独立的 usage 事实表
 
-## 当前代码边界
+模块设计原则是先保证账务正确性和接口语义稳定，再考虑性能优化和能力扩展。
 
-### 统一计量单位
+## 2. 核心计费口径
 
-billing 内部统一使用整数 `token`：
+### 2.1 入账粒度
 
-- 账户余额是 `balance_token`
-- 本次扣费是 `usage_token`
-- 流水变动是 `delta_token`
+Billing 的入账粒度固定为一次对话轮次（Turn）：
 
-billing 不负责把毫秒、字符数、第三方 token 再换算成平台 token。  
-上游在调用 `usage/debit` 之前，必须先完成换算。
+- 一轮对话只写一条 `u_bill_txn`
+- 一次请求只处理一个 `usage_id`
+- 当前扣费场景下 `change_type` 固定为 `DEBIT`
 
-### 当前接口约束
+### 2.2 幂等标识
 
-当前代码仍然保留 `subject_type` 和 `subject_key` 这两个入参，但主路径按 `DEVICE` 使用。
+`usage_id` 是 Turn 级唯一幂等标识，推荐格式：
 
-如果 `subject_type == 'DEVICE'`，则必须满足：
+```text
+{session_id}:{turn_no}:TURN
+```
 
-- `subject_key == device_did`
-- `device_did == 当前认证设备 did`
+例如：
 
-也就是说，当前代码虽然保留了“通用计费主体”结构，但实际推荐用法仍然是“设备账户”。
+- `8e6f6d8d0cfe4f67a4b69c1b9f6f2a10:1:TURN`
+- `8e6f6d8d0cfe4f67a4b69c1b9f6f2a10:2:TURN`
 
-### usage 类型
+### 2.3 消耗计算
 
-当前只支持 4 种 `usage_kind`：
+`usage_token` 由上游 Metering 计算后传入，Billing 不负责换算。
 
-- `ASR`
-- `LLM_INPUT`
-- `LLM_OUTPUT`
-- `TTS`
+上游职责包括：
 
-## 表设计
+- 统计 ASR 时长
+- 统计 LLM 输入输出 Token
+- 统计 TTS 字符数
+- 按价格规则换算为平台 Token
+- 汇总为 Turn 级 `usage_token`
 
-P0 只保留 3 张表：
+Billing 只消费汇总结果，不接收也不存储 ASR / LLM / TTS 分项明细。
+
+### 2.4 余额变动
+
+账务真实变动以 `delta_token` 为准：
+
+- 扣费场景下 `delta_token = -usage_token`
+- `usage_token` 表示本轮消耗
+- `balance_after_token` 表示本次入账后的余额快照
+
+`usage_token` 保留在流水表中，是为了便于接口返回、问题排查和按 Turn 查询消耗；真正的账务变动值仍然是 `delta_token`。
+
+## 3. 数据模型
+
+P0 版本只使用三张核心表：
 
 1. `u_bill_account`
 2. `u_bill_session`
 3. `u_bill_txn`
 
-### 1. u_bill_account
+其中：
 
-账户快照表，用来承载计费主体和当前余额。
+- `u_bill_account` 是账户余额快照
+- `u_bill_session` 是运行时会话关系表，不是账务真相
+- `u_bill_txn` 是同步热路径中的唯一事实表
 
-核心字段：
+### 3.1 `u_bill_account`
 
-- `subject_type`
-- `subject_key`
-- `balance_token`
-- `status`
-- `created_time`
-- `updated_time`
+用于承载计费主体和当前余额快照。
 
-说明：
+| 字段              | 说明                          |
+|-----------------|-----------------------------|
+| `subject_type`  | 主体类型，当前主路径固定为 `DEVICE`      |
+| `subject_key`   | 主体标识，设备场景下等于 `device_did`   |
+| `balance_token` | 当前余额快照                      |
+| `status`        | 账户状态，当前为 `ACTIVE / BLOCKED` |
+| `created_time`  | 创建时间                        |
+| `updated_time`  | 更新时间                        |
 
-- 当前唯一键是 `(subject_type, subject_key)`
-- `status` 目前只区分 `ACTIVE / BLOCKED`
-- 当前代码没有单独的充值逻辑，这张表主要承担余额快照和准入控制
+约束：
 
-### 2. u_bill_session
-
-运行时会话表，用来承载设备会话与账户关系，不承担账务真相。
-
-核心字段：
-
-- `session_id`
-- `account_id`
-- `device_did`
-- `started_at`
-- `status`
-- `last_activity_at`
-- `ended_at`
-- `created_time`
-- `updated_time`
+- 唯一键：`(subject_type, subject_key)`
 
 说明：
 
-- `session_id` 全局唯一
-- `status` 支持 `OPEN / BLOCKED / CLOSED / ABORTED`
-- `last_activity_at` 不是每次 usage 都更新，只在需要时更新
+- 当前版本没有独立充值链路，这张表只负责余额快照和准入控制
 
-### 3. u_bill_txn
+### 3.2 `u_bill_session`
 
-账务流水表，是当前同步热路径中的唯一事实表。
+用于记录设备会话与计费账户的关系。
 
-核心字段：
+| 字段                 | 说明                                          |
+|--------------------|---------------------------------------------|
+| `session_id`       | 全局唯一会话 ID                                   |
+| `account_id`       | 关联账户 ID                                     |
+| `device_did`       | 设备 DID                                      |
+| `started_at`       | 会话开始时间                                      |
+| `status`           | 会话状态，支持 `OPEN / BLOCKED / CLOSED / ABORTED` |
+| `last_activity_at` | 最近活跃时间                                      |
+| `ended_at`         | 会话结束时间                                      |
+| `created_time`     | 创建时间                                        |
+| `updated_time`     | 更新时间                                        |
 
-- `charge_id`
-- `account_id`
-- `change_type`
-- `delta_token`
-- `balance_after_token`
-- `account_status_after`
-- `session_status_after`
-- `usage_id`
-- `session_id`
-- `turn_no`
-- `stage_no`
-- `usage_kind`
-- `usage_token`
-- `provider`
-- `occurred_at`
-- `created_time`
+约束：
+
+- 唯一键：`session_id`
 
 说明：
 
-- 当前代码只写 `DEBIT`
-- `charge_id` 当前直接等于 `usage_id`
-- 真正承担幂等唯一约束的是 `usage_id`
-- `u_bill_txn` 不继承 `DateTimeMixin`，只保留 `created_time`
-- 这是不可变流水，不设计 `updated_time`
+- `u_bill_session` 是运行时控制表，不承担账务真相
+- `last_activity_at` 不要求每轮都更新，只在达到刷新阈值或会话状态变化时更新
 
-## 为什么不保留 u_bill_usage
+### 3.3 `u_bill_txn`
 
-`usage/debit` 是高频接口。当前需求只要求：
+账务流水表，是 Billing 同步热路径中的唯一事实表。
 
-- 扣费正确
-- 幂等正确
-- 能追溯每一笔 usage 对应的扣费
+| 字段                     | 必填 | 说明                                         |
+|------------------------|----|--------------------------------------------|
+| `usage_id`             | 是  | Turn 级幂等 ID，推荐格式 `session_id:turn_no:TURN` |
+| `account_id`           | 是  | 账户 ID                                      |
+| `session_id`           | 是  | 会话 ID                                      |
+| `turn_no`              | 是  | 回合号                                        |
+| `change_type`          | 是  | 当前固定为 `DEBIT`                              |
+| `usage_token`          | 是  | 本轮汇总消耗                                     |
+| `delta_token`          | 是  | 余额变动值，扣费时为负数                               |
+| `balance_after_token`  | 是  | 变动后余额快照                                    |
+| `account_status_after` | 是  | 入账后账户状态                                    |
+| `session_status_after` | 是  | 入账后会话状态                                    |
+| `created_time`         | 是  | 入账时间                                       |
 
-如果再同步写一张 `u_bill_usage`，每次首次扣费都会多一条事实写入，重复请求也会引入更多判断成本。
+索引：
 
-当前代码的做法是把 usage 相关字段直接并入 `u_bill_txn`：
+- 唯一键：`usage_id`
+- 普通索引：`(account_id, created_time)`
+- 普通索引：`(session_id, turn_no)`
 
-- `usage_kind`
-- `usage_token`
-- `provider`
-- `turn_no`
-- `stage_no`
-- `occurred_at`
+## 4. 字段取舍
 
-这样可以把高频路径收敛到一张事实表。
+当前 schema 中不再保留以下字段：
 
-## 上游 metering 与定价
+| 字段            | 原因                                       |
+|---------------|------------------------------------------|
+| `charge_id`   | 与 `usage_id` 语义重复，统一只保留 `usage_id` 作为幂等键 |
+| `stage_no`    | 当前不做分阶段扣费，一轮 Turn 只入账一次                  |
+| `usage_kind`  | 当前入账粒度固定为 Turn，无需再在流水中区分 `TURN`          |
+| `provider`    | Billing 不按 provider 计价，来源追溯放在上游 Metering |
+| `occurred_at` | 同步入账场景下直接使用 `created_time` 表示入账时间        |
 
-### 3.1 职责边界
+保留 `session_id` 和 `turn_no` 的原因：
 
-当前 billing 已经不负责计价。
+- 支持按会话查看扣费历史
+- 支持按回合定位具体流水
+- 避免依赖解析 `usage_id` 才能完成查询
 
-以下“定价策略”只属于上游 metering 配置口径，不属于 billing 热路径内置逻辑。  
-billing 仍然只接收已经换算完成的 `usage_token`。
+## 5. 核心接口流程
 
-职责边界是：
+### 5.1 打开会话 `session/open`
 
-- 上游负责换算出 `usage_token`
-- billing 负责幂等、扣账、阻断、会话状态
-- `provider` 只做来源记录，不参与扣费计算
+处理流程：
 
-因此当前代码不需要：
+1. 校验 `device_did` 与当前认证设备一致
+2. 按 `session_id` 查询会话
+3. 如果会话已存在，校验绑定设备后直接返回
+4. 如果会话不存在，则查找或创建账户
+5. 校验账户状态必须为 `ACTIVE`
+6. 创建会话，初始状态为 `OPEN`
 
-- `u_bill_price`
-- 价格缓存
+当前约束：
+
+- `subject_type` 当前主路径固定使用 `DEVICE`
+- 当 `subject_type == DEVICE` 时，`subject_key` 必须等于 `device_did`
+
+### 5.2 扣费 `usage/debit`
+
+处理流程：
+
+1. 按 `usage_id` 查询流水，先做幂等检查
+2. 若已存在流水，直接返回第一次成功入账的结果
+3. 若不存在，则锁定会话和账户
+4. 校验认证设备与会话绑定设备一致
+5. 校验只有 `OPEN` 状态的会话才允许进入新扣费
+6. 使用请求中的 `usage_token` 执行扣费
+7. 写入一条 `u_bill_txn`
+8. 更新账户余额快照
+9. 若本次扣费后余额小于等于 0，则将账户和会话状态置为 `BLOCKED`
+10. 若未阻断，则按活跃时间刷新阈值决定是否更新 `last_activity_at`
+
+关键规则：
+
+- 非幂等请求只允许 `OPEN` 会话进入扣费逻辑
+- `BLOCKED` 会话只允许返回既有幂等结果，拒绝新的扣费请求
+- `should_stop` 由本次流水的 `session_status_after` 决定
+- 并发重复请求以 `usage_id` 唯一键和数据库事务共同保证幂等
+
+### 5.3 关闭会话 `session/close`
+
+处理流程：
+
+1. 锁定并查询会话
+2. 校验认证设备身份
+3. 若会话已结束，则直接返回当前状态
+4. 否则更新 `status / ended_at / last_activity_at`
+
+说明：
+
+- 关闭接口用于显式结束会话
+- 关闭后的状态由调用方传入，当前允许 `BLOCKED / CLOSED / ABORTED`
+
+## 6. 状态语义
+
+### 6.1 账户状态
+
+- `ACTIVE`：账户可正常打开会话并继续扣费
+- `BLOCKED`：账户已被阻断，通常由扣费后余额耗尽触发
+
+### 6.2 会话状态
+
+- `OPEN`：会话可继续扣费
+- `BLOCKED`：会话被阻断，只允许幂等重放
+- `CLOSED`：会话正常关闭
+- `ABORTED`：会话异常结束
+
+### 6.3 阻断信号
+
+调用方应使用返回结果中的 `should_stop` 作为停止当前会话的直接信号。
+
+语义约定：
+
+- `should_stop = false`：本轮扣费后会话仍可继续
+- `should_stop = true`：本轮扣费后会话已进入 `BLOCKED`
+
+## 7. 并发与性能模型
+
+### 7.1 幂等命中
+
+幂等命中时只需要：
+
+- 读取一次 `u_bill_txn`
+- 不更新账户
+- 不更新会话
+
+这条路径没有写操作，性能最好。
+
+### 7.2 首次扣费
+
+首次扣费通过数据库行锁串行化同一会话/账户上的并发请求：
+
+- 锁定 `u_bill_session`
+- 锁定对应 `u_bill_account`
+- 写入 `u_bill_txn`
+- 更新 `u_bill_account`
+- 仅在必要时更新 `u_bill_session`
+
+设计目标：
+
+- 优先保证账务绝对正确
+- 当前不引入预扣额度
+- 当前不引入异步扣费
+
+如果后续出现多设备共享同一账户且高频并发扣费的场景，再考虑额度预留或更复杂的账户并发模型。
+
+## 8. 与 Metering 的边界
+
+### Metering 负责
+
+- 统计 ASR / LLM / TTS 原始消耗
+- 按价格规则换算为平台 Token
+- 汇总为 Turn 级 `usage_token`
+
+### Billing 负责
+
+- 账户管理与余额快照
+- 幂等扣费
+- 会话状态控制
+- 阻断信号返回
+- 流水记录与查询
+
+### Billing 不负责
+
+- 价格管理
+- 汇率换算
+- 分项明细存储
 - 历史价格回放
 
-### 3.2 定价策略
+## 9. 落地注意事项
 
-平台售价策略固定为：
+代码侧需要同步更新以下位置，确保实现和文档一致：
 
-- 先确认云厂商真实采购成本
-- 再按产品策略加价
-- 当前推荐基线是“云成本约上浮 10%”
-- 不允许拍脑袋把 `AUDIO_MS / PROVIDER_TOKEN / TEXT_CHAR` 直接映射成平台 token
+- `backend/app/cloud/model/billing.py`
+- `backend/app/cloud/schema/billing.py`
+- `backend/app/cloud/service/billing_service.py`
 
-### 3.3 代码默认资源与当前计费基线
+调用方需要按新口径适配请求和响应：
 
-当前仓库里的“代码默认资源”和“当前 billing 使用的计费基线”不是一个概念，不能混写。
-
-当前代码中可直接看到的默认资源如下：
-
-- `ASR`：`volc.bigasr.sauc.duration`
-- `LLM`：默认 chat 模型 `doubao-seed-2-0-lite-260215`
-- `LLM`：默认 story 模型 `doubao-seed-2-0-pro-260215`
-- `TTS`：流式默认资源 `seed-tts-2.0`
-- `TTS`：长文本默认资源 `seed-icl-2.0`
-
-本节下面的“当前推荐参考价”按当前项目准备采用的计费基线模型书写：
-
-- `ASR`：`DoubaoStreamASRProvider + volc.bigasr.sauc.duration`
-- `LLM`：`OpenAILLMProvider + doubao-seed-2-0-mini-260428`
-- `TTS`：`HuoshanStreamTTSProvider + seed-icl-2.0`
-
-也就是说，这里描述的是 `billing.metering.rules` 的配置口径，不等同于“代码里所有地方的默认值”。
-
-### 3.4 当前推荐参考价
-
-当前推荐参考价如下：
-
-| 服务         | 云成本参考                               | 平台目标售价                 | metering 规则                          |
-|------------|-------------------------------------|------------------------|--------------------------------------|
-| ASR        | `4.5 RMB / 小时` 公开刊例保守口径             | `4.95 RMB / 小时`        | `60000ms -> 82500 token`             |
-| TTS        | `8 RMB / 万字符` `seed-icl-2.0` 口径     | `8.8 RMB / 万字符`        | `100 chars -> 88000 token`           |
-| LLM_INPUT  | `0.2 RMB / 百万 tokens` `2.0-mini` 口径 | `0.22 RMB / 百万 tokens` | `1000 provider tokens -> 220 token`  |
-| LLM_OUTPUT | `2 RMB / 百万 tokens` `2.0-mini` 口径   | `2.2 RMB / 百万 tokens`  | `1000 provider tokens -> 2200 token` |
-
-说明：
-
-- 上表基于 `1 RMB = 1,000,000 平台Token`
-- 这是一组针对当前计费基线模型的推荐起始值，不是跨项目通用常量
-- 实际线上价格以当前生效的 `billing.metering.rules` 为准
-- 如果 LLM 模型切到 `lite / pro`，或 TTS 切到 `seed-tts-2.0`，必须单独新增或替换对应规则
-- 如果拿到了实际采购账单，允许把 ASR 从公开刊例保守口径下调到真实成本口径，再重新生成 metering 规则
-- `TTS` 规则建议显式带 `model`，不要只按 `provider` 复用价格
-- 规则里的 `provider` / `model` 命名必须和上游入账时实际上传给 billing 的值保持一致
-
-### 3.5 当前推荐配置示例
-
-```yaml
-billing:
-  enabled: true
-  metering:
-    rules:
-      - kind: ASR
-        provider: DoubaoStreamASRProvider
-        model: volc.bigasr.sauc.duration
-        raw_unit: AUDIO_MS
-        base_units: 60000
-        token_amount: 82500
-
-      - kind: LLM_INPUT
-        provider: OpenAILLMProvider
-        model: doubao-seed-2-0-mini-260428
-        raw_unit: PROVIDER_TOKEN
-        base_units: 1000
-        token_amount: 220
-
-      - kind: LLM_OUTPUT
-        provider: OpenAILLMProvider
-        model: doubao-seed-2-0-mini-260428
-        raw_unit: PROVIDER_TOKEN
-        base_units: 1000
-        token_amount: 2200
-
-      - kind: TTS
-        provider: HuoshanStreamTTSProvider
-        model: seed-icl-2.0
-        raw_unit: TEXT_CHAR
-        base_units: 100
-        token_amount: 88000
-```
-
-### 3.6 官方参考与价格判断（2026-07-07）
-
-下面的判断基于 `2026-07-07` 查阅的火山 / 豆包官方公开资料，以及当前项目给定的采购成本口径。
-
-- 如果 `ASR 4.5 元/小时`、`LLM 2.0-mini 输入 0.2 / 输出 2 元 / 百万 tokens`、`TTS seed-icl-2.0 8 元/万字符`
-  这三组值已经被采购侧或账单侧确认，那么按 10% 上浮生成 `4.95 / 8.8 / 0.22 / 2.2` 的平台售价是合理的。
-- `ASR` 使用 `4.5 元/小时` 作为公开刊例保守口径是可以接受的；如果后续拿到更低的真实采购账单，可以再下调，不需要改 billing
-  主链路。
-- `LLM` 这里已经不再使用“一张统一 LLM 价表”，而是明确绑到 `doubao-seed-2-0-mini-260428`，这个方向是对的；后续如果切到
-  `lite / pro / thinking`，必须单独建规则。
-- `TTS` 这里的关键不是数学换算，而是口径一致：如果线上实际跑的是 `seed-icl-2.0`，就用这条规则；如果实际跑的是 `seed-tts-2.0`
-  ，这条规则不能直接复用。
-- billing 本身不校验 provider 价格对错，所以真正决定计费正确性的，是上游选择了哪条 `metering rule`，以及上游上报的
-  `provider / model / raw_unit` 是否和规则完全一致。
-
-官方参考链接：
-
-- 方舟模型计费说明：`https://www.volcengine.com/docs/6581/2389072?lang=zh`
-- RTC 接入 `resource_id` 映射：`https://www.volcengine.com/docs/6500/1588416`
-- 豆包产品页：`https://www.volcengine.com/product/doubao`
-- 语音处理产品页：`https://www.volcengine.com/products/Audio-editing-and-sound-processing`
-
-## 运行路径
-
-### 1. session/open
-
-当前代码流程：
-
-1. 校验 `device_did` 和认证设备是否一致
-2. 先查 `session_id` 是否已存在
-3. 若会话已存在，校验会话绑定设备并直接返回当前状态
-4. 若会话不存在，则按 `(subject_type, subject_key)` 查找或创建 `u_bill_account`
-5. 校验账户状态必须为 `ACTIVE`
-6. 创建 `u_bill_session`
-
-### 2. usage/debit
-
-这是当前最重要的高频接口。
-
-当前代码流程：
-
-1. 先按 `usage_id` 查 `u_bill_txn`，命中则直接返回第一次结果
-2. 若未命中，查询并锁住 `session + account`
-3. 校验认证设备与会话设备一致
-4. 直接使用请求里的 `usage_token`
-5. 写入一条 `u_bill_txn(change_type=DEBIT)`
-6. 更新 `u_bill_account.balance_token`
-7. 如果余额扣穿，则把 `account/session` 标记为 `BLOCKED`
-8. 如果没有扣穿，则只在活跃时间超过阈值时更新 `u_bill_session.last_activity_at`
-
-几个关键点：
-
-- 正常路径不再同步写第二张事实表
-- 重复请求走 `usage_id` 幂等短路
-- `should_stop` 来自 txn 里的 `session_status_after`
-- 非幂等扣费只允许 `OPEN` 会话进入，`BLOCKED` 会话只能走幂等短路返回第一次成功结果
-
-### 3. session/close
-
-当前代码只做：
-
-- 按 `session_id` 加锁查会话
-- 校验设备身份
-- 如果 `ended_at` 已经存在，直接返回
-- 否则更新 `status / ended_at / last_activity_at`
-
-## 并发与稳定性
-
-当前设计优先保证正确性和稳定性，不对未压测前的具体 QPS 做承诺。
-
-并发特征是：
-
-- 幂等命中时，只需要按 `usage_id` 读一次流水
-- 首次扣费时，只新增 1 条事实流水
-- 同一 `account` / 同一 `session` 的扣费会通过行锁串行化
-- 不同 `account` 之间天然分散，可通过设备分散度横向扩展
-
-因此当前实现更适合：
-
-- 主体以 `DEVICE` 为主
-- 单设备单会话
-- 大量分散设备并发写入
-
-如果未来要支持“多个设备共享同一个账户并高频同时扣费”，再考虑预留额度或更复杂的账户并发模型，不放在当前版本内。
-
-## 接口 DB 操作与耗时估算
-
-### 统计口径
-
-下面的次数和耗时只统计 billing 自身主链路：
-
-- 只看 billing 三张表：`u_bill_account / u_bill_session / u_bill_txn`
-- 不包含网关、序列化、日志输出等外围耗时
-- 不包含设备鉴权的额外 DB 开销，当前 `DependsDeviceAuth` 本身不查库
-- 不把事务的 `BEGIN / COMMIT` 以及嵌套事务 `SAVEPOINT` 单独算进“业务 DB 操作次数”
-
-耗时是基于“同机房 MySQL、索引命中、无明显锁等待”的经验估算，不是压测结果。
-
-### session/open
-
-1. 会话已存在
-
-- DB 操作：2 次
-- 明细：
-    - `select u_bill_session by session_id`
-    - `select u_bill_account by account_id for update`
-- 预估耗时：`3 ~ 10 ms`
-
-2. 会话不存在，账户已存在
-
-- DB 操作：3 次
-- 明细：
-    - `select u_bill_session by session_id`
-    - `select u_bill_account by (subject_type, subject_key) for update`
-    - `insert u_bill_session`
-- 预估耗时：`5 ~ 12 ms`
-
-3. 会话不存在，账户也不存在
-
-- DB 操作：4 次
-- 明细：
-    - `select u_bill_session by session_id`
-    - `select u_bill_account by (subject_type, subject_key) for update`
-    - `insert u_bill_account`
-    - `insert u_bill_session`
-- 预估耗时：`6 ~ 15 ms`
-
-补充说明：
-
-- 并发竞争下，如果 `insert account` 或 `insert session` 触发唯一键冲突，代码会补一次查询，实际会多 `1` 次 DB 读取
-- 这个接口不是高频热点，更多是会话建立时的准入接口
-
-### usage/debit
-
-1. 幂等命中
-
-- DB 操作：1 次
-- 明细：
-    - `select u_bill_txn by usage_id`
-- 预估耗时：`2 ~ 6 ms`
-
-2. 首次扣费，且不需要更新 session
-
-- DB 操作：4 次
-- 明细：
-    - `select u_bill_txn by usage_id`
-    - `select u_bill_session join u_bill_account for update`
-    - `insert u_bill_txn`
-    - `update u_bill_account`
-- 预估耗时：`6 ~ 15 ms`
-
-3. 首次扣费，且需要更新 session
-
-- DB 操作：5 次
-- 明细：
-    - `select u_bill_txn by usage_id`
-    - `select u_bill_session join u_bill_account for update`
-    - `insert u_bill_txn`
-    - `update u_bill_account`
-    - `update u_bill_session`
-- 触发场景：
-    - 余额扣穿，写入 `BLOCKED`
-    - `last_activity_at` 达到刷新阈值
-- 预估耗时：`8 ~ 20 ms`
-
-补充说明：
-
-- 当前高频路径的主要成本已经收敛到 `u_bill_txn` 单事实写入
-- 真正影响尾延迟的核心不是 SQL 条数，而是“同一 `account/session` 上的锁竞争”
-- 同一账户并发扣费会串行排队，所以热点账户的 P95 / P99 会明显高于分散设备场景
-
-### session/close
-
-1. 会话已经关闭
-
-- DB 操作：1 次
-- 明细：
-    - `select u_bill_session by session_id for update`
-- 预估耗时：`2 ~ 6 ms`
-
-2. 正常关闭会话
-
-- DB 操作：2 次
-- 明细：
-    - `select u_bill_session by session_id for update`
-    - `update u_bill_session`
-- 预估耗时：`4 ~ 10 ms`
-
-### 评估结论
-
-- 从 DB 操作数看，`usage/debit` 正常路径已经比较短，主路径是 `4 ~ 5` 次 billing SQL
-- `session/open` 和 `session/close` 不是主要性能瓶颈
-- 当前版本能否扛住并发，关键取决于同一账户的冲突比例，而不是接口名义上的平均 SQL 次数
-
-## 幂等规则
-
-- `usage_id` 必须全局唯一
-- 重复调用同一个 `usage_id` 时，直接返回第一次成功入账的结果
-- 当前 `charge_id` 直接等于 `usage_id`
-
-## 当前文档口径
-
-这份文档以当前代码为准，不描述尚未实现的充值、账单汇总或异步审计能力。  
-上面的“定价策略”只描述上游 metering 配置口径，不表示 billing 热路径内置了价格计算。
+- 统一使用 `usage_id` 作为幂等号

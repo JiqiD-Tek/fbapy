@@ -123,13 +123,10 @@ class DeviceService:
             did: str,
             obj: CreateDeviceChatParam,
     ) -> DeviceChat:
-        from backend.app.cloud.service.resource.toy_service import cloud_toy_service
         from backend.app.cloud.service.baby_service import baby_service
 
-        toy_id = await cloud_toy_service.get_enabled_toy_id_by_nfc_code(db=db, nfc_code=obj.nfc_code)
         baby = await baby_service.get_by_device_did(db=db, did=did)
-        payload = obj.model_dump(exclude={'nfc_code'})
-        payload['toy_id'] = toy_id
+        payload = obj.model_dump()
         if baby is not None:
             payload['device_id'] = baby.device_id
             payload['user_id'] = baby.user_id

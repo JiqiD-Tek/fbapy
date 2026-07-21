@@ -79,26 +79,21 @@ class BillingService:
 
         amount_token = obj.usage_token
         balance_after_token = account.balance_token - amount_token
-        should_block = amount_token > 0 and balance_after_token <= 0
+        should_block = balance_after_token <= 0
         next_account_status = ACCOUNT_BLOCKED if should_block else account.status
         next_session_status = SESSION_BLOCKED if should_block else session.status
 
         txn_obj = {
-            'charge_id': obj.usage_id,
+            'usage_id': obj.usage_id,
             'account_id': account.id,
+            'session_id': obj.session_id,
+            'turn_no': obj.turn_no,
             'change_type': CHANGE_DEBIT,
+            'usage_token': amount_token,
             'delta_token': -amount_token,
             'balance_after_token': balance_after_token,
             'account_status_after': next_account_status,
             'session_status_after': next_session_status,
-            'usage_id': obj.usage_id,
-            'session_id': obj.session_id,
-            'turn_no': obj.turn_no,
-            'stage_no': obj.stage_no,
-            'usage_kind': obj.usage_kind,
-            'usage_token': amount_token,
-            'provider': obj.provider,
-            'occurred_at': obj.occurred_at,
         }
 
         try:
@@ -113,11 +108,12 @@ class BillingService:
         account.balance_token = balance_after_token
         account.status = next_account_status
 
+        activity_at = txn.created_time
         if should_block:
             session.status = SESSION_BLOCKED
-            session.last_activity_at = obj.occurred_at
-        elif cls._should_touch_session_activity(session=session, occurred_at=obj.occurred_at):
-            session.last_activity_at = obj.occurred_at
+            session.last_activity_at = activity_at
+        elif cls._should_touch_session_activity(session=session, occurred_at=activity_at):
+            session.last_activity_at = activity_at
 
         return cls._build_debit_result(txn=txn)
 
@@ -174,7 +170,9 @@ class BillingService:
 
     @staticmethod
     def _validate_open_subject(obj: BillOpenSessionParam) -> None:
-        if obj.subject_type == 'DEVICE' and obj.subject_key != obj.device_did:
+        if obj.subject_type != 'DEVICE':
+            raise errors.RequestError(msg='当前仅支持 DEVICE 计费主体')
+        if obj.subject_key != obj.device_did:
             raise errors.RequestError(msg='DEVICE 计费主体必须使用 device_did 作为 subject_key')
 
     @staticmethod
@@ -258,7 +256,6 @@ class BillingService:
         return BillDebitUsageResult(
             account_id=txn.account_id,
             usage_id=txn.usage_id,
-            charge_id=txn.charge_id,
             amount_token=txn.usage_token,
             balance_after_token=txn.balance_after_token,
             account_status=txn.account_status_after,

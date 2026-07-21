@@ -34,7 +34,7 @@ from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.log import log
-from backend.common.providers.doubao import DEFAULT_DOUBAO_CHAT_MODEL, doubao_provider
+from backend.common.providers.doubao import DEFAULT_DOUBAO_MINI_MODEL, doubao_provider
 from backend.common.providers.viking_memory import viking_memory_client
 from backend.common.schema import SchemaBase
 from backend.database.redis import redis_client
@@ -456,7 +456,7 @@ class ReportService:
                 {'role': 'system', 'content': cls.REPORT_ANALYSIS_SYSTEM_PROMPT},
                 {'role': 'user', 'content': prompt},
             ],
-            model_name=DEFAULT_DOUBAO_CHAT_MODEL,
+            model_name=DEFAULT_DOUBAO_MINI_MODEL,
             reasoning_effort='minimal',
             temperature=0.1,
         )

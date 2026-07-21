@@ -44,7 +44,7 @@ from backend.app.cloud.service.resource.script_service import cloud_script_servi
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.providers.ali_oss import oss_client
-from backend.common.providers.doubao import DEFAULT_DOUBAO_STORY_MODEL, create_async_doubao_client, doubao_provider
+from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, create_async_doubao_client, doubao_provider
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
@@ -812,7 +812,7 @@ class HuoshanVoiceService:
         result = HuoshanStoryGenerateResult(
             task_id=uuid.uuid4().hex,
             topic=obj.topic.strip(),
-            model=DEFAULT_DOUBAO_STORY_MODEL,
+            model=DEFAULT_DOUBAO_LITE_MODEL,
             story_content=None,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
@@ -858,7 +858,7 @@ class HuoshanVoiceService:
             task_id=uuid.uuid4().hex,
             toy_ids=list(obj.toy_ids),
             text=obj.text,
-            model=DEFAULT_DOUBAO_STORY_MODEL,
+            model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
             is_completed=False,

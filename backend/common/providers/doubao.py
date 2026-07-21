@@ -16,8 +16,8 @@ from backend.core.conf import settings
 
 DoubaoMessage = dict[str, Any]
 
-DEFAULT_DOUBAO_CHAT_MODEL = 'doubao-seed-2-0-mini-260428'
-DEFAULT_DOUBAO_STORY_MODEL = 'doubao-seed-2-0-lite-260428'
+DEFAULT_DOUBAO_MINI_MODEL = 'doubao-seed-2-0-mini-260428'
+DEFAULT_DOUBAO_LITE_MODEL = 'doubao-seed-2-0-lite-260428'
 VALID_REASONING_EFFORTS = frozenset({'minimal', 'low', 'medium', 'high'})
 
 DOUBAO_HTTP_TIMEOUT = httpx.Timeout(connect=15.0, read=120.0, write=30.0, pool=30.0)
@@ -67,7 +67,7 @@ class DoubaoProvider:
         config = config or {}
         self.base_url = _normalize_text(config.get('base_url'))
         self.api_key = _normalize_text(config.get('api_key'))
-        self.model_name = _normalize_text(config.get('model_name')) or DEFAULT_DOUBAO_CHAT_MODEL
+        self.model_name = _normalize_text(config.get('model_name')) or DEFAULT_DOUBAO_MINI_MODEL
         self.reasoning_effort = self._normalize_reasoning_effort(config.get('reasoning_effort'))
         self.max_tokens = self._parse_int(config.get('max_tokens'))
         self.temperature = self._parse_float(config.get('temperature'))

@@ -19,7 +19,7 @@ router = APIRouter()
 
 @router.post(
     '/debit',
-    summary='按 usage 扣减 token',
+    summary='按 turn 扣减 token',
 )
 async def debit_usage(
     db: CurrentSessionTransaction,

@@ -33,7 +33,7 @@ class BillAccount(BillingTimeBase):
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
-    subject_type: Mapped[str] = mapped_column(sa.String(16), comment='USER / DEVICE')
+    subject_type: Mapped[str] = mapped_column(sa.String(16), comment='当前主路径为 DEVICE，保留 USER 扩展位')
     subject_key: Mapped[str] = mapped_column(sa.String(64), comment='用户 ID 或设备 DID')
     balance_token: Mapped[int] = mapped_column(default=0, comment='当前余额快照，单位 token')
     status: Mapped[str] = mapped_column(sa.String(16), default='ACTIVE', comment='ACTIVE / BLOCKED')
@@ -64,25 +64,26 @@ class BillTxn(DataClassBase):
     __tablename__ = 'u_bill_txn'
     __table_args__ = (
         sa.UniqueConstraint('usage_id', name='uk_txn_usage_id'),
+        sa.Index('idx_account_created_time', 'account_id', 'created_time'),
+        sa.Index('idx_session_turn', 'session_id', 'turn_no'),
         {'comment': '账务流水'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
-    charge_id: Mapped[str] = mapped_column(sa.String(64), comment='账务业务号，当前 DEBIT 场景等于 usage_id')
-    account_id: Mapped[int] = mapped_column(comment='计费主体 ID')
-    change_type: Mapped[str] = mapped_column(sa.String(16), comment='DEBIT / RECHARGE / REFUND / ADJUST')
-    delta_token: Mapped[int] = mapped_column(comment='余额变动，正数加款，负数扣款')
+    usage_id: Mapped[str] = mapped_column(sa.String(128), comment='turn 级幂等 ID，推荐格式：session_id:turn_no:TURN')
+    account_id: Mapped[int] = mapped_column(comment='所属计费账户 ID')
+    session_id: Mapped[str] = mapped_column(sa.String(64), comment='来源会话 ID')
+    turn_no: Mapped[int] = mapped_column(comment='来源回合号')
+    change_type: Mapped[str] = mapped_column(
+        sa.String(16),
+        server_default='DEBIT',
+        comment='变动类型，当前主路径只写 DEBIT',
+    )
+    usage_token: Mapped[int] = mapped_column(comment='本次 turn 汇总 token，来源于上游 metering')
+    delta_token: Mapped[int] = mapped_column(comment='余额变动值，DEBIT 为负数')
     balance_after_token: Mapped[int] = mapped_column(comment='变动后余额快照')
     account_status_after: Mapped[str] = mapped_column(sa.String(16), comment='入账后账户状态')
     session_status_after: Mapped[str] = mapped_column(sa.String(16), comment='入账后会话状态')
-    usage_id: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='来源 usage ID，DEBIT 场景必填')
-    session_id: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='来源会话 ID')
-    turn_no: Mapped[int | None] = mapped_column(default=None, comment='来源回合号')
-    stage_no: Mapped[int | None] = mapped_column(default=None, comment='来源阶段号')
-    usage_kind: Mapped[str | None] = mapped_column(sa.String(16), default=None, comment='ASR / LLM_INPUT / LLM_OUTPUT / TTS')
-    usage_token: Mapped[int | None] = mapped_column(default=None, comment='本次 usage 已换算好的 token')
-    provider: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='来源 provider')
-    occurred_at: Mapped[datetime | None] = mapped_column(TimeZone, default=None, comment='发生时间')
     created_time: Mapped[datetime] = mapped_column(
         TimeZone,
         init=False,
