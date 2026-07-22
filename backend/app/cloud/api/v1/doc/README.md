@@ -21,6 +21,14 @@ Billing 模块负责 `xiaozhi-server` 实时会话中的最小计费闭环，目
 
 模块设计原则是先保证账务正确性和接口语义稳定，再考虑性能优化和能力扩展。
 
+### 对外接口路径
+
+当前 3 个 billing 接口主要由 xiaozhi-server 调用，因此通过 xiaozhi 资源入口暴露：
+
+- `POST /api/v1/resource/xiaozhi/billing/session/open`
+- `POST /api/v1/resource/xiaozhi/billing/usage/debit`
+- `POST /api/v1/resource/xiaozhi/billing/session/close`
+
 ## 2. 核心计费口径
 
 ### 2.1 入账粒度
@@ -171,6 +179,8 @@ P0 版本只使用三张核心表：
 - 避免依赖解析 `usage_id` 才能完成查询
 
 ## 5. 核心接口流程
+
+以下流程对应的推荐路径前缀是 `/api/v1/resource/xiaozhi/billing`。
 
 ### 5.1 打开会话 `session/open`
 
