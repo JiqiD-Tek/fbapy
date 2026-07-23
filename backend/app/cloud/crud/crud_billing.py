@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model.billing import BillAccount, BillSession, BillTxn
+from backend.app.cloud.model.billing import BillAccount, BillTxn
 
 
 class CRUDBillAccount(CRUDPlus[BillAccount]):
@@ -51,69 +51,28 @@ class CRUDBillAccount(CRUDPlus[BillAccount]):
         return account
 
 
-class CRUDBillSession(CRUDPlus[BillSession]):
-    async def get_by_session_id(self, db: AsyncSession, *, session_id: str) -> BillSession | None:
-        return await self.select_model_by_column(db, session_id=session_id)
-
-    async def get_by_session_id_for_update(self, db: AsyncSession, *, session_id: str) -> BillSession | None:
-        stmt = select(BillSession).where(BillSession.session_id == session_id).with_for_update().limit(1)
-        result = await db.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def get_with_account_for_update(
+class CRUDBillTxn(CRUDPlus[BillTxn]):
+    async def get_by_session_sentence(
         self,
         db: AsyncSession,
         *,
         session_id: str,
-    ) -> tuple[BillSession, BillAccount] | None:
+        sentence_id: str,
+    ) -> BillTxn | None:
         stmt = (
-            select(BillSession, BillAccount)
-            .join(BillAccount, BillAccount.id == BillSession.account_id)
-            .where(BillSession.session_id == session_id)
-            .with_for_update()
+            select(BillTxn)
+            .where(BillTxn.session_id == session_id, BillTxn.sentence_id == sentence_id)
             .limit(1)
         )
         result = await db.execute(stmt)
-        row = result.first()
-        if row is None:
-            return None
-        return row[0], row[1]
+        return result.scalar_one_or_none()
 
-    async def create(
-        self,
-        db: AsyncSession,
-        *,
-        session_id: str,
-        account_id: int,
-        device_did: str,
-        status: str,
-        started_at,
-        last_activity_at,
-    ) -> BillSession:
-        session = self.model(
-            session_id=session_id,
-            account_id=account_id,
-            device_did=device_did,
-            status=status,
-            started_at=started_at,
-            last_activity_at=last_activity_at,
-        )
-        db.add(session)
-        await db.flush()
-        return session
-
-
-class CRUDBillTxn(CRUDPlus[BillTxn]):
-    async def get_by_usage_id(self, db: AsyncSession, *, usage_id: str) -> BillTxn | None:
-        return await self.select_model_by_column(db, usage_id=usage_id)
-
-    async def create(self, db: AsyncSession, *, obj: dict[str, Any]) -> BillTxn:
-        txn = self.model(**obj)
+    async def create(self, db: AsyncSession, *, obj: dict[str, Any] | BillTxn) -> BillTxn:
+        txn = self.model(**obj) if isinstance(obj, dict) else obj
         db.add(txn)
         await db.flush()
         return txn
 
 
 bill_account_dao: CRUDBillAccount = CRUDBillAccount(BillAccount)
-bill_session_dao: CRUDBillSession = CRUDBillSession(BillSession)
 bill_txn_dao: CRUDBillTxn = CRUDBillTxn(BillTxn)

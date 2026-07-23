@@ -8,15 +8,8 @@
 
 from fastapi import APIRouter
 
-from backend.app.cloud.schema.billing import (
-    BillCloseSessionParam,
-    BillCloseSessionResult,
-    BillDebitUsageParam,
-    BillDebitUsageResult,
-    BillOpenSessionParam,
-    BillOpenSessionResult,
-)
-from backend.app.cloud.schema.device_chat import CreateDeviceChatParam, GetDeviceChatDetail
+from backend.app.cloud.schema.billing import BillTurnDebitParam, BillTurnDebitResult
+from backend.app.cloud.schema.device_chat import CreateDeviceChatParam
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.billing_service import billing_service
 from backend.app.cloud.service.device_service import device_service
@@ -28,39 +21,16 @@ router = APIRouter()
 
 
 @router.post(
-    '/billing/session/open',
-    summary='打开小智计费会话',
+    '/billing/debit',
+    summary='扣减小智一轮对话费用',
 )
-async def open_billing_session(
+async def debit_billing_turn(
         db: CurrentSessionTransaction,
-        obj: BillOpenSessionParam,
+        obj: BillTurnDebitParam,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> BillOpenSessionResult:
-    return await billing_service.open_session(db=db, obj=obj, auth_did=auth_ctx.did)
-
-
-@router.post(
-    '/billing/session/close',
-    summary='关闭小智计费会话',
-)
-async def close_billing_session(
-        db: CurrentSessionTransaction,
-        obj: BillCloseSessionParam,
-        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> BillCloseSessionResult:
-    return await billing_service.close_session(db=db, obj=obj, auth_did=auth_ctx.did)
-
-
-@router.post(
-    '/billing/usage/debit',
-    summary='按 turn 扣减 token',
-)
-async def debit_billing_usage(
-        db: CurrentSessionTransaction,
-        obj: BillDebitUsageParam,
-        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> BillDebitUsageResult:
-    return await billing_service.debit_usage(db=db, obj=obj, auth_did=auth_ctx.did)
+) -> ResponseSchemaModel[BillTurnDebitResult]:
+    data = await billing_service.debit_turn(db=db, obj=obj, auth_did=auth_ctx.did)
+    return response_base.success(data=data)
 
 
 @router.post(

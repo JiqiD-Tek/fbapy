@@ -13,49 +13,24 @@ from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.common.model import DataClassBase, DateTimeMixin, TimeZone, id_key
+from backend.common.model import Base, DataClassBase, TimeZone, id_key
 from backend.utils.timezone import timezone
 
 
-class BillingTimeBase(DataClassBase, DateTimeMixin):
-    """带创建时间和更新时间的计费基类。"""
-
-    __abstract__ = True
-
-
-class BillAccount(BillingTimeBase):
+class BillAccount(Base):
     """计费账户。"""
 
     __tablename__ = 'u_bill_account'
     __table_args__ = (
         sa.UniqueConstraint('subject_type', 'subject_key', name='uk_subject'),
-        {'comment': '计费主体'},
+        {'comment': '计费账户'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
-    subject_type: Mapped[str] = mapped_column(sa.String(16), comment='当前主路径为 DEVICE，保留 USER 扩展位')
-    subject_key: Mapped[str] = mapped_column(sa.String(64), comment='用户 ID 或设备 DID')
-    balance_token: Mapped[int] = mapped_column(default=0, comment='当前余额快照，单位 token')
+    subject_type: Mapped[str] = mapped_column(sa.String(16), comment='主体类型，当前固定 DEVICE')
+    subject_key: Mapped[str] = mapped_column(sa.String(64), comment='主体标识，当前为 device DID')
+    balance_token: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='当前余额快照，单位 token')
     status: Mapped[str] = mapped_column(sa.String(16), default='ACTIVE', comment='ACTIVE / BLOCKED')
-
-
-class BillSession(BillingTimeBase):
-    """实时计费会话。"""
-
-    __tablename__ = 'u_bill_session'
-    __table_args__ = (
-        sa.UniqueConstraint('session_id', name='uk_session_id'),
-        {'comment': '实时计费会话'},
-    )
-
-    id: Mapped[id_key] = mapped_column(init=False)
-    session_id: Mapped[str] = mapped_column(sa.String(64), comment='xiaozhi-server session_id')
-    account_id: Mapped[int] = mapped_column(comment='计费主体 ID')
-    device_did: Mapped[str] = mapped_column(sa.String(64), comment='设备 DID')
-    started_at: Mapped[datetime] = mapped_column(TimeZone, comment='会话开始时间')
-    status: Mapped[str] = mapped_column(sa.String(16), default='OPEN', comment='OPEN / BLOCKED / CLOSED / ABORTED')
-    last_activity_at: Mapped[datetime | None] = mapped_column(TimeZone, default=None, comment='最近活跃时间')
-    ended_at: Mapped[datetime | None] = mapped_column(TimeZone, default=None, comment='会话结束时间')
 
 
 class BillTxn(DataClassBase):
@@ -63,27 +38,21 @@ class BillTxn(DataClassBase):
 
     __tablename__ = 'u_bill_txn'
     __table_args__ = (
-        sa.UniqueConstraint('usage_id', name='uk_txn_usage_id'),
+        sa.UniqueConstraint('session_id', 'sentence_id', name='uk_txn_sentence'),
         sa.Index('idx_account_created_time', 'account_id', 'created_time'),
-        sa.Index('idx_session_turn', 'session_id', 'turn_no'),
+        sa.Index('idx_session_created_time', 'session_id', 'created_time'),
         {'comment': '账务流水'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
-    usage_id: Mapped[str] = mapped_column(sa.String(128), comment='turn 级幂等 ID，推荐格式：session_id:turn_no:TURN')
-    account_id: Mapped[int] = mapped_column(comment='所属计费账户 ID')
-    session_id: Mapped[str] = mapped_column(sa.String(64), comment='来源会话 ID')
-    turn_no: Mapped[int] = mapped_column(comment='来源回合号')
+    account_id: Mapped[int] = mapped_column(sa.BigInteger, comment='所属计费账户 ID')
+    session_id: Mapped[str] = mapped_column(sa.String(64), comment='来源连接级 session_id')
+    sentence_id: Mapped[str] = mapped_column(sa.String(64), comment='来源轮次级 sentence_id')
+    amount_token: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动金额，统一为正数')
+    balance_token: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动后的余额快照')
     change_type: Mapped[str] = mapped_column(
-        sa.String(16),
-        server_default='DEBIT',
-        comment='变动类型，当前主路径只写 DEBIT',
+        sa.String(16), default='DEBIT', server_default='DEBIT', comment='变动类型，当前主路径固定为 DEBIT',
     )
-    usage_token: Mapped[int] = mapped_column(comment='本次 turn 汇总 token，来源于上游 metering')
-    delta_token: Mapped[int] = mapped_column(comment='余额变动值，DEBIT 为负数')
-    balance_after_token: Mapped[int] = mapped_column(comment='变动后余额快照')
-    account_status_after: Mapped[str] = mapped_column(sa.String(16), comment='入账后账户状态')
-    session_status_after: Mapped[str] = mapped_column(sa.String(16), comment='入账后会话状态')
     created_time: Mapped[datetime] = mapped_column(
         TimeZone,
         init=False,

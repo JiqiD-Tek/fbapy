@@ -3,25 +3,17 @@ from __future__ import annotations
 import asyncio
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+import sqlalchemy as sa
 from pydantic import ValidationError
-
 from sqlalchemy.exc import IntegrityError
 
-from backend.app.cloud.api.v1.billing import debit as debit_api
-from backend.app.cloud.api.v1.billing import session as session_api
-from backend.app.cloud.model.billing import BillSession, BillTxn
-from backend.app.cloud.schema.billing import (
-    BillCloseSessionParam,
-    BillDebitUsageParam,
-    BillDebitUsageResult,
-    BillOpenSessionParam,
-    BillOpenSessionResult,
-)
+from backend.app.cloud.api.v1.resource import xiaozhi as xiaozhi_api
+from backend.app.cloud.model.billing import BillTxn
+from backend.app.cloud.schema.billing import BillTurnDebitParam, BillTurnDebitResult
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service import billing_service as billing_service_module
 from backend.app.cloud.service.billing_service import BillingService
@@ -43,298 +35,281 @@ class _DummyDB:
         yield
 
 
-def test_open_session_returns_recovered_account_after_concurrent_session_create(
+def test_debit_turn_returns_existing_result_when_blocked_account_has_existing_txn(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    started_at = datetime.now(timezone.utc)
-    created_account = SimpleNamespace(
-        id=1,
-        status='ACTIVE',
-        balance_token=100,
-    )
-    recovered_account = SimpleNamespace(
-        id=2,
-        status='ACTIVE',
-        balance_token=88,
-    )
-    recovered_session = SimpleNamespace(
-        session_id='session-1',
-        account_id=2,
-        device_did='did-1',
-        status='OPEN',
-    )
-    monkeypatch.setattr(
-        billing_service_module.bill_session_dao,
-        'get_by_session_id',
-        AsyncMock(side_effect=[None, recovered_session]),
-    )
     monkeypatch.setattr(
         billing_service_module.bill_account_dao,
         'get_by_subject_for_update',
-        AsyncMock(return_value=None),
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=1,
+                balance_token=0,
+                status='BLOCKED',
+            )
+        ),
     )
     monkeypatch.setattr(
-        billing_service_module.bill_account_dao,
-        'create',
-        AsyncMock(return_value=created_account),
-    )
-    monkeypatch.setattr(
-        billing_service_module.bill_session_dao,
-        'create',
-        AsyncMock(side_effect=IntegrityError('insert', None, None)),
-    )
-    monkeypatch.setattr(
-        billing_service_module.bill_account_dao,
-        'get_for_update',
-        AsyncMock(return_value=recovered_account),
+        billing_service_module.bill_txn_dao,
+        'get_by_session_sentence',
+        AsyncMock(
+            return_value=SimpleNamespace(
+                account_id=1,
+                session_id='session-1',
+                sentence_id='sentence-1',
+                amount_token=5,
+                balance_token=95,
+            )
+        ),
     )
 
     result = asyncio.run(
-        BillingService.open_session(
-            db=object(),
-            obj=BillOpenSessionParam(
+        BillingService.debit_turn(
+            db=_DummyDB(),
+            obj=BillTurnDebitParam(
                 session_id='session-1',
-                subject_type='DEVICE',
-                subject_key='did-1',
-                device_did='did-1',
-                started_at=started_at,
+                sentence_id='sentence-1',
+                amount_token=5,
             ),
             auth_did='did-1',
         )
     )
 
-    assert result == BillOpenSessionResult(
-        account_id=2,
-        balance_token=88,
+    assert result == BillTurnDebitResult(
+        account_id=1,
+        session_id='session-1',
+        sentence_id='sentence-1',
+        amount_token=5,
+        balance_token=95,
         account_status='ACTIVE',
-        session_status='OPEN',
     )
 
 
-def test_debit_usage_rejects_new_debit_when_session_already_blocked(
+def test_debit_turn_blocks_when_balance_is_nonpositive_after_debit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    account = SimpleNamespace(
+        id=1,
+        balance_token=5,
+        status='ACTIVE',
+    )
     monkeypatch.setattr(
-        BillingService,
-        '_load_debit_result',
+        billing_service_module.bill_txn_dao,
+        'get_by_session_sentence',
         AsyncMock(return_value=None),
     )
     monkeypatch.setattr(
-        billing_service_module.bill_session_dao,
-        'get_with_account_for_update',
+        billing_service_module.bill_account_dao,
+        'get_by_subject_for_update',
+        AsyncMock(return_value=account),
+    )
+    monkeypatch.setattr(
+        billing_service_module.bill_txn_dao,
+        'create',
         AsyncMock(
-            return_value=(
-                SimpleNamespace(
-                    session_id='session-1',
-                    device_did='did-1',
-                    status='BLOCKED',
-                    last_activity_at=None,
-                ),
-                SimpleNamespace(
-                    id=1,
-                    balance_token=100,
-                    status='ACTIVE',
-                ),
+            return_value=SimpleNamespace(
+                account_id=1,
+                session_id='session-1',
+                sentence_id='sentence-1',
+                amount_token=10,
+                balance_token=-5,
             )
         ),
     )
 
-    with pytest.raises(errors.ConflictError):
+    result = asyncio.run(
+        BillingService.debit_turn(
+            db=_DummyDB(),
+            obj=BillTurnDebitParam(
+                session_id='session-1',
+                sentence_id='sentence-1',
+                amount_token=10,
+            ),
+            auth_did='did-1',
+        )
+    )
+
+    assert result == BillTurnDebitResult(
+        account_id=1,
+        session_id='session-1',
+        sentence_id='sentence-1',
+        amount_token=10,
+        balance_token=-5,
+        account_status='BLOCKED',
+    )
+    assert account.balance_token == -5
+    assert account.status == 'BLOCKED'
+    create_payload = billing_service_module.bill_txn_dao.create.await_args.kwargs['obj']
+    assert create_payload['amount_token'] == 10
+    assert 'usage_token' not in create_payload
+    assert 'delta_token' not in create_payload
+
+
+def test_debit_turn_rejects_new_debit_when_account_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        billing_service_module.bill_txn_dao,
+        'get_by_session_sentence',
+        AsyncMock(return_value=None),
+    )
+    monkeypatch.setattr(
+        billing_service_module.bill_account_dao,
+        'get_by_subject_for_update',
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=1,
+                balance_token=0,
+                status='BLOCKED',
+            )
+        ),
+    )
+
+    with pytest.raises(errors.ForbiddenError):
         asyncio.run(
-            BillingService.debit_usage(
+            BillingService.debit_turn(
                 db=object(),
-                obj=BillDebitUsageParam(
-                    usage_id='session-1:1:TURN',
+                obj=BillTurnDebitParam(
                     session_id='session-1',
-                    turn_no=1,
-                    usage_token=10,
+                    sentence_id='sentence-2',
+                    amount_token=1,
                 ),
                 auth_did='did-1',
             )
         )
 
 
-def test_debit_usage_blocks_when_balance_is_nonpositive_after_debit(
+def test_debit_turn_recovers_existing_txn_after_insert_race(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    occurred_at = datetime.now(timezone.utc)
-    session = SimpleNamespace(
-        session_id='session-1',
-        account_id=1,
-        device_did='did-1',
-        status='OPEN',
-        last_activity_at=None,
-    )
     account = SimpleNamespace(
         id=1,
-        balance_token=0,
+        balance_token=100,
         status='ACTIVE',
     )
-    txn = SimpleNamespace(
-        account_id=1,
-        usage_id='session-1:1:TURN',
-        usage_token=0,
-        balance_after_token=0,
-        account_status_after='BLOCKED',
-        session_status_after='BLOCKED',
-        created_time=occurred_at,
+    monkeypatch.setattr(
+        billing_service_module.bill_txn_dao,
+        'get_by_session_sentence',
+        AsyncMock(
+            return_value=SimpleNamespace(
+                account_id=1,
+                session_id='session-1',
+                sentence_id='sentence-1',
+                amount_token=5,
+                balance_token=95,
+            ),
+        ),
     )
     monkeypatch.setattr(
-        BillingService,
-        '_load_debit_result',
-        AsyncMock(return_value=None),
-    )
-    monkeypatch.setattr(
-        billing_service_module.bill_session_dao,
-        'get_with_account_for_update',
-        AsyncMock(return_value=(session, account)),
+        billing_service_module.bill_account_dao,
+        'get_by_subject_for_update',
+        AsyncMock(return_value=account),
     )
     monkeypatch.setattr(
         billing_service_module.bill_txn_dao,
         'create',
-        AsyncMock(return_value=txn),
+        AsyncMock(side_effect=IntegrityError('insert', None, None)),
     )
 
     result = asyncio.run(
-        BillingService.debit_usage(
+        BillingService.debit_turn(
             db=_DummyDB(),
-            obj=BillDebitUsageParam(
-                usage_id='session-1:1:TURN',
+            obj=BillTurnDebitParam(
                 session_id='session-1',
-                turn_no=1,
-                usage_token=0,
+                sentence_id='sentence-1',
+                amount_token=5,
             ),
             auth_did='did-1',
         )
     )
 
-    assert result == BillDebitUsageResult(
+    assert result == BillTurnDebitResult(
         account_id=1,
-        usage_id='session-1:1:TURN',
-        amount_token=0,
-        balance_after_token=0,
-        account_status='BLOCKED',
-        session_status='BLOCKED',
-        should_stop=True,
-    )
-    assert account.balance_token == 0
-    assert account.status == 'BLOCKED'
-    assert session.status == 'BLOCKED'
-    assert session.last_activity_at == occurred_at
-
-
-def test_close_session_param_accepts_blocked_status() -> None:
-    result = BillCloseSessionParam(
         session_id='session-1',
-        status='BLOCKED',
-        ended_at=datetime.now(timezone.utc),
+        sentence_id='sentence-1',
+        amount_token=5,
+        balance_token=95,
+        account_status='ACTIVE',
     )
-
-    assert result.status == 'BLOCKED'
+    assert account.balance_token == 100
+    assert account.status == 'ACTIVE'
 
 
 def test_billing_schemas_reject_removed_legacy_fields() -> None:
     with pytest.raises(ValidationError):
-        BillOpenSessionParam(
-            session_id='session-1',
-            subject_type='USER',
-            subject_key='user-1',
-            device_did='did-1',
-            started_at=datetime.now(timezone.utc),
-        )
-
-    with pytest.raises(ValidationError):
-        BillDebitUsageParam(
+        BillTurnDebitParam(
             usage_id='session-1:1:TURN',
             session_id='session-1',
+            sentence_id='sentence-1',
             turn_no=1,
             usage_token=5,
-            stage_no=0,
-            usage_kind='TTS',
-            provider='azure_push',
-            occurred_at=datetime.now(timezone.utc),
+            amount_token=5,
         )
 
     with pytest.raises(ValidationError):
-        BillDebitUsageResult(
+        BillTurnDebitResult(
             account_id=7,
-            usage_id='session-1:1:TURN',
-            charge_id='session-1:1:TURN',
+            session_id='session-1',
+            sentence_id='sentence-1',
+            usage_token=5,
             amount_token=5,
-            balance_after_token=94,
+            balance_token=95,
+            balance_after_token=95,
             account_status='ACTIVE',
+            account_status_after='ACTIVE',
             session_status='OPEN',
             should_stop=False,
         )
 
 
-def test_usage_id_column_is_longer_than_session_id_column() -> None:
-    session_id_length = BillSession.__table__.c.session_id.type.length
-    usage_id_length = BillTxn.__table__.c.usage_id.type.length
+def test_txn_model_uses_sentence_id_without_status_snapshot() -> None:
+    unique_constraints = {
+        tuple(column.name for column in constraint.columns)
+        for constraint in BillTxn.__table__.constraints
+        if isinstance(constraint, sa.UniqueConstraint)
+    }
 
-    assert usage_id_length >= session_id_length + 16
+    assert ('session_id', 'sentence_id') in unique_constraints
+    assert 'sentence_id' in BillTxn.__table__.c
+    assert 'amount_token' in BillTxn.__table__.c
+    assert 'balance_token' in BillTxn.__table__.c
+    assert 'usage_token' not in BillTxn.__table__.c
+    assert 'delta_token' not in BillTxn.__table__.c
+    assert 'balance_after_token' not in BillTxn.__table__.c
+    assert 'usage_id' not in BillTxn.__table__.c
+    assert 'turn_no' not in BillTxn.__table__.c
+    assert 'session_status_after' not in BillTxn.__table__.c
+    assert 'account_status_after' not in BillTxn.__table__.c
 
 
-def test_billing_routes_return_direct_payload_models(
+def test_xiaozhi_billing_route_returns_wrapped_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    open_result = BillOpenSessionResult(
+    debit_result = BillTurnDebitResult(
         account_id=7,
-        balance_token=99,
-        account_status='ACTIVE',
-        session_status='OPEN',
-    )
-    debit_result = BillDebitUsageResult(
-        account_id=7,
-        usage_id='session-1:1:TURN',
+        session_id='session-1',
+        sentence_id='sentence-1',
         amount_token=5,
-        balance_after_token=94,
+        balance_token=95,
         account_status='ACTIVE',
-        session_status='OPEN',
-        should_stop=False,
     )
     monkeypatch.setattr(
-        session_api.billing_service,
-        'open_session',
-        AsyncMock(return_value=open_result),
-    )
-    monkeypatch.setattr(
-        debit_api.billing_service,
-        'debit_usage',
+        xiaozhi_api.billing_service,
+        'debit_turn',
         AsyncMock(return_value=debit_result),
     )
 
-    auth_ctx = _device_auth()
-    open_payload = BillOpenSessionParam(
-        session_id='session-1',
-        subject_type='DEVICE',
-        subject_key='did-1',
-        device_did='did-1',
-        started_at=datetime.now(timezone.utc),
-    )
-    debit_payload = BillDebitUsageParam(
-        usage_id='session-1:1:TURN',
-        session_id='session-1',
-        turn_no=1,
-        usage_token=5,
-    )
-
-    open_response = asyncio.run(
-        session_api.open_session(
+    response = asyncio.run(
+        xiaozhi_api.debit_billing_turn(
             db=object(),
-            obj=open_payload,
-            auth_ctx=auth_ctx,
-        )
-    )
-    debit_response = asyncio.run(
-        debit_api.debit_usage(
-            db=object(),
-            obj=debit_payload,
-            auth_ctx=auth_ctx,
+            obj=BillTurnDebitParam(
+                session_id='session-1',
+                sentence_id='sentence-1',
+                amount_token=5,
+            ),
+            auth_ctx=_device_auth(),
         )
     )
 
-    assert isinstance(open_response, BillOpenSessionResult)
-    assert not hasattr(open_response, 'code')
-    assert isinstance(debit_response, BillDebitUsageResult)
-    assert not hasattr(debit_response, 'data')
+    assert response.data == debit_result
+    assert not hasattr(response.data, 'session_status')
