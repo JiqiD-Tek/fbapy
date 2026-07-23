@@ -38,7 +38,7 @@ class BillingService:
         obj: BillTurnDebitParam,
         auth_did: str,
     ) -> BillTurnDebitResult:
-        account = await cls._get_or_create_device_account(db=db, did=auth_did)
+        account = await cls.get_or_create_device_account(db=db, did=auth_did)
         if account.status != ACCOUNT_ACTIVE:
             current = await cls._load_debit_result(
                 db=db,
@@ -96,7 +96,7 @@ class BillingService:
         return cls._build_debit_result(txn=txn)
 
     @classmethod
-    async def _get_or_create_device_account(cls, *, db: AsyncSession, did: str) -> BillAccount:
+    async def get_or_create_device_account(cls, *, db: AsyncSession, did: str) -> BillAccount:
         account = await bill_account_dao.get_by_subject_for_update(
             db,
             subject_type=ACCOUNT_SUBJECT_DEVICE,
@@ -111,6 +111,8 @@ class BillingService:
                     db,
                     subject_type=ACCOUNT_SUBJECT_DEVICE,
                     subject_key=did,
+                    balance_token=100_000_000,
+                    status=ACCOUNT_ACTIVE,
                 )
         except IntegrityError:
             account = await bill_account_dao.get_by_subject_for_update(
