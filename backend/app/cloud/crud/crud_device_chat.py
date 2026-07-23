@@ -14,12 +14,12 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
         return await self.select_model(db, pk)
 
     async def get_select(
-        self,
-        *,
-        device_id: int | None = None,
-        toy_id: int | None = None,
-        user_id: int | None = None,
-        baby_id: int | None = None,
+            self,
+            *,
+            device_id: int | None = None,
+            toy_id: int | None = None,
+            user_id: int | None = None,
+            baby_id: int | None = None,
     ) -> Select:
         stmt = sa.select(self.model).where(self.model.deleted == 0)
 
@@ -34,8 +34,11 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
 
         return stmt.order_by(self.model.created_time.desc(), self.model.id.desc())
 
-    async def create(self, db: AsyncSession, obj: dict[str, Any]) -> DeviceChat:
-        return await self.create_model(db, obj, flush=True)
+    async def create(self, db: AsyncSession, obj: dict[str, Any] | DeviceChat) -> DeviceChat:
+        record = self.model(**obj) if isinstance(obj, dict) else obj
+        db.add(record)
+        await db.flush()
+        return record
 
 
 device_chat_dao: CRUDDeviceChat = CRUDDeviceChat(DeviceChat)

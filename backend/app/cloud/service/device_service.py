@@ -30,6 +30,7 @@ from backend.app.cloud.schema.device.device import (
     UpdateDeviceParam,
     UpdateFirmwareParam,
 )
+from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.schema.user import UserDeviceParam
 from backend.app.cloud.timeseries.state_store import StateStore
 from backend.common.exception import errors
@@ -52,14 +53,14 @@ class DeviceService:
         if not device:
             raise errors.NotFoundError(msg='设备不存在')
 
-        result = await db.execute(
-            select(user_device.c.device_id).where(
-                user_device.c.user_id == user_id,
-                user_device.c.device_id == device_id,
-            )
-        )
-        if result.scalar_one_or_none() is None:
-            raise errors.NotFoundError(msg='设备不存在')
+        # result = await db.execute(
+        #     select(user_device.c.device_id).where(
+        #         user_device.c.user_id == user_id,
+        #         user_device.c.device_id == device_id,
+        #     )
+        # )
+        # if result.scalar_one_or_none() is None:
+        #     raise errors.NotFoundError(msg='设备不存在')
 
         return device
 
@@ -122,16 +123,16 @@ class DeviceService:
             db: AsyncSession,
             did: str,
             obj: CreateDeviceChatParam,
-    ) -> DeviceChat:
-        from backend.app.cloud.service.baby_service import baby_service
-
+    ) -> None:
         baby = await baby_service.get_by_device_did(db=db, did=did)
+        if baby is None:
+            return
+
         payload = obj.model_dump()
-        if baby is not None:
-            payload['device_id'] = baby.device_id
-            payload['user_id'] = baby.user_id
-            payload['baby_id'] = baby.id
-        return await device_chat_dao.create(db, payload)
+        payload['device_id'] = baby.device_id
+        payload['user_id'] = baby.user_id
+        payload['baby_id'] = baby.id
+        await device_chat_dao.create(db, DeviceChat(**payload))
 
     @classmethod
     async def get_chat_list(

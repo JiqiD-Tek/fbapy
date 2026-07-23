@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
@@ -38,16 +40,15 @@ class CRUDBillAccount(CRUDPlus[BillAccount]):
         balance_token: int = 0,
         status: str = 'ACTIVE',
     ) -> BillAccount:
-        return await self.create_model(
-            db,
-            {
-                'subject_type': subject_type,
-                'subject_key': subject_key,
-                'balance_token': balance_token,
-                'status': status,
-            },
-            flush=True,
+        account = self.model(
+            subject_type=subject_type,
+            subject_key=subject_key,
+            balance_token=balance_token,
+            status=status,
         )
+        db.add(account)
+        await db.flush()
+        return account
 
 
 class CRUDBillSession(CRUDPlus[BillSession]):
@@ -89,26 +90,28 @@ class CRUDBillSession(CRUDPlus[BillSession]):
         started_at,
         last_activity_at,
     ) -> BillSession:
-        return await self.create_model(
-            db,
-            {
-                'session_id': session_id,
-                'account_id': account_id,
-                'device_did': device_did,
-                'status': status,
-                'started_at': started_at,
-                'last_activity_at': last_activity_at,
-            },
-            flush=True,
+        session = self.model(
+            session_id=session_id,
+            account_id=account_id,
+            device_did=device_did,
+            status=status,
+            started_at=started_at,
+            last_activity_at=last_activity_at,
         )
+        db.add(session)
+        await db.flush()
+        return session
 
 
 class CRUDBillTxn(CRUDPlus[BillTxn]):
     async def get_by_usage_id(self, db: AsyncSession, *, usage_id: str) -> BillTxn | None:
         return await self.select_model_by_column(db, usage_id=usage_id)
 
-    async def create(self, db: AsyncSession, *, obj: dict) -> BillTxn:
-        return await self.create_model(db, obj, flush=True)
+    async def create(self, db: AsyncSession, *, obj: dict[str, Any]) -> BillTxn:
+        txn = self.model(**obj)
+        db.add(txn)
+        await db.flush()
+        return txn
 
 
 bill_account_dao: CRUDBillAccount = CRUDBillAccount(BillAccount)
