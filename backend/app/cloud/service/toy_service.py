@@ -9,16 +9,20 @@
 from contextlib import suppress
 from typing import Any, Sequence
 
+import sqlalchemy as sa
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.cloud.crud.crud_toy import toy_dao
-from backend.app.cloud.model import Toy
+from backend.app.cloud.crud.crud_toy import toy_dao, toy_series_dao
+from backend.app.cloud.model import Toy, ToySeries
 from backend.app.cloud.schema.device.toy import (
     CreateToyParam,
+    CreateToySeriesParam,
     GenerateToySystemPromptParam,
     GenerateToySystemPromptResult,
     UpdateToyParam,
+    UpdateToySeriesParam,
 )
 from backend.common.exception import errors
 from backend.common.log import log
@@ -40,6 +44,71 @@ class ToyService:
     )
 
     @staticmethod
+    async def get_toy_series(*, db: AsyncSession, pk: int) -> ToySeries:
+        series = await toy_series_dao.get(db, pk)
+        if not series:
+            raise errors.NotFoundError(msg='Toy series does not exist')
+        return series
+
+    @staticmethod
+    async def get_toy_series_list(
+            *,
+            db: AsyncSession,
+            name: str | None = None,
+            status: int | None = None,
+    ) -> dict[str, Any]:
+        series_select = await toy_series_dao.get_select(
+            name=ToyService._normalize_query_text(name),
+            status=status,
+        )
+        return await paging_data(db, series_select)
+
+    @staticmethod
+    async def create_toy_series(*, db: AsyncSession, obj: CreateToySeriesParam) -> ToySeries:
+        try:
+            return await toy_series_dao.create(db, obj)
+        except IntegrityError:
+            raise errors.ServerError(msg='Failed to create toy series, please try again later') from None
+
+    @staticmethod
+    async def update_toy_series(*, db: AsyncSession, pk: int, obj: UpdateToySeriesParam) -> int:
+        series = await toy_series_dao.get(db, pk)
+        if not series:
+            raise errors.NotFoundError(msg='Toy series does not exist')
+
+        payload = obj.model_dump(exclude_unset=True)
+        if not payload:
+            raise errors.RequestError(msg='Update payload cannot be empty')
+
+        try:
+            return await toy_series_dao.update(db, pk, payload)
+        except IntegrityError:
+            raise errors.ServerError(msg='Failed to update toy series, please try again later') from None
+
+    @staticmethod
+    async def delete_toy_series(*, db: AsyncSession, pk: int) -> int:
+        series = await toy_series_dao.get(db, pk)
+        if not series:
+            raise errors.NotFoundError(msg='Toy series does not exist')
+
+        toy_result = await db.execute(
+            sa.select(Toy.id).where(Toy.deleted == 0, Toy.series_id == pk).limit(1)
+        )
+        if toy_result.scalar_one_or_none() is not None:
+            raise errors.ConflictError(msg='Toy series is in use')
+
+        return await toy_series_dao.delete(db, pk)
+
+    @staticmethod
+    async def _ensure_series_exists(*, db: AsyncSession, series_id: int | None) -> None:
+        if series_id is None:
+            return
+
+        series = await toy_series_dao.get(db, series_id)
+        if not series:
+            raise errors.NotFoundError(msg='Toy series does not exist')
+
+    @staticmethod
     async def get_toy(*, db: AsyncSession, pk: int) -> Toy:
         toy = await toy_dao.get(db, pk)
         if not toy:
@@ -50,14 +119,14 @@ class ToyService:
     async def get_toy_list(
             *,
             db: AsyncSession,
-            series_name: str | None = None,
+            series_id: int | None = None,
             name: str | None = None,
             nfc_code: str | None = None,
             voice_language: str | None = None,
             status: int | None = None,
     ) -> dict[str, Any]:
         toy_select = await toy_dao.get_select(
-            series_name=ToyService._normalize_query_text(series_name),
+            series_id=series_id,
             name=ToyService._normalize_query_text(name),
             nfc_code=ToyService._normalize_query_text(nfc_code),
             voice_language=ToyService._normalize_query_text(voice_language),
@@ -85,6 +154,7 @@ class ToyService:
 
     @staticmethod
     async def create_toy(*, db: AsyncSession, obj: CreateToyParam) -> Toy:
+        await ToyService._ensure_series_exists(db=db, series_id=obj.series_id)
         try:
             return await toy_dao.create(db, obj)
         except IntegrityError:
@@ -102,6 +172,8 @@ class ToyService:
 
         old_nfc_code = toy.nfc_code
         ToyService._validate_voice_binding(payload, current_toy=toy)
+        if 'series_id' in payload:
+            await ToyService._ensure_series_exists(db=db, series_id=payload['series_id'])
         try:
             count = await toy_dao.update(db, pk, payload)
             await ToyService._delete_nfc_cache(old_nfc_code)

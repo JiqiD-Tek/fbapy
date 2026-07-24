@@ -100,7 +100,7 @@ class DeviceToyUnlockParam(SchemaBase):
 
 class DeviceToyListItem(SchemaBase):
     toy_id: int = Field(description='Toy ID')
-    series_name: str | None = Field(None, description='Toy series name')
+    series_id: int | None = Field(None, description='Toy series ID')
     name: str | None = Field(None, description='Toy name')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
     summary: str | None = Field(None, description='Toy summary')

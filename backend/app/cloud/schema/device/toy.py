@@ -27,8 +27,66 @@ def _strip_optional_text(value: Any) -> Any:
     return value
 
 
+class ToySeriesReadSchemaBase(SchemaBase):
+    name: str = Field(description='Toy series name')
+    image_url: str | None = Field(None, description='Toy series image URL')
+    purchase_url: str | None = Field(None, description='Toy series purchase URL')
+    description: str | None = Field(None, description='Toy series description')
+    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
+    sort: int = Field(default=0, description='Sort value, lower comes first')
+
+
+class CreateToySeriesParam(SchemaBase):
+    name: str = Field(min_length=1, max_length=64, description='Toy series name')
+    image_url: str | None = Field(None, max_length=512, description='Toy series image URL')
+    purchase_url: str | None = Field(None, max_length=512, description='Toy series purchase URL')
+    description: str | None = Field(None, max_length=500, description='Toy series description')
+    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
+    sort: int = Field(default=0, description='Sort value, lower comes first')
+
+    @field_validator('name', mode='before')
+    @classmethod
+    def strip_name(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('image_url', 'purchase_url', 'description', mode='before')
+    @classmethod
+    def strip_optional_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class UpdateToySeriesParam(SchemaBase):
+    name: str | None = Field(None, min_length=1, max_length=64, description='Toy series name')
+    image_url: str | None = Field(None, max_length=512, description='Toy series image URL')
+    purchase_url: str | None = Field(None, max_length=512, description='Toy series purchase URL')
+    description: str | None = Field(None, max_length=500, description='Toy series description')
+    status: int | None = Field(None, description='Status: 0 disabled, 1 enabled')
+    sort: int | None = Field(None, description='Sort value, lower comes first')
+
+    @field_validator('name', mode='before')
+    @classmethod
+    def strip_name(cls, value: Any) -> Any:
+        return _strip_required_text(value)
+
+    @field_validator('image_url', 'purchase_url', 'description', mode='before')
+    @classmethod
+    def strip_optional_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class ToySeriesInfo(ToySeriesReadSchemaBase):
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    id: int = Field(description='Toy series ID')
+
+
+class GetToySeriesDetail(ToySeriesInfo):
+    created_time: datetime = Field(description='Created time')
+    updated_time: datetime | None = Field(None, description='Updated time')
+
+
 class ToyReadSchemaBase(SchemaBase):
-    series_name: str | None = Field(None, description='Series name')
+    series_id: int | None = Field(None, description='Toy series ID')
     name: str | None = Field(None, description='Toy name')
     system_prompt: str | None = Field(None, description='System prompt')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
@@ -45,7 +103,7 @@ class ToyReadSchemaBase(SchemaBase):
 
 
 class CreateToyParam(SchemaBase):
-    series_name: str | None = Field(None, max_length=64, description='Series name')
+    series_id: int | None = Field(None, gt=0, description='Toy series ID')
     name: str = Field(min_length=1, max_length=128, description='Toy name')
     system_prompt: str = Field(min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
@@ -66,7 +124,6 @@ class CreateToyParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
-        'series_name',
         'avatar_url',
         'summary',
         'nfc_code',
@@ -89,7 +146,7 @@ class CreateToyParam(SchemaBase):
 
 
 class UpdateToyParam(SchemaBase):
-    series_name: str | None = Field(None, max_length=64, description='Series name')
+    series_id: int | None = Field(None, gt=0, description='Toy series ID')
     name: str | None = Field(None, min_length=1, max_length=128, description='Toy name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
@@ -110,7 +167,6 @@ class UpdateToyParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
-        'series_name',
         'avatar_url',
         'summary',
         'nfc_code',

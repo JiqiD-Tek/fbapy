@@ -21,6 +21,7 @@ from backend.app.cloud.schema.device.device import (
     UpdateDeviceParam, UpdateFirmwareParam,
 )
 from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
+from backend.app.cloud.schema.device.device_chat import GetDeviceChatDetail
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
@@ -94,8 +95,18 @@ async def get_device_toys(
         db: CurrentSession,
         pk: Annotated[int, Path(description='设备 ID')],
 ) -> ResponseSchemaModel[PageData[DeviceToyListItem]]:
-    data = await device_service.get_device_toy_list(db=db, user_id=request.user.id, device_id=pk)
-    return response_base.success(data=data)
+    page_data = await device_service.get_device_toy_list(db=db, user_id=request.user.id, device_id=pk)
+    return response_base.success(data=page_data)
+
+
+@router.get('/{pk}/chat', summary='分页获取设备聊天记录', dependencies=[DependsJwtAuth, DependsPagination])
+async def get_device_chat_paginated(
+        db: CurrentSession,
+        request: Request,
+        pk: Annotated[int, Path(description='设备 ID')],
+) -> ResponseSchemaModel[PageData[GetDeviceChatDetail]]:
+    page_data = await device_service.get_chat_list(db=db, user_id=request.user.id, device_id=pk)
+    return response_base.success(data=page_data)
 
 
 @router.get('/{pk}', summary='获取设备详情', dependencies=[DependsJwtAuth])

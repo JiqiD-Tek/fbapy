@@ -15,11 +15,11 @@ if __package__ in {None, ''}:
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
-from backend.app.cloud.service.led.selector import (
+from backend.app.cloud.service.resource.providers.led.selector import (
     recommended_design_candidates_for_text,
     resolve_generation_selection,
 )
-from backend.app.cloud.service.led.service import led_service
+from backend.app.cloud.service.resource.providers.led import led_service
 from backend.tests.led.preview_renderer import write_preview_artifacts
 from backend.tests.led.preview_runtime import render_frames_with_node
 

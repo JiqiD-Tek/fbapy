@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional, Sequence, TypedDict
 
-from backend.app.cloud.service.led.ledword.core import BOARD_HEIGHT, BOARD_WIDTH
+from backend.app.cloud.service.resource.providers.led.ledword.core import BOARD_HEIGHT, BOARD_WIDTH
 from backend.tests.led.preview_renderer import FrameGrid, FrameSequence
 
 

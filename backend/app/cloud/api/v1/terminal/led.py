@@ -12,8 +12,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from backend.app.cloud.service.led import led_service
-from backend.app.cloud.service.led.schema import GenerateLedAnimationParam
+from backend.app.cloud.service.resource.providers.led import led_service
+from backend.app.cloud.service.resource.providers.led.schema import GenerateLedAnimationParam
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
 
 router = APIRouter()

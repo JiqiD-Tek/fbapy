@@ -17,9 +17,10 @@ from backend.app.cloud.model.m2m import user_device as user_device
 
 from backend.app.cloud.model.resource.album import CloudAlbum as CloudAlbum
 from backend.app.cloud.model.toy import Toy as Toy
+from backend.app.cloud.model.toy import ToySeries as ToySeries
 from backend.app.cloud.model.resource.script import CloudScript as CloudScript
 from backend.app.cloud.model.resource.song import CloudSong as CloudSong
 from backend.app.cloud.model.feedback import Feedback as Feedback
 from backend.app.cloud.model.firmware import Firmware as Firmware
-from backend.app.cloud.model.firmware_whitelist import FirmwareWhitelist as FirmwareWhitelist
+from backend.app.cloud.model.firmware import FirmwareWhitelist as FirmwareWhitelist
 from backend.app.cloud.model.user import User as User

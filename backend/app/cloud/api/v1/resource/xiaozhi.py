@@ -9,7 +9,7 @@
 from fastapi import APIRouter
 
 from backend.app.cloud.schema.billing import BillTurnDebitParam, BillTurnDebitResult
-from backend.app.cloud.schema.device_chat import CreateDeviceChatParam
+from backend.app.cloud.schema.device.device_chat import CreateDeviceChatParam
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.billing_service import billing_service
 from backend.app.cloud.service.device_service import device_service

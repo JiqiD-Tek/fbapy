@@ -23,7 +23,7 @@ from backend.app.cloud.crud.crud_device_chat import device_chat_dao
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.model import Baby, Toy, Device, DeviceChat, User
 from backend.app.cloud.model.m2m import device_toy, user_device
-from backend.app.cloud.schema.device_chat import CreateDeviceChatParam, DeviceChatToyInfo, GetDeviceChatDetail
+from backend.app.cloud.schema.device.device_chat import CreateDeviceChatParam, DeviceChatToyInfo, GetDeviceChatDetail
 from backend.app.cloud.schema.device.device import (
     DeviceToyListItem,
     DeviceToyUnlockParam,
@@ -139,15 +139,13 @@ class DeviceService:
             cls,
             *,
             db: AsyncSession,
-            device_id: int | None = None,
-            toy_id: int | None = None,
-            user_id: int | None = None,
+            device_id: int,
+            user_id: int,
             baby_id: int | None = None,
     ) -> dict[str, Any]:
+        await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=device_id)
         chat_select = await device_chat_dao.get_select(
             device_id=device_id,
-            toy_id=toy_id,
-            user_id=user_id,
             baby_id=baby_id,
         )
         page_data = await paging_data(db, chat_select)
@@ -159,7 +157,7 @@ class DeviceService:
         if toy_ids:
             result = await db.execute(select(Toy).where(Toy.deleted == 0, Toy.id.in_(toy_ids)))
             toy_map = {
-                toy.id: DeviceChatToyInfo.model_validate(toy)
+                int(toy.id): DeviceChatToyInfo.model_validate(toy)
                 for toy in result.scalars().all()
             }
 
@@ -244,7 +242,7 @@ class DeviceService:
         stmt = (
             select(
                 Toy.id.label('toy_id'),
-                Toy.series_name,
+                Toy.series_id,
                 Toy.name,
                 Toy.avatar_url,
                 Toy.summary,
@@ -285,7 +283,7 @@ class DeviceService:
             items.append(
                 DeviceToyListItem(
                     toy_id=int(row['toy_id']),
-                    series_name=row['series_name'],
+                    series_id=row['series_id'],
                     name=row['name'],
                     avatar_url=row['avatar_url'],
                     summary=row['summary'],

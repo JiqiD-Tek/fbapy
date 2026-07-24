@@ -6,7 +6,7 @@ from typing import List
 
 from PIL import Image, ImageDraw
 
-from backend.app.cloud.service.led.ledword.core import BOARD_HEIGHT, BOARD_WIDTH
+from backend.app.cloud.service.resource.providers.led.ledword.core import BOARD_HEIGHT, BOARD_WIDTH
 
 
 FrameRow = List[List[int]]

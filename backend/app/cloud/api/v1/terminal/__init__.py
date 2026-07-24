@@ -11,7 +11,6 @@ from fastapi import APIRouter
 from backend.app.cloud.api.v1.terminal.app import router as app_router
 from backend.app.cloud.api.v1.terminal.auth import router as auth_router
 from backend.app.cloud.api.v1.terminal.baby import router as baby_router
-from backend.app.cloud.api.v1.terminal.device_chat import router as device_chat_router
 from backend.app.cloud.api.v1.terminal.device import router as device_router
 from backend.app.cloud.api.v1.terminal.toy import router as toy_router
 from backend.app.cloud.api.v1.terminal.feedback import router as feedback_router
@@ -25,7 +24,6 @@ router = APIRouter()
 router.include_router(app_router, prefix='/app', tags=['app管理'])
 router.include_router(auth_router, prefix='/auth', tags=['用户授权'])
 router.include_router(baby_router, prefix='/baby', tags=['宝宝管理'])
-router.include_router(device_chat_router, prefix='/device-chat', tags=['设备聊天'])
 router.include_router(feedback_router, prefix='/feedback', tags=['反馈管理'])
 router.include_router(device_router, prefix='/device', tags=['设备管理'])
 router.include_router(toy_router, prefix='/toys', tags=['玩偶'])

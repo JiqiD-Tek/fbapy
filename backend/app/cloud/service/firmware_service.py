@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_firmware import firmware_dao
-from backend.app.cloud.crud.crud_firmware_whitelist import firmware_whitelist_dao
+from backend.app.cloud.crud.crud_firmware import firmware_whitelist_dao
 from backend.app.cloud.model import Firmware, FirmwareWhitelist
 from backend.app.cloud.schema.firmware import (
     BatchSetFirmwareWhitelistParam,

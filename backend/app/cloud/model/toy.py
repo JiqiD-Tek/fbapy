@@ -13,6 +13,25 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.common.model import Base, UniversalText, id_key
 
 
+class ToySeries(Base):
+    """Cloud toy series table."""
+
+    __tablename__ = 'u_toy_series'
+    __table_args__ = (
+        sa.Index('idx_status_sort', 'status', 'sort'),
+        {'comment': 'Cloud toy series table'},
+    )
+
+    id: Mapped[id_key] = mapped_column(init=False)
+
+    name: Mapped[str] = mapped_column(sa.String(64), index=True, comment='Toy series name')
+    image_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series image URL')
+    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series purchase URL')
+    description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy series description')
+    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
+    sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
+
+
 class Toy(Base):
     """Cloud toy table."""
 
@@ -24,11 +43,17 @@ class Toy(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
 
-    series_name: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Toy series name')
+    series_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='Toy series ID')
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Toy name')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy avatar URL')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy summary')
-    nfc_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, unique=True, index=True, comment='NFC code')
+    nfc_code: Mapped[str | None] = mapped_column(
+        sa.String(64),
+        default=None,
+        unique=True,
+        index=True,
+        comment='NFC code',
+    )
 
     system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='System prompt')
 
