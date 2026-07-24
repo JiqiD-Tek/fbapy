@@ -245,6 +245,7 @@ class DeviceService:
                 Toy.series_id,
                 Toy.name,
                 Toy.avatar_url,
+                Toy.purchase_url,
                 Toy.summary,
                 unlocked_toy_subquery.c.unlocked_at,
             )
@@ -286,6 +287,7 @@ class DeviceService:
                     series_id=row['series_id'],
                     name=row['name'],
                     avatar_url=row['avatar_url'],
+                    purchase_url=row['purchase_url'],
                     summary=row['summary'],
                     is_unlocked=unlocked_at is not None,
                     unlocked_at=unlocked_at,

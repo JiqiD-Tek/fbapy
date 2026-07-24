@@ -103,6 +103,7 @@ class DeviceToyListItem(SchemaBase):
     series_id: int | None = Field(None, description='Toy series ID')
     name: str | None = Field(None, description='Toy name')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
+    purchase_url: str | None = Field(None, description='Toy purchase URL')
     summary: str | None = Field(None, description='Toy summary')
     is_unlocked: bool = Field(description='Whether the toy has been unlocked on the device')
     unlocked_at: datetime | None = Field(None, description='Unlock time')

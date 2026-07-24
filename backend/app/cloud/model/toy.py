@@ -46,13 +46,11 @@ class Toy(Base):
     series_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='Toy series ID')
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Toy name')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy avatar URL')
+    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy purchase URL')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy summary')
+    related_toy_ids: Mapped[list[int] | None] = mapped_column(sa.JSON, default=None, comment='Related toy IDs')
     nfc_code: Mapped[str | None] = mapped_column(
-        sa.String(64),
-        default=None,
-        unique=True,
-        index=True,
-        comment='NFC code',
+        sa.String(64), default=None, unique=True, index=True, comment='NFC code',
     )
 
     system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='System prompt')

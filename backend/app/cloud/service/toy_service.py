@@ -109,6 +109,27 @@ class ToyService:
             raise errors.NotFoundError(msg='Toy series does not exist')
 
     @staticmethod
+    async def _ensure_related_toys_exist(
+            *,
+            db: AsyncSession,
+            toy_ids: list[int] | None,
+            current_toy_id: int | None = None,
+    ) -> None:
+        if not toy_ids:
+            return
+
+        ordered_toy_ids = list(dict.fromkeys(toy_ids))
+        if current_toy_id is not None and current_toy_id in ordered_toy_ids:
+            raise errors.RequestError(msg='related_toy_ids cannot include current toy')
+
+        toys = await toy_dao.get_by_ids(db, ids=ordered_toy_ids, enabled_only=False)
+        toy_map = {int(toy.id): toy for toy in toys}
+        missing_toy_ids = [toy_id for toy_id in ordered_toy_ids if toy_id not in toy_map]
+        if missing_toy_ids:
+            missing_text = ', '.join(str(toy_id) for toy_id in missing_toy_ids)
+            raise errors.NotFoundError(msg=f'Related toy does not exist: {missing_text}')
+
+    @staticmethod
     async def get_toy(*, db: AsyncSession, pk: int) -> Toy:
         toy = await toy_dao.get(db, pk)
         if not toy:
@@ -155,6 +176,7 @@ class ToyService:
     @staticmethod
     async def create_toy(*, db: AsyncSession, obj: CreateToyParam) -> Toy:
         await ToyService._ensure_series_exists(db=db, series_id=obj.series_id)
+        await ToyService._ensure_related_toys_exist(db=db, toy_ids=obj.related_toy_ids)
         try:
             return await toy_dao.create(db, obj)
         except IntegrityError:
@@ -174,6 +196,12 @@ class ToyService:
         ToyService._validate_voice_binding(payload, current_toy=toy)
         if 'series_id' in payload:
             await ToyService._ensure_series_exists(db=db, series_id=payload['series_id'])
+        if 'related_toy_ids' in payload:
+            await ToyService._ensure_related_toys_exist(
+                db=db,
+                toy_ids=payload['related_toy_ids'],
+                current_toy_id=pk,
+            )
         try:
             count = await toy_dao.update(db, pk, payload)
             await ToyService._delete_nfc_cache(old_nfc_code)

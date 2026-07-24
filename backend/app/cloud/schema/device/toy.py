@@ -7,11 +7,13 @@
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from backend.common.schema import SchemaBase
+
+PositiveToyId = Annotated[int, Field(gt=0)]
 
 
 def _strip_required_text(value: Any) -> Any:
@@ -25,6 +27,12 @@ def _strip_optional_text(value: Any) -> Any:
         stripped = value.strip()
         return stripped or None
     return value
+
+
+def _deduplicate_toy_ids(value: list[int] | None) -> list[int] | None:
+    if value is None:
+        return None
+    return list(dict.fromkeys(value))
 
 
 class ToySeriesReadSchemaBase(SchemaBase):
@@ -90,7 +98,9 @@ class ToyReadSchemaBase(SchemaBase):
     name: str | None = Field(None, description='Toy name')
     system_prompt: str | None = Field(None, description='System prompt')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
+    purchase_url: str | None = Field(None, description='Toy purchase URL')
     summary: str | None = Field(None, description='Toy summary')
+    related_toy_ids: list[int] | None = Field(None, description='Related toy ID list')
     nfc_code: str | None = Field(None, description='NFC code')
     voice_provider: str | None = Field(None, description='Voice provider')
     voice_id: str | None = Field(None, description='Voice ID')
@@ -107,7 +117,9 @@ class CreateToyParam(SchemaBase):
     name: str = Field(min_length=1, max_length=128, description='Toy name')
     system_prompt: str = Field(min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
+    purchase_url: str | None = Field(None, max_length=512, description='Toy purchase URL')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
+    related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
     nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
@@ -125,6 +137,7 @@ class CreateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
+        'purchase_url',
         'summary',
         'nfc_code',
         'voice_provider',
@@ -138,6 +151,11 @@ class CreateToyParam(SchemaBase):
     def strip_optional_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
 
+    @field_validator('related_toy_ids')
+    @classmethod
+    def deduplicate_related_toy_ids(cls, value: list[int] | None) -> list[int] | None:
+        return _deduplicate_toy_ids(value)
+
     @model_validator(mode='after')
     def validate_voice_binding(self) -> 'CreateToyParam':
         if (self.voice_provider is None) != (self.voice_id is None):
@@ -150,7 +168,9 @@ class UpdateToyParam(SchemaBase):
     name: str | None = Field(None, min_length=1, max_length=128, description='Toy name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
+    purchase_url: str | None = Field(None, max_length=512, description='Toy purchase URL')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
+    related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
     nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
@@ -168,6 +188,7 @@ class UpdateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
+        'purchase_url',
         'summary',
         'nfc_code',
         'voice_provider',
@@ -180,6 +201,11 @@ class UpdateToyParam(SchemaBase):
     @classmethod
     def strip_optional_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
+
+    @field_validator('related_toy_ids')
+    @classmethod
+    def deduplicate_related_toy_ids(cls, value: list[int] | None) -> list[int] | None:
+        return _deduplicate_toy_ids(value)
 
 
 class GenerateToySystemPromptParam(SchemaBase):
