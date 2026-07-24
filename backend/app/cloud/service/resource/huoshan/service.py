@@ -38,7 +38,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
-from backend.app.cloud.service.resource.toy_service import cloud_toy_service
+from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import cloud_song_service
 from backend.app.cloud.service.resource.script_service import cloud_script_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
@@ -832,7 +832,7 @@ class HuoshanVoiceService:
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
     ) -> HuoshanToyStoryScriptResult:
-        toys = await cloud_toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
+        toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
         invalid_toys: list[str] = []
         for toy in toys:

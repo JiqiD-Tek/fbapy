@@ -21,9 +21,9 @@ from fastapi_pagination.api import create_page, resolve_params
 from backend.app.cloud.crud.crud_device import device_dao
 from backend.app.cloud.crud.crud_device_chat import device_chat_dao
 from backend.app.cloud.crud.crud_user import user_dao
-from backend.app.cloud.model import Baby, CloudToy, Device, DeviceChat, User
+from backend.app.cloud.model import Baby, Toy, Device, DeviceChat, User
 from backend.app.cloud.model.m2m import device_toy, user_device
-from backend.app.cloud.schema.device_chat import CreateDeviceChatParam
+from backend.app.cloud.schema.device_chat import CreateDeviceChatParam, DeviceChatToyInfo, GetDeviceChatDetail
 from backend.app.cloud.schema.device.device import (
     DeviceToyListItem,
     DeviceToyUnlockParam,
@@ -150,7 +150,24 @@ class DeviceService:
             user_id=user_id,
             baby_id=baby_id,
         )
-        return await paging_data(db, chat_select)
+        page_data = await paging_data(db, chat_select)
+        items = page_data.get('items') or []
+        chat_items = [GetDeviceChatDetail.model_validate(item) for item in items]
+
+        toy_ids = {chat.toy_id for chat in chat_items}
+        toy_map: dict[int, DeviceChatToyInfo] = {}
+        if toy_ids:
+            result = await db.execute(select(Toy).where(Toy.deleted == 0, Toy.id.in_(toy_ids)))
+            toy_map = {
+                toy.id: DeviceChatToyInfo.model_validate(toy)
+                for toy in result.scalars().all()
+            }
+
+        page_data['items'] = [
+            chat.model_copy(update={'toy': toy_map.get(chat.toy_id)}).model_dump()
+            for chat in chat_items
+        ]
+        return page_data
 
     @staticmethod
     async def get_bind_state(*, db: AsyncSession, did: str) -> dict[str, Any]:
@@ -184,10 +201,10 @@ class DeviceService:
             if not marked:
                 return None
 
-            from backend.app.cloud.service.resource.toy_service import cloud_toy_service
+            from backend.app.cloud.service.toy_service import toy_service
 
             device = await DeviceService.get_by_did(db=db, did=did)
-            toy_id = await cloud_toy_service.get_enabled_toy_id_by_nfc_code(db=db, nfc_code=obj.nfc_code)
+            toy_id = await toy_service.get_enabled_toy_id_by_nfc_code(db=db, nfc_code=obj.nfc_code)
 
             try:
                 await db.execute(
@@ -226,29 +243,29 @@ class DeviceService:
 
         stmt = (
             select(
-                CloudToy.id.label('toy_id'),
-                CloudToy.series_name,
-                CloudToy.name,
-                CloudToy.avatar_url,
-                CloudToy.summary,
+                Toy.id.label('toy_id'),
+                Toy.series_name,
+                Toy.name,
+                Toy.avatar_url,
+                Toy.summary,
                 unlocked_toy_subquery.c.unlocked_at,
             )
-            .select_from(CloudToy)
-            .outerjoin(unlocked_toy_subquery, unlocked_toy_subquery.c.toy_id == CloudToy.id)
+            .select_from(Toy)
+            .outerjoin(unlocked_toy_subquery, unlocked_toy_subquery.c.toy_id == Toy.id)
             .where(
-                CloudToy.deleted == 0,
-                CloudToy.status == 1,
+                Toy.deleted == 0,
+                Toy.status == 1,
             )
             .order_by(
                 sa.case((unlocked_toy_subquery.c.unlocked_at.is_(None), 1), else_=0).asc(),
                 unlocked_toy_subquery.c.unlocked_at.desc(),
-                CloudToy.sort.asc(),
-                CloudToy.id.desc(),
+                Toy.sort.asc(),
+                Toy.id.desc(),
             )
         )
-        count_stmt = select(sa.func.count()).select_from(CloudToy).where(
-            CloudToy.deleted == 0,
-            CloudToy.status == 1,
+        count_stmt = select(sa.func.count()).select_from(Toy).where(
+            Toy.deleted == 0,
+            Toy.status == 1,
         )
 
         if raw_params.limit is not None:

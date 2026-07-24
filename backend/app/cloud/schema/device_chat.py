@@ -18,6 +18,19 @@ class CreateDeviceChatParam(SchemaBase):
     reply_message: str = Field(min_length=1, description='Reply message content')
 
 
+class DeviceChatToyInfo(SchemaBase):
+    """Toy info attached to a device chat record."""
+
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    id: int = Field(description='Toy ID')
+    series_name: str | None = Field(None, description='Toy series name')
+    name: str | None = Field(None, description='Toy name')
+    avatar_url: str | None = Field(None, description='Toy avatar URL')
+    summary: str | None = Field(None, description='Toy summary')
+    nfc_code: str | None = Field(None, description='Toy NFC code')
+
+
 class GetDeviceChatDetail(SchemaBase):
     """Device chat detail."""
 
@@ -30,4 +43,5 @@ class GetDeviceChatDetail(SchemaBase):
     reply_message: str = Field(description='Reply message content')
     user_id: int | None = Field(None, description='User ID')
     baby_id: int | None = Field(None, description='Baby ID')
+    toy: DeviceChatToyInfo | None = Field(None, description='Toy info')
     created_time: datetime = Field(description='Created time')

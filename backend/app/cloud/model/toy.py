@@ -13,10 +13,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 from backend.common.model import Base, UniversalText, id_key
 
 
-class CloudToy(Base):
+class Toy(Base):
     """Cloud toy table."""
 
-    __tablename__ = 'u_cloud_toy'
+    __tablename__ = 'u_toy'
     __table_args__ = (
         sa.Index('idx_status_sort', 'status', 'sort'),
         {'comment': 'Cloud toy table'},

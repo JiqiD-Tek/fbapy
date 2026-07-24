@@ -12,9 +12,9 @@ from typing import Any, Sequence
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.cloud.crud.resource.crud_toy import cloud_toy_dao
-from backend.app.cloud.model import CloudToy
-from backend.app.cloud.schema.resource.toy import (
+from backend.app.cloud.crud.crud_toy import toy_dao
+from backend.app.cloud.model import Toy
+from backend.app.cloud.schema.device.toy import (
     CreateToyParam,
     GenerateToySystemPromptParam,
     GenerateToySystemPromptResult,
@@ -27,7 +27,7 @@ from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, doubao_pr
 from backend.database.redis import redis_client
 
 
-class CloudToyService:
+class ToyService:
     DEVICE_TOY_NFC_CACHE_PREFIX = 'fba:device:toy:nfc'
     DEVICE_TOY_NFC_CACHE_TTL_SECONDS = 600
     TOY_SYSTEM_PROMPT_DEFAULT_SUMMARY = '你是一个适合儿童陪伴、自然亲切、容易让孩子信任的玩偶角色。'
@@ -40,8 +40,8 @@ class CloudToyService:
     )
 
     @staticmethod
-    async def get_toy(*, db: AsyncSession, pk: int) -> CloudToy:
-        toy = await cloud_toy_dao.get(db, pk)
+    async def get_toy(*, db: AsyncSession, pk: int) -> Toy:
+        toy = await toy_dao.get(db, pk)
         if not toy:
             raise errors.NotFoundError(msg='Toy does not exist')
         return toy
@@ -56,11 +56,11 @@ class CloudToyService:
             voice_language: str | None = None,
             status: int | None = None,
     ) -> dict[str, Any]:
-        toy_select = await cloud_toy_dao.get_select(
-            series_name=CloudToyService._normalize_query_text(series_name),
-            name=CloudToyService._normalize_query_text(name),
-            nfc_code=CloudToyService._normalize_query_text(nfc_code),
-            voice_language=CloudToyService._normalize_query_text(voice_language),
+        toy_select = await toy_dao.get_select(
+            series_name=ToyService._normalize_query_text(series_name),
+            name=ToyService._normalize_query_text(name),
+            nfc_code=ToyService._normalize_query_text(nfc_code),
+            voice_language=ToyService._normalize_query_text(voice_language),
             status=status,
         )
         return await paging_data(db, toy_select)
@@ -70,12 +70,12 @@ class CloudToyService:
             *,
             db: AsyncSession,
             toy_ids: list[int],
-    ) -> Sequence[CloudToy]:
+    ) -> Sequence[Toy]:
         if not toy_ids:
             return []
 
         ordered_toy_ids = list(dict.fromkeys(toy_ids))
-        toys = await cloud_toy_dao.get_by_ids(db, ids=ordered_toy_ids, enabled_only=True)
+        toys = await toy_dao.get_by_ids(db, ids=ordered_toy_ids, enabled_only=True)
         toy_map = {int(toy.id): toy for toy in toys}
         missing_toy_ids = [toy_id for toy_id in ordered_toy_ids if toy_id not in toy_map]
         if missing_toy_ids:
@@ -84,15 +84,15 @@ class CloudToyService:
         return [toy_map[toy_id] for toy_id in ordered_toy_ids]
 
     @staticmethod
-    async def create_toy(*, db: AsyncSession, obj: CreateToyParam) -> CloudToy:
+    async def create_toy(*, db: AsyncSession, obj: CreateToyParam) -> Toy:
         try:
-            return await cloud_toy_dao.create(db, obj)
+            return await toy_dao.create(db, obj)
         except IntegrityError:
             raise errors.ServerError(msg='Failed to create toy, please try again later') from None
 
     @staticmethod
     async def update_toy(*, db: AsyncSession, pk: int, obj: UpdateToyParam) -> int:
-        toy = await cloud_toy_dao.get(db, pk)
+        toy = await toy_dao.get(db, pk)
         if not toy:
             raise errors.NotFoundError(msg='Toy does not exist')
 
@@ -101,22 +101,22 @@ class CloudToyService:
             raise errors.RequestError(msg='Update payload cannot be empty')
 
         old_nfc_code = toy.nfc_code
-        CloudToyService._validate_voice_binding(payload, current_toy=toy)
+        ToyService._validate_voice_binding(payload, current_toy=toy)
         try:
-            count = await cloud_toy_dao.update(db, pk, payload)
-            await CloudToyService._delete_nfc_cache(old_nfc_code)
-            await CloudToyService._delete_nfc_cache(payload.get('nfc_code'))
+            count = await toy_dao.update(db, pk, payload)
+            await ToyService._delete_nfc_cache(old_nfc_code)
+            await ToyService._delete_nfc_cache(payload.get('nfc_code'))
             return count
         except IntegrityError:
             raise errors.ServerError(msg='Failed to update toy, please try again later') from None
 
     @staticmethod
     async def delete_toy(*, db: AsyncSession, pk: int) -> int:
-        toy = await cloud_toy_dao.get(db, pk)
+        toy = await toy_dao.get(db, pk)
         if not toy:
             raise errors.NotFoundError(msg='Toy does not exist')
-        count = await cloud_toy_dao.delete(db, pk)
-        await CloudToyService._delete_nfc_cache(toy.nfc_code)
+        count = await toy_dao.delete(db, pk)
+        await ToyService._delete_nfc_cache(toy.nfc_code)
         return count
 
     @classmethod
@@ -259,7 +259,7 @@ class CloudToyService:
             if cached_toy_id:
                 return int(cached_toy_id)
 
-        toy = await cloud_toy_dao.get_by_nfc_code(db, nfc_code=normalized_nfc_code, enabled_only=True)
+        toy = await toy_dao.get_by_nfc_code(db, nfc_code=normalized_nfc_code, enabled_only=True)
         if toy is None:
             raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
 
@@ -286,7 +286,7 @@ class CloudToyService:
     def _validate_voice_binding(
             payload: dict[str, Any],
             *,
-            current_toy: CloudToy | None = None,
+            current_toy: Toy | None = None,
     ) -> None:
         voice_provider = payload.get('voice_provider')
         voice_id = payload.get('voice_id')
@@ -301,4 +301,4 @@ class CloudToyService:
             raise errors.RequestError(msg='voice_provider and voice_id must both be empty or both have values')
 
 
-cloud_toy_service: CloudToyService = CloudToyService()
+toy_service: ToyService = ToyService()

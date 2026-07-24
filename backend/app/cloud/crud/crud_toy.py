@@ -15,12 +15,12 @@ from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import CloudToy
-from backend.app.cloud.schema.resource.toy import CreateToyParam, UpdateToyParam
+from backend.app.cloud.model import Toy
+from backend.app.cloud.schema.device.toy import CreateToyParam, UpdateToyParam
 
 
-class CRUDCloudToy(CRUDPlus[CloudToy]):
-    async def get(self, db: AsyncSession, pk: int) -> CloudToy | None:
+class CRUDToy(CRUDPlus[Toy]):
+    async def get(self, db: AsyncSession, pk: int) -> Toy | None:
         return await self.select_model(db, pk)
 
     async def get_by_ids(
@@ -29,7 +29,7 @@ class CRUDCloudToy(CRUDPlus[CloudToy]):
         *,
         ids: Sequence[int],
         enabled_only: bool = False,
-    ) -> Sequence[CloudToy]:
+    ) -> Sequence[Toy]:
         if not ids:
             return []
 
@@ -45,7 +45,7 @@ class CRUDCloudToy(CRUDPlus[CloudToy]):
         *,
         nfc_code: str,
         enabled_only: bool = False,
-    ) -> CloudToy | None:
+    ) -> Toy | None:
         stmt = sa.select(self.model).where(self.model.deleted == 0, self.model.nfc_code == nfc_code)
         if enabled_only:
             stmt = stmt.where(self.model.status == 1)
@@ -76,7 +76,7 @@ class CRUDCloudToy(CRUDPlus[CloudToy]):
 
         return stmt.order_by(self.model.sort.asc(), self.model.id.desc())
 
-    async def create(self, db: AsyncSession, obj: CreateToyParam) -> CloudToy:
+    async def create(self, db: AsyncSession, obj: CreateToyParam) -> Toy:
         return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateToyParam | dict[str, Any]) -> int:
@@ -86,4 +86,4 @@ class CRUDCloudToy(CRUDPlus[CloudToy]):
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
 
-cloud_toy_dao: CRUDCloudToy = CRUDCloudToy(CloudToy)
+toy_dao: CRUDToy = CRUDToy(Toy)
