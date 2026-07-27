@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi_pagination.api import create_page, resolve_params
 
 from backend.app.cloud.crud.crud_device import device_dao
-from backend.app.cloud.crud.crud_device_chat import device_chat_dao
+from backend.app.cloud.crud.crud_device import device_chat_dao
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.model import Baby, Toy, Device, DeviceChat, User
 from backend.app.cloud.model.m2m import device_toy, user_device
