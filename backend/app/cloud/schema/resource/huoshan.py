@@ -64,26 +64,6 @@ class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
         return _strip_required_text(value)
 
 
-class HuoshanToyStoryScriptSaveParam(HuoshanSchemaBase):
-    title: str = Field(min_length=1, max_length=256, description='Script title')
-    summary: str | None = Field(None, max_length=1000, description='Script summary')
-    cover_url: str | None = Field(None, max_length=512, description='Script cover URL')
-    author: str | None = Field(None, max_length=128, description='Script author')
-    owner_id: int = Field(0, ge=0, description='Owner ID, 0 means platform')
-    status: int = Field(0, description='Status (0 draft, 1 enabled, 2 disabled)')
-    remark: str | None = Field(None, max_length=500, description='Remark')
-
-    @field_validator('title', mode='before')
-    @classmethod
-    def strip_title(cls, value: Any) -> Any:
-        return _strip_required_text(value)
-
-    @field_validator('summary', 'cover_url', 'author', 'remark', mode='before')
-    @classmethod
-    def strip_optional_fields(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     story_content: str = Field(description='Story content')
     speaker: str = Field(description='Speaker ID, supports cloned or public voices')
@@ -106,6 +86,7 @@ class HuoshanStreamTTSParam(HuoshanSchemaBase):
 
 class HuoshanStreamTTSResult(HuoshanSchemaBase):
     request_id: str = Field(description='TTS request ID')
+
 
 class HuoshanToyStoryScriptLine(HuoshanSchemaBase):
     toy_id: int = Field(gt=0, description='Toy ID')
@@ -134,6 +115,7 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     model: str = Field(description='Model name')
     toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
+    owner_id: int = Field(ge=1, description='Task owner user ID')
     is_completed: bool = Field(description='Whether story script generation is completed')
     task_status: int = Field(description='Task status')
     error_message: str | None = Field(None, description='Task error message')

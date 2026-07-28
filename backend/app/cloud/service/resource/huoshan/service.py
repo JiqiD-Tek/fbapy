@@ -20,13 +20,13 @@ from time import monotonic
 from typing import TYPE_CHECKING
 
 from openai import AsyncOpenAI
+from pydantic import ValidationError
 
 from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStreamTTSParam,
     HuoshanToyStoryToyInfo,
     HuoshanToyStoryScriptLine,
     HuoshanToyStoryScriptParam,
-    HuoshanToyStoryScriptSaveParam,
     HuoshanToyStoryScriptResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
@@ -48,6 +48,7 @@ from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, create_as
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
+from backend.database.db import async_db_session
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
 
@@ -506,11 +507,11 @@ class HuoshanVoiceService:
 
     @classmethod
     async def _save_toy_story_script_task_result(cls, result: HuoshanToyStoryScriptResult) -> None:
-        result = cls._normalize_toy_story_script_result(result)
+        normalized_result = cls._normalize_toy_story_script_result(result)
         try:
             await redis_client.set(
-                cls._toy_story_script_task_key(result.task_id),
-                result.model_dump_json(),
+                cls._toy_story_script_task_key(normalized_result.task_id),
+                normalized_result.model_dump_json(),
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
@@ -525,7 +526,20 @@ class HuoshanVoiceService:
 
         if not payload_raw:
             raise errors.NotFoundError(msg=f'Huoshan toy story script task not found, task_id={task_id}')
-        return cls._normalize_toy_story_script_result(HuoshanToyStoryScriptResult.model_validate_json(payload_raw))
+
+        try:
+            result = HuoshanToyStoryScriptResult.model_validate_json(payload_raw)
+        except ValidationError:
+            payload = json.loads(payload_raw)
+            if not isinstance(payload, dict) or 'result' not in payload:
+                raise
+
+            result_payload = payload.get('result') or {}
+            if isinstance(result_payload, dict) and payload.get('owner_id') is not None:
+                result_payload = {**result_payload, 'owner_id': payload.get('owner_id')}
+            result = HuoshanToyStoryScriptResult.model_validate(result_payload)
+
+        return cls._normalize_toy_story_script_result(result)
 
     def _start_story_synthesis_processing(self, task_id: str) -> None:
         current_task = self._story_synthesis_tasks.get(task_id)
@@ -725,6 +739,10 @@ class HuoshanVoiceService:
                 'error_message': None,
             }, deep=True)
             await self._save_toy_story_script_task_result(result)
+            asyncio.create_task(
+                self._auto_save_toy_story_script(task_id=task_id),
+                name=f'huoshan-story-script-save-{task_id}',
+            )
             log.info(
                 f'Huoshan toy story script generation completed: task_id={task_id}, toy_ids={result.toy_ids}, '
                 f'text={result.text!r}'
@@ -831,6 +849,7 @@ class HuoshanVoiceService:
             *,
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
+            user_id: int,
     ) -> HuoshanToyStoryScriptResult:
         toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
@@ -861,6 +880,7 @@ class HuoshanVoiceService:
             model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
+            owner_id=user_id,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
@@ -869,58 +889,64 @@ class HuoshanVoiceService:
         self._start_toy_story_script_processing(task_result.task_id)
         log.info(
             f'Huoshan toy story script generation submitted: task_id={task_result.task_id}, '
-            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}'
+            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}, user_id={user_id}'
         )
         return task_result
 
-    async def get_toy_story_script(self, *, task_id: str) -> HuoshanToyStoryScriptResult:
-        return await self._get_toy_story_script_task_result(task_id)
-
-    async def save_toy_story_script(
-            self,
-            *,
-            db: AsyncSession,
-            task_id: str,
-            obj: HuoshanToyStoryScriptSaveParam,
-    ) -> CloudScript:
+    async def get_toy_story_script(self, *, task_id: str, user_id: int) -> HuoshanToyStoryScriptResult:
         result = await self._get_toy_story_script_task_result(task_id)
-        if result.task_status != STORY_TASK_STATUS_COMPLETED or not result.is_completed:
-            raise errors.RequestError(msg=f'Toy story script task is not completed, task_id={task_id}')
-        if result.error_message:
-            raise errors.RequestError(msg=f'Toy story script task failed, task_id={task_id}')
-        if not result.lines:
-            raise errors.RequestError(msg=f'Toy story script task has no lines, task_id={task_id}')
+        if result.owner_id != user_id:
+            raise errors.NotFoundError(msg=f'Huoshan toy story script task not found, task_id={result.task_id}')
+        return result
 
+    @staticmethod
+    async def _build_toy_story_script_content(result: HuoshanToyStoryScriptResult) -> list[ScriptLine]:
         content: list[ScriptLine] = []
         for line in result.lines:
             request_id = str(line.tts_token or '').strip()
             if not request_id:
                 raise errors.GatewayError(
-                    msg=f'Toy story script line is missing tts_token, task_id={task_id}, toy_id={line.toy_id}'
+                    msg=f'Toy story script line is missing tts_token, task_id={result.task_id}, toy_id={line.toy_id}'
                 )
 
             download_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
             content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=download_url))
+        return content
 
-        script = await cloud_script_service.create_script(
-            db=db,
-            obj=CreateScriptParam(
-                title=obj.title,
-                summary=obj.summary or result.text,
-                cover_url=obj.cover_url,
-                author=obj.author,
-                toy_ids=list(result.toy_ids),
-                content=content,
-                owner_id=obj.owner_id,
-                status=obj.status,
-                remark=obj.remark,
-            ),
-        )
-        log.info(
-            f'Huoshan toy story script saved as script: task_id={task_id}, script_id={script.id}, '
-            f'toy_ids={result.toy_ids}'
-        )
-        return script
+    async def _auto_save_toy_story_script(
+            self,
+            *,
+            task_id: str,
+    ) -> None:
+        result = await self._get_toy_story_script_task_result(task_id)
+
+        try:
+            async with async_db_session() as db:
+                try:
+                    content = await self._build_toy_story_script_content(result)
+                    script = await cloud_script_service.create_script(
+                        db=db,
+                        obj=CreateScriptParam(
+                            title=result.text,
+                            summary=result.text,
+                            cover_url=None,
+                            author=None,
+                            toy_ids=list(result.toy_ids),
+                            content=content,
+                            owner_id=result.owner_id,
+                            status=0,
+                            remark=None,
+                        ),
+                    )
+                    await db.commit()
+                    log.info(f'Huoshan toy story script auto saved: task_id={task_id}, script_id={script.id}')
+                except Exception:
+                    with suppress(Exception):
+                        await db.rollback()
+                    raise
+        except Exception as exc:
+            log.error(f'Huoshan toy story script auto save failed: task_id={task_id}, error={exc!r}')
+            return
 
     async def _finalize_story_synthesis(
             self,

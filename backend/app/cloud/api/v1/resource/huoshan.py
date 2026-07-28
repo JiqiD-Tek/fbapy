@@ -8,7 +8,7 @@ from __future__ import annotations
 import struct
 from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Path, Query, Request
 from fastapi.responses import StreamingResponse
 
 from backend.app.cloud.schema.resource.huoshan import (
@@ -20,19 +20,18 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
     HuoshanToyStoryScriptParam,
-    HuoshanToyStoryScriptSaveParam,
     HuoshanToyStoryScriptResult,
     HuoshanVoiceListParam,
     HuoshanVoiceStatus,
 )
-from backend.app.cloud.schema.resource.script import GetScriptDetail
 from backend.app.cloud.service.resource.huoshan.config import list_public_voices
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
-from backend.database.db import CurrentSession, CurrentSessionTransaction
+from backend.common.security.jwt import DependsJwtAuth
+from backend.database.db import CurrentSession
 
 router = APIRouter()
 
@@ -70,12 +69,14 @@ async def list_clone_huoshan_voice_statuses(
     '/stories/script',
     summary='Submit toy-based story script generation task',
     response_model_by_alias=False,
+    dependencies=[DependsJwtAuth],
 )
 async def submit_huoshan_toy_story_script(
+    request: Request,
     db: CurrentSession,
     obj: HuoshanToyStoryScriptParam,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj)
+    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, user_id=request.user.id)
     return response_base.success(data=data)
 
 
@@ -83,26 +84,14 @@ async def submit_huoshan_toy_story_script(
     '/stories/script/{task_id}',
     summary='Query toy-based story script generation task status',
     response_model_by_alias=False,
+    dependencies=[DependsJwtAuth],
 )
 async def get_huoshan_toy_story_script(
+    request: Request,
     task_id: str = Path(description='Story script generation task ID'),
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    data = await huoshan_voice_service.get_toy_story_script(task_id=task_id)
+    data = await huoshan_voice_service.get_toy_story_script(task_id=task_id, user_id=request.user.id)
     return response_base.success(data=data)
-
-
-@router.post(
-    '/stories/script/{task_id}/save',
-    summary='Save completed toy story script task as a script',
-    response_model_by_alias=False,
-)
-async def save_huoshan_toy_story_script(
-    db: CurrentSessionTransaction,
-    obj: HuoshanToyStoryScriptSaveParam,
-    task_id: str = Path(description='Story script generation task ID'),
-) -> ResponseSchemaModel[GetScriptDetail]:
-    data = await huoshan_voice_service.save_toy_story_script(db=db, task_id=task_id, obj=obj)
-    return response_base.success(data=GetScriptDetail.model_validate(data))
 
 
 @router.post(
