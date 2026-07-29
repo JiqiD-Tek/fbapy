@@ -114,7 +114,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
             {'id': 'S_AKcK2x2X1', 'name': '珍居'},
             {'id': 'S_zKcK2x2X1', 'name': '凯叔'},
-            {'id': 'S_yKcK2x2X1', 'name': '成男温柔'},
+            {'id': 'S_yKcK2x2X1', 'name': '英文童声中性'},
             {'id': 'S_xKcK2x2X1', 'name': '成女温柔'},
             {'id': 'S_FKcK2x2X1', 'name': '成女活泼'},
         ]),
