@@ -133,6 +133,8 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_ZaTgyDOZ1', 'name': '旁白男'},
             {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
             {'id': 'S_J6luyDOZ1', 'name': '童英'},
+            {'id': 'S_r5toyDOZ1', 'name': '男孩设计'},
+            {'id': 'S_7tAjyDOZ1', 'name': '童音男'},
         ]),
     ),
 )
