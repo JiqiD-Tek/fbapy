@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from backend.common.schema import SchemaBase
 
@@ -52,6 +52,7 @@ class HuoshanVoiceListParam(HuoshanSchemaBase):
 class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
     toy_ids: list[int] = Field(min_length=1, max_length=10, description='Toy ID list')
     text: str = Field(min_length=1, max_length=2000, description='Story requirement from the user')
+    c_toy_id: int | None = Field(None, gt=0, description='C-position toy ID, null means no designated center toy')
 
     @field_validator('toy_ids')
     @classmethod
@@ -62,6 +63,12 @@ class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
     @classmethod
     def strip_text(cls, value: Any) -> Any:
         return _strip_required_text(value)
+
+    @model_validator(mode='after')
+    def validate_c_toy_id(self) -> 'HuoshanToyStoryScriptParam':
+        if self.c_toy_id is not None and self.c_toy_id not in self.toy_ids:
+            raise ValueError('c_toy_id must be included in toy_ids')
+        return self
 
 
 class HuoshanStorySynthesisParam(HuoshanSchemaBase):
@@ -112,6 +119,7 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     task_id: str = Field(description='Story script generation task ID')
     toy_ids: list[int] = Field(description='Requested toy IDs')
     text: str = Field(description='Story requirement from the user')
+    c_toy_id: int | None = Field(None, gt=0, description='Designated C-position toy ID')
     model: str = Field(description='Model name')
     toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='Generated script lines')

@@ -97,6 +97,7 @@ class HuoshanVoiceService:
         '不要写“科学家的我”“歌手的我”“冒险家的我”这类人设标签式表达，也不要用“某某的我”作为台词开头。'
         '只需要纯台词文本，不要加入“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示。'
         '不要写“哼唱”“接唱”“合唱”“收尾”这类表演说明，也不要用引号包裹整句台词。'
+        '如果指定了C位玩偶，该玩偶要承担更多关键推进、核心情绪表达和收束作用，但其他玩偶仍需自然参与。'
         '如果用户要求“无C位”或“玩偶均衡”，各玩偶的出场和台词量要尽量均衡。'
         '除非用户另有要求，整体控制在 15 到 25 行。如果用户明确要求行数范围，必须优先严格满足。'
         '不要输出 Markdown，不要输出标题、说明、序号或 JSON。'
@@ -246,12 +247,21 @@ class HuoshanVoiceService:
             *,
             toys: list[HuoshanToyStoryToyInfo],
             text: str,
+            c_toy_id: int | None,
     ) -> str:
+        """ 玩偶 AI-创作 """
         toy_payload = json.dumps([
             {'toy_id': toy.toy_id, 'name': toy.name, 'summary': toy.summary} for toy in toys
         ], ensure_ascii=False)
+        center_prompt = (
+            f'本次指定的 C 位玩偶是 [{c_toy_id}]，请让该玩偶承担更多关键推进、核心情绪表达和结尾收束台词，'
+            '但不要让其他玩偶完全边缘化。\n\n'
+            if c_toy_id is not None
+            else '本次未指定 C 位玩偶，请按正常群像互动创作；如果用户要求无 C 位或均衡分配，请优先满足。\n\n'
+        )
         return (
             f'可用玩偶如下：\n{toy_payload}\n\n'
+            f'{center_prompt}'
             f'用户要求如下：\n{text}\n\n'
             '请基于以上玩偶设定和用户要求，创作一个完整的小故事对话。'
             '要求如下：'
@@ -263,8 +273,9 @@ class HuoshanVoiceService:
             '6. 只输出纯台词，不要加“（轻声）”“（大声接）”“（欢快收尾）”这类括号提示，不要写哼唱、接唱、合唱等表演说明。不要用引号包裹整句台词。'
             '7. 默认控制在 20 到 30 条 content 之间，句子自然、口语化、顺口。'
             '8. 故事要有起承转合，结尾要完整，不要突然结束。'
-            '9. 如果要求无C位或玩偶均衡，请尽量平均分配普通玩偶的台词；如果存在旁白，旁白单独统计，不参与普通玩偶的均衡分配。'
-            '10. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
+            '9. 如果指定了 C 位玩偶，请让该玩偶承担更多关键推进和收束台词，但整体互动仍要自然。'
+            '10. 如果要求无C位或玩偶均衡，请尽量平均分配普通玩偶的台词；如果存在旁白，旁白单独统计，不参与普通玩偶的均衡分配。'
+            '11. 不要输出标题、旁白说明、序号、Markdown 或任何额外内容。'
             '输出示例：\n'
             '[1]今天的风好轻呀，我们一起去看看山那边发生了什么吧。'
         )
@@ -709,7 +720,11 @@ class HuoshanVoiceService:
                     [
                         {'role': 'system', 'content': self.TOY_STORY_SCRIPT_SYSTEM_PROMPT},
                         {'role': 'user',
-                         'content': self._build_toy_story_script_prompt(toys=list(result.toys), text=result.text)},
+                         'content': self._build_toy_story_script_prompt(
+                             toys=list(result.toys),
+                             text=result.text,
+                             c_toy_id=result.c_toy_id,
+                         )},
                     ],
                     model_name=result.model,
                     reasoning_effort='minimal',
@@ -877,6 +892,7 @@ class HuoshanVoiceService:
             task_id=uuid.uuid4().hex,
             toy_ids=list(obj.toy_ids),
             text=obj.text,
+            c_toy_id=obj.c_toy_id,
             model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
