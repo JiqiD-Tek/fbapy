@@ -114,9 +114,9 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
             {'id': 'S_AKcK2x2X1', 'name': '珍居'},
             {'id': 'S_zKcK2x2X1', 'name': '凯叔'},
-            {'id': 'S_yKcK2x2X1', 'name': '英文童声中性'},
             {'id': 'S_xKcK2x2X1', 'name': '成女温柔'},
             {'id': 'S_FKcK2x2X1', 'name': '成女活泼'},
+            {'id': 'S_yKcK2x2X1', 'name': '英文童声中性'},
         ]),
     ),
     _build_project(
@@ -124,7 +124,6 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.JS61_BYTES_TTS_APPID,
         access_token=settings.JS61_BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
-            {'id': 'S_7V2ryDOZ1', 'name': '比格（男童）'},
             {'id': 'S_RCrqyDOZ1', 'name': '方厚鑫'},
             {'id': 'S_fz5jyDOZ1', 'name': '英文男成'},
             {'id': 'S_jBziyDOZ1', 'name': '英文女成'},
@@ -135,6 +134,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_J6luyDOZ1', 'name': '童英'},
             {'id': 'S_r5toyDOZ1', 'name': '男孩设计'},
             {'id': 'S_7tAjyDOZ1', 'name': '童音男'},
+            {'id': 'S_7V2ryDOZ1', 'name': '比格（男童）'},
         ]),
     ),
 )

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-HUOSHAN_OPENAPI_CONTENT_TYPE = 'application/json; charset=utf-8'
 HUOSHAN_TTS_JSON_CONTENT_TYPE = 'application/json; charset=utf-8'
 
 
