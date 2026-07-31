@@ -124,7 +124,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.JS61_BYTES_TTS_APPID,
         access_token=settings.JS61_BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
-            {'id': 'S_7V2ryDOZ1', 'name': '汤普森爸爸'},
+            {'id': 'S_7V2ryDOZ1', 'name': '比格（男童）'},
             {'id': 'S_RCrqyDOZ1', 'name': '方厚鑫'},
             {'id': 'S_fz5jyDOZ1', 'name': '英文男成'},
             {'id': 'S_jBziyDOZ1', 'name': '英文女成'},
