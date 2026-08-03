@@ -99,6 +99,7 @@ class HuoshanToyStoryScriptLine(HuoshanSchemaBase):
     toy_id: int = Field(gt=0, description='Toy ID')
     text: str = Field(min_length=1, description='Story line content')
     tts_token: str | None = Field(None, description='TTS token for direct playback')
+    tts_status: bool = Field(False, description='Whether TTS audio has been submitted')
 
     @field_validator('text', mode='before')
     @classmethod

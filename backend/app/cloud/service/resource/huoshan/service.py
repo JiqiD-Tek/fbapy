@@ -411,7 +411,10 @@ class HuoshanVoiceService:
         for index, normalized_line in enumerate(normalized_lines):
             current_line = lines[index] if index < len(lines) else None
             if current_line is not None and current_line.toy_id == normalized_line.toy_id:
-                normalized_line = normalized_line.model_copy(update={'tts_token': current_line.tts_token}, deep=True)
+                normalized_line = normalized_line.model_copy(update={
+                    'tts_token': current_line.tts_token,
+                    'tts_status': current_line.tts_status,
+                }, deep=True)
             result_lines.append(normalized_line)
 
         return result_lines
@@ -549,7 +552,7 @@ class HuoshanVoiceService:
             raise errors.GatewayError(msg='Failed to save Huoshan toy story script task result') from exc
 
     @classmethod
-    async def _get_toy_story_script_task_result(cls, task_id: str) -> HuoshanToyStoryScriptResult:
+    async def get_toy_story_script(cls, task_id: str) -> HuoshanToyStoryScriptResult:
         try:
             payload_raw = await redis_client.get(cls._toy_story_script_task_key(task_id))
         except Exception as exc:
@@ -686,39 +689,15 @@ class HuoshanVoiceService:
         result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
 
-    @staticmethod
-    async def _process_toy_story_script_tts_queue(
-            queue: 'asyncio.Queue[tuple[str, HuoshanStreamTTSParam] | None]',
-    ) -> None:
-        while True:
-            queue_item = await queue.get()
-            if queue_item is None:
-                return
-
-            request_id, tts_param = queue_item
-            await tts_stream_service.query_and_wait(obj=tts_param, request_id=request_id)
-
     async def _process_toy_story_script(
             self,
             task_id: str,
     ) -> HuoshanToyStoryScriptResult:
-        result = await self._get_toy_story_script_task_result(task_id)
+        result = await self.get_toy_story_script(task_id)
         allowed_toy_ids = set(result.toy_ids)
         toy_map = {toy.toy_id: toy for toy in result.toys}
         buffer = ''
         lines = list(result.lines)
-
-        tts_queue: asyncio.Queue[tuple[str, HuoshanStreamTTSParam] | None] = asyncio.Queue()
-        tts_worker = asyncio.create_task(
-            self._process_toy_story_script_tts_queue(tts_queue),
-            name=f'huoshan-story-script-tts-{task_id}',
-        )
-
-        async def _cancel_tts_worker() -> None:
-            if not tts_worker.done():
-                tts_worker.cancel()
-            with suppress(Exception, asyncio.CancelledError):
-                await tts_worker
 
         async def _process_line(_line: HuoshanToyStoryScriptLine) -> None:
             toy = toy_map.get(_line.toy_id)
@@ -726,14 +705,6 @@ class HuoshanVoiceService:
                 raise errors.GatewayError(msg=f'Toy info is missing for toy_id={_line.toy_id}')
             request_id = await tts_cache.create_new_request()
             lines.append(_line.model_copy(update={'tts_token': request_id}, deep=True))
-            tts_queue.put_nowait(
-                (
-                    request_id,
-                    HuoshanStreamTTSParam(
-                        text=_line.text, speaker=toy.speaker, speech_rate=0, loudness_rate=0,
-                    ),
-                )
-            )
 
         try:
             async for chunk in doubao_provider.stream_chat(
@@ -766,18 +737,12 @@ class HuoshanVoiceService:
                 result = result.model_copy(update={'lines': list(lines)}, deep=True)
                 await self._save_toy_story_script_task_result(result)
 
-            tts_queue.put_nowait(None)
-            await tts_worker
             result = result.model_copy(update={
                 'is_completed': True,
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
             }, deep=True)
             await self._save_toy_story_script_task_result(result)
-            asyncio.create_task(
-                self._auto_save_toy_story_script(task_id=task_id),
-                name=f'huoshan-story-script-save-{task_id}',
-            )
             log.info(
                 f'Huoshan toy story script generation completed: task_id={task_id}, toy_ids={result.toy_ids}, '
                 f'text={result.text!r}'
@@ -785,7 +750,6 @@ class HuoshanVoiceService:
             return result
         except asyncio.CancelledError:
             log.warning(f'Huoshan toy story script generation cancelled: task_id={task_id}')
-            await _cancel_tts_worker()
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': 'cancelled',
@@ -794,7 +758,6 @@ class HuoshanVoiceService:
             raise
         except Exception as exc:
             log.error(f'Huoshan toy story script generation failed: task_id={task_id}, error={exc!r}')
-            await _cancel_tts_worker()
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),
@@ -929,11 +892,32 @@ class HuoshanVoiceService:
         )
         return task_result
 
-    async def get_toy_story_script(self, *, task_id: str, user_id: int) -> HuoshanToyStoryScriptResult:
-        result = await self._get_toy_story_script_task_result(task_id)
-        if result.owner_id != user_id:
-            raise errors.NotFoundError(msg=f'Huoshan toy story script task not found, task_id={result.task_id}')
-        return result
+    async def submit_tts_task(self, *, task_id: str, token: str) -> None:
+        result = await self.get_toy_story_script(task_id=task_id)
+        toy_map = {toy.toy_id: toy for toy in result.toys}
+        for index, line in enumerate(result.lines):
+            request_id = str(line.tts_token or '').strip()
+            if not request_id:
+                raise errors.GatewayError(
+                    msg=f'Toy story script line is missing tts_token, task_id={result.task_id}, toy_id={line.toy_id}'
+                )
+            if request_id != token:
+                continue
+
+            toy = toy_map.get(line.toy_id)
+            if toy is None:
+                raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
+
+            if line.tts_status:
+                return
+
+            updated_lines = list(result.lines)
+            updated_lines[index] = line.model_copy(update={'tts_status': True}, deep=True)
+            result = result.model_copy(update={'lines': updated_lines}, deep=True)
+            await self._save_toy_story_script_task_result(result)
+
+            obj = HuoshanStreamTTSParam(text=line.text, speaker=toy.speaker, speech_rate=0, loudness_rate=0)
+            await tts_stream_service.query(obj=obj, request_id=request_id)
 
     @staticmethod
     async def _build_toy_story_script_content(result: HuoshanToyStoryScriptResult) -> list[ScriptLine]:
@@ -949,12 +933,12 @@ class HuoshanVoiceService:
             content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=download_url))
         return content
 
-    async def _auto_save_toy_story_script(
+    async def save_toy_story_script(
             self,
             *,
             task_id: str,
     ) -> None:
-        result = await self._get_toy_story_script_task_result(task_id)
+        result = await self.get_toy_story_script(task_id)
 
         try:
             async with async_db_session() as db:

@@ -12,6 +12,9 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanRoleStoryScriptTaskResult,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
+    HuoshanToyStoryScriptLine,
+    HuoshanToyStoryScriptResult,
+    HuoshanToyStoryToyInfo,
 )
 from backend.app.cloud.service.resource.huoshan import service as huoshan_service_module
 from backend.app.cloud.service.resource.huoshan.service import HuoshanVoiceService
@@ -268,3 +271,178 @@ def test_finalize_story_synthesis_without_bgm_skips_mix(monkeypatch: pytest.Monk
     assert captured['upload_data'] == b'speech-audio'
     assert result.is_completed is True
     assert result.download_url == 'https://example.com/final.mp3'
+
+
+def test_submit_tts_task_submits_and_updates_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    service = HuoshanVoiceService()
+    task_result = HuoshanToyStoryScriptResult(
+        task_id='task-1',
+        toy_ids=[1],
+        text='story',
+        c_toy_id=None,
+        model=DEFAULT_DOUBAO_LITE_MODEL,
+        toys=[
+            HuoshanToyStoryToyInfo(
+                toy_id=1,
+                name='Fox',
+                summary='Curious',
+                system_prompt='Bright',
+                speaker='speaker-1',
+                voice_name='voice-1',
+            )
+        ],
+        lines=[
+            HuoshanToyStoryScriptLine(
+                toy_id=1,
+                text='Hello there',
+                tts_token='tts_1',
+                tts_status=False,
+            )
+        ],
+        owner_id=7,
+        is_completed=True,
+        task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
+        error_message=None,
+    )
+
+    async def get_task_stub(*, task_id: str, user_id: int) -> HuoshanToyStoryScriptResult:
+        captured['task_id'] = task_id
+        captured['user_id'] = user_id
+        return task_result
+
+    async def save_stub(result: HuoshanToyStoryScriptResult) -> None:
+        captured['saved_result'] = result
+
+    async def query_stub(*, obj, request_id: str):
+        captured['query_obj'] = obj
+        captured['query_request_id'] = request_id
+
+    monkeypatch.setattr(service, 'get_toy_story_script', get_task_stub)
+    monkeypatch.setattr(service, '_save_toy_story_script_task_result', save_stub)
+    monkeypatch.setattr(service, '_tts_cache_has_audio', lambda request_id: False)
+    monkeypatch.setattr(service, '_is_tts_task_running', lambda request_id: False)
+    monkeypatch.setattr(service, '_ensure_tts_request_queue', lambda request_id: captured.setdefault('ensured_request_id', request_id))
+    monkeypatch.setattr(huoshan_service_module.tts_stream_service, 'query', query_stub)
+
+    asyncio.run(service.submit_tts_task(task_id='task-1', token='tts_1', user_id=7))
+
+    assert captured['task_id'] == 'task-1'
+    assert captured['user_id'] == 7
+    assert captured['ensured_request_id'] == 'tts_1'
+    assert captured['query_request_id'] == 'tts_1'
+    assert captured['query_obj'].text == 'Hello there'
+    assert captured['query_obj'].speaker == 'speaker-1'
+    saved_result = captured['saved_result']
+    assert isinstance(saved_result, HuoshanToyStoryScriptResult)
+    assert saved_result.lines[0].tts_status is True
+
+
+def test_submit_tts_task_marks_status_when_audio_already_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    service = HuoshanVoiceService()
+    task_result = HuoshanToyStoryScriptResult(
+        task_id='task-1',
+        toy_ids=[1],
+        text='story',
+        c_toy_id=None,
+        model=DEFAULT_DOUBAO_LITE_MODEL,
+        toys=[
+            HuoshanToyStoryToyInfo(
+                toy_id=1,
+                name='Fox',
+                summary='Curious',
+                system_prompt='Bright',
+                speaker='speaker-1',
+                voice_name='voice-1',
+            )
+        ],
+        lines=[
+            HuoshanToyStoryScriptLine(
+                toy_id=1,
+                text='Hello there',
+                tts_token='tts_1',
+                tts_status=False,
+            )
+        ],
+        owner_id=7,
+        is_completed=True,
+        task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
+        error_message=None,
+    )
+
+    async def get_task_stub(*, task_id: str, user_id: int) -> HuoshanToyStoryScriptResult:
+        return task_result
+
+    async def save_stub(result: HuoshanToyStoryScriptResult) -> None:
+        captured['saved_result'] = result
+
+    async def query_stub(*, obj, request_id: str):
+        raise AssertionError('should not submit tts when audio is already cached')
+
+    monkeypatch.setattr(service, 'get_toy_story_script', get_task_stub)
+    monkeypatch.setattr(service, '_save_toy_story_script_task_result', save_stub)
+    monkeypatch.setattr(service, '_tts_cache_has_audio', lambda request_id: True)
+    monkeypatch.setattr(service, '_is_tts_task_running', lambda request_id: False)
+    monkeypatch.setattr(service, '_ensure_tts_request_queue', lambda request_id: (_ for _ in ()).throw(AssertionError('should not reset queue')))
+    monkeypatch.setattr(huoshan_service_module.tts_stream_service, 'query', query_stub)
+
+    asyncio.run(service.submit_tts_task(task_id='task-1', token='tts_1', user_id=7))
+
+    saved_result = captured['saved_result']
+    assert isinstance(saved_result, HuoshanToyStoryScriptResult)
+    assert saved_result.lines[0].tts_status is True
+
+
+def test_submit_tts_task_resubmits_when_status_true_but_audio_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    service = HuoshanVoiceService()
+    task_result = HuoshanToyStoryScriptResult(
+        task_id='task-1',
+        toy_ids=[1],
+        text='story',
+        c_toy_id=None,
+        model=DEFAULT_DOUBAO_LITE_MODEL,
+        toys=[
+            HuoshanToyStoryToyInfo(
+                toy_id=1,
+                name='Fox',
+                summary='Curious',
+                system_prompt='Bright',
+                speaker='speaker-1',
+                voice_name='voice-1',
+            )
+        ],
+        lines=[
+            HuoshanToyStoryScriptLine(
+                toy_id=1,
+                text='Hello there',
+                tts_token='tts_1',
+                tts_status=True,
+            )
+        ],
+        owner_id=7,
+        is_completed=True,
+        task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
+        error_message=None,
+    )
+
+    async def get_task_stub(*, task_id: str, user_id: int) -> HuoshanToyStoryScriptResult:
+        return task_result
+
+    async def query_stub(*, obj, request_id: str):
+        captured['query_request_id'] = request_id
+        captured['query_obj'] = obj
+
+    monkeypatch.setattr(service, 'get_toy_story_script', get_task_stub)
+    monkeypatch.setattr(service, '_tts_cache_has_audio', lambda request_id: False)
+    monkeypatch.setattr(service, '_is_tts_task_running', lambda request_id: False)
+    monkeypatch.setattr(service, '_ensure_tts_request_queue', lambda request_id: captured.setdefault('ensured_request_id', request_id))
+    monkeypatch.setattr(service, '_save_toy_story_script_task_result', lambda result: (_ for _ in ()).throw(AssertionError('should not resave unchanged status')))
+    monkeypatch.setattr(huoshan_service_module.tts_stream_service, 'query', query_stub)
+
+    asyncio.run(service.submit_tts_task(task_id='task-1', token='tts_1', user_id=7))
+
+    assert captured['ensured_request_id'] == 'tts_1'
+    assert captured['query_request_id'] == 'tts_1'
+    assert captured['query_obj'].speaker == 'speaker-1'

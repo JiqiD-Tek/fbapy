@@ -29,7 +29,7 @@ from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_ser
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
-from backend.common.response.response_schema import ResponseSchemaModel, response_base
+from backend.common.response.response_schema import ResponseSchemaModel, response_base, ResponseModel
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession
 
@@ -59,7 +59,7 @@ async def list_huoshan_public_voices() -> ResponseSchemaModel[list[HuoshanPublic
     response_model_by_alias=False,
 )
 async def list_clone_huoshan_voice_statuses(
-    obj: HuoshanVoiceListParam,
+        obj: HuoshanVoiceListParam,
 ) -> ResponseSchemaModel[list[HuoshanVoiceStatus]]:
     data = await huoshan_voice_service.list_clone_voice_statuses(obj)
     return response_base.success(data=data)
@@ -72,26 +72,52 @@ async def list_clone_huoshan_voice_statuses(
     dependencies=[DependsJwtAuth],
 )
 async def submit_huoshan_toy_story_script(
-    request: Request,
-    db: CurrentSession,
-    obj: HuoshanToyStoryScriptParam,
+        request: Request,
+        db: CurrentSession,
+        obj: HuoshanToyStoryScriptParam,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
     data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, user_id=request.user.id)
     return response_base.success(data=data)
 
 
 @router.get(
-    '/stories/script/{task_id}',
+    '/stories/script',
     summary='Query toy-based story script generation task status',
     response_model_by_alias=False,
     dependencies=[DependsJwtAuth],
 )
 async def get_huoshan_toy_story_script(
-    request: Request,
-    task_id: str = Path(description='Story script generation task ID'),
+        task_id: Annotated[str, Query(description='Story script generation task ID')],
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    data = await huoshan_voice_service.get_toy_story_script(task_id=task_id, user_id=request.user.id)
+    data = await huoshan_voice_service.get_toy_story_script(task_id=task_id)
     return response_base.success(data=data)
+
+
+@router.get(
+    '/stories/script/tts',
+    summary='Query toy-based story script generation task tts',
+    response_model_by_alias=False,
+    dependencies=[DependsJwtAuth],
+)
+async def get_huoshan_toy_story_tts(
+        task_id: Annotated[str, Query(description='Story script generation task ID')],
+        token: Annotated[str, Query(description='TTS token, usually request_id')],
+):
+    await huoshan_voice_service.submit_tts_task(task_id=task_id, token=token)
+    return await _generate_mp3_response(token)
+
+
+@router.get(
+    '/stories/script/save',
+    summary='Save toy-based story script',
+    response_model_by_alias=False,
+    dependencies=[DependsJwtAuth],
+)
+async def get_huoshan_toy_story_tts(
+        task_id: Annotated[str, Query(description='Story script generation task ID')],
+) -> ResponseModel:
+    await huoshan_voice_service.save_toy_story_script(task_id=task_id)
+    return response_base.success()
 
 
 @router.post(
@@ -100,7 +126,7 @@ async def get_huoshan_toy_story_script(
     response_model_by_alias=False,
 )
 async def generate_huoshan_story(
-    obj: HuoshanStoryGenerateParam,
+        obj: HuoshanStoryGenerateParam,
 ) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
     data = await huoshan_voice_service.submit_story_generation(obj)
     return response_base.success(data=data)
@@ -112,7 +138,7 @@ async def generate_huoshan_story(
     response_model_by_alias=False,
 )
 async def get_huoshan_story_generation(
-    task_id: str = Path(description='Story generation task ID'),
+        task_id: str = Path(description='Story generation task ID'),
 ) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
     data = await huoshan_voice_service.get_story_generation(task_id=task_id)
     return response_base.success(data=data)
@@ -124,8 +150,8 @@ async def get_huoshan_story_generation(
     response_model_by_alias=False,
 )
 async def synthesize_huoshan_story(
-    db: CurrentSession,
-    obj: HuoshanStorySynthesisParam,
+        db: CurrentSession,
+        obj: HuoshanStorySynthesisParam,
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.synthesize_story(db=db, obj=obj)
     return response_base.success(data=data)
@@ -137,7 +163,7 @@ async def synthesize_huoshan_story(
     response_model_by_alias=False,
 )
 async def get_huoshan_story_synthesis(
-    task_id: str = Path(description='Huoshan task ID'),
+        task_id: str = Path(description='Huoshan task ID'),
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.get_story_synthesis(task_id=task_id)
     return response_base.success(data=data)
@@ -149,7 +175,7 @@ async def get_huoshan_story_synthesis(
     response_model_by_alias=False,
 )
 async def submit_huoshan_stream_tts(
-    obj: HuoshanStreamTTSParam,
+        obj: HuoshanStreamTTSParam,
 ) -> ResponseSchemaModel[HuoshanStreamTTSResult]:
     data = await tts_stream_service.submit(obj)
     return response_base.success(data=data)
@@ -157,8 +183,8 @@ async def submit_huoshan_stream_tts(
 
 @router.get('/tts', summary='Get TTS audio', description='Get TTS audio')
 async def tts(
-    token: Annotated[str, Query(description='TTS token, usually request_id')],
-    type: Annotated[str, Query(description='Audio format, mp3 or wav')] = 'mp3',
+        token: Annotated[str, Query(description='TTS token, usually request_id')],
+        type: Annotated[str, Query(description='Audio format, mp3 or wav')] = 'mp3',
 ):
     if not token:
         raise KeyError('Invalid TTS token')
@@ -193,9 +219,9 @@ async def _generate_mp3_response(request_id: str) -> StreamingResponse:
 
 async def _generate_wav_response(request_id: str) -> StreamingResponse:
     def generate_wav_header(
-        sample_rate: int = 24000,
-        channels: int = 1,
-        bit_depth: int = 16,
+            sample_rate: int = 24000,
+            channels: int = 1,
+            bit_depth: int = 16,
     ) -> bytes:
         byte_rate = sample_rate * channels * bit_depth // 8
         block_align = channels * bit_depth // 8
