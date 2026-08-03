@@ -529,7 +529,7 @@ class HuoshanVoiceService:
             raise errors.GatewayError(msg='Failed to save Huoshan story generation task result') from exc
 
     @classmethod
-    async def _get_story_generate_task_result(cls, task_id: str) -> HuoshanStoryGenerateResult:
+    async def get_story_generation(cls, task_id: str) -> HuoshanStoryGenerateResult:
         try:
             payload_raw = await redis_client.get(cls._story_generate_task_key(task_id))
         except Exception as exc:
@@ -743,6 +743,10 @@ class HuoshanVoiceService:
                 'error_message': None,
             }, deep=True)
             await self._save_toy_story_script_task_result(result)
+            asyncio.create_task(
+                self._save_toy_story_script(task_id=task_id),
+                name=f'huoshan-story-script-save-{task_id}',
+            )
             log.info(
                 f'Huoshan toy story script generation completed: task_id={task_id}, toy_ids={result.toy_ids}, '
                 f'text={result.text!r}'
@@ -793,7 +797,7 @@ class HuoshanVoiceService:
         return story_content
 
     async def _process_story_generation(self, task_id: str) -> HuoshanStoryGenerateResult:
-        result = await self._get_story_generate_task_result(task_id)
+        result = await self.get_story_generation(task_id)
         client: AsyncOpenAI | None = None
 
         try:
@@ -839,15 +843,11 @@ class HuoshanVoiceService:
         log.info(f'Huoshan story generation submitted: task_id={result.task_id}, topic={result.topic!r}')
         return result
 
-    async def get_story_generation(self, *, task_id: str) -> HuoshanStoryGenerateResult:
-        return await self._get_story_generate_task_result(task_id)
-
     async def submit_toy_story_script(
             self,
             *,
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
-            user_id: int,
     ) -> HuoshanToyStoryScriptResult:
         toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
@@ -879,7 +879,7 @@ class HuoshanVoiceService:
             model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
-            owner_id=user_id,
+            device_id=0,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
@@ -929,11 +929,11 @@ class HuoshanVoiceService:
                     msg=f'Toy story script line is missing tts_token, task_id={result.task_id}, toy_id={line.toy_id}'
                 )
 
-            download_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
-            content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=download_url))
+            # download_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
+            content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=None))
         return content
 
-    async def save_toy_story_script(
+    async def _save_toy_story_script(
             self,
             *,
             task_id: str,
@@ -953,7 +953,7 @@ class HuoshanVoiceService:
                             author=None,
                             toy_ids=list(result.toy_ids),
                             content=content,
-                            owner_id=result.owner_id,
+                            device_id=result.device_id,
                             status=0,
                             remark=None,
                         ),

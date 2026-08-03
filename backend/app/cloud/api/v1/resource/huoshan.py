@@ -72,11 +72,10 @@ async def list_clone_huoshan_voice_statuses(
     dependencies=[DependsJwtAuth],
 )
 async def submit_huoshan_toy_story_script(
-        request: Request,
         db: CurrentSession,
         obj: HuoshanToyStoryScriptParam,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, user_id=request.user.id)
+    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj)
     return response_base.success(data=data)
 
 
@@ -105,19 +104,6 @@ async def get_huoshan_toy_story_tts(
 ):
     await huoshan_voice_service.submit_tts_task(task_id=task_id, token=token)
     return await _generate_mp3_response(token)
-
-
-@router.get(
-    '/stories/script/save',
-    summary='Save toy-based story script',
-    response_model_by_alias=False,
-    dependencies=[DependsJwtAuth],
-)
-async def get_huoshan_toy_story_tts(
-        task_id: Annotated[str, Query(description='Story script generation task ID')],
-) -> ResponseModel:
-    await huoshan_voice_service.save_toy_story_script(task_id=task_id)
-    return response_base.success()
 
 
 @router.post(

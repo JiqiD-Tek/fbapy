@@ -124,7 +124,7 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     model: str = Field(description='Model name')
     toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='Cached toy snapshot')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='Generated script lines')
-    owner_id: int = Field(ge=1, description='Task owner user ID')
+    device_id: int = Field(ge=1, description='Task owner device ID')
     is_completed: bool = Field(description='Whether story script generation is completed')
     task_status: int = Field(description='Task status')
     error_message: str | None = Field(None, description='Task error message')

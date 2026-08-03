@@ -300,7 +300,7 @@ def test_submit_tts_task_submits_and_updates_status(monkeypatch: pytest.MonkeyPa
                 tts_status=False,
             )
         ],
-        owner_id=7,
+        device_id=7,
         is_completed=True,
         task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
         error_message=None,
@@ -365,7 +365,7 @@ def test_submit_tts_task_marks_status_when_audio_already_cached(monkeypatch: pyt
                 tts_status=False,
             )
         ],
-        owner_id=7,
+        device_id=7,
         is_completed=True,
         task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
         error_message=None,
@@ -421,7 +421,7 @@ def test_submit_tts_task_resubmits_when_status_true_but_audio_missing(monkeypatc
                 tts_status=True,
             )
         ],
-        owner_id=7,
+        device_id=7,
         is_completed=True,
         task_status=huoshan_service_module.STORY_TASK_STATUS_COMPLETED,
         error_message=None,
