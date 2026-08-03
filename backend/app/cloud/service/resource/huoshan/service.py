@@ -569,8 +569,8 @@ class HuoshanVoiceService:
                 raise
 
             result_payload = payload.get('result') or {}
-            if isinstance(result_payload, dict) and payload.get('owner_id') is not None:
-                result_payload = {**result_payload, 'owner_id': payload.get('owner_id')}
+            if isinstance(result_payload, dict) and payload.get('device_id') is not None:
+                result_payload = {**result_payload, 'device_id': payload.get('device_id')}
             result = HuoshanToyStoryScriptResult.model_validate(result_payload)
 
         return cls._normalize_toy_story_script_result(result)
@@ -848,6 +848,7 @@ class HuoshanVoiceService:
             *,
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
+            device_id: int = 0,
     ) -> HuoshanToyStoryScriptResult:
         toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
@@ -888,7 +889,7 @@ class HuoshanVoiceService:
         self._start_toy_story_script_processing(task_result.task_id)
         log.info(
             f'Huoshan toy story script generation submitted: task_id={task_result.task_id}, '
-            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}, user_id={user_id}'
+            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}, device_id={device_id}'
         )
         return task_result
 
