@@ -3,6 +3,7 @@
 Cloud script service.
 """
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.cloud.crud.resource.crud_script import cloud_script_dao
 from backend.app.cloud.model import CloudScript
 from backend.app.cloud.model.m2m import user_device
+from backend.app.cloud.schema.resource.huoshan import HuoshanStreamTTSParam
 from backend.app.cloud.schema.resource.script import (
     CreateScriptParam,
     ScriptAICreateParam,
@@ -20,10 +22,14 @@ from backend.app.cloud.schema.resource.script import (
     UpdateScriptFavoriteParam,
     UpdateScriptParam,
 )
+from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
+from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
+from backend.app.cloud.service.toy_service import toy_service
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.pagination import paging_data
 from backend.common.providers.doubao import DEFAULT_DOUBAO_MINI_MODEL, doubao_provider
+from backend.database.db import async_db_session
 
 
 class CloudScriptService:
@@ -39,6 +45,9 @@ class CloudScriptService:
         '不要输出 Markdown，不要输出代码块，不要输出 JSON 以外的任何内容。'
     )
     SCRIPT_AI_CREATE_CODE_BLOCK_RE = re.compile(r'^```(?:json)?\s*([\s\S]*?)\s*```$', re.IGNORECASE)
+
+    def __init__(self) -> None:
+        self._script_audio_tasks: dict[int, asyncio.Task[None]] = {}
 
     @staticmethod
     async def get_script(*, db: AsyncSession, pk: int) -> CloudScript:
@@ -162,10 +171,109 @@ class CloudScriptService:
             raise errors.RequestError(msg='Script does not belong to current device')
 
         current_favorite = int(script.favorite or 0)
-        if current_favorite == obj.favorite:
+        needs_audio_generation = obj.favorite == 1 and self._has_missing_audio(script.content)
+        if current_favorite == obj.favorite and not needs_audio_generation:
             return 1
 
-        return await cloud_script_dao.update(db, pk, {'favorite': obj.favorite})
+        count = await cloud_script_dao.update(db, pk, {'favorite': obj.favorite})
+        if needs_audio_generation:
+            self._start_script_audio_generation(script_id=pk)
+        return count or 1
+
+    @staticmethod
+    def _has_missing_audio(content: list[dict[str, Any]] | None) -> bool:
+        for line in content or []:
+            if not isinstance(line, dict):
+                continue
+            if not str(line.get('audio_url') or '').strip():
+                return True
+        return False
+
+    def _start_script_audio_generation(self, *, script_id: int) -> None:
+        current_task = self._script_audio_tasks.get(script_id)
+        if current_task is not None and not current_task.done():
+            return
+
+        task = asyncio.create_task(
+            self._process_script_audio_generation(script_id=script_id),
+            name=f'cloud-script-audio-{script_id}',
+        )
+        self._script_audio_tasks[script_id] = task
+
+        def _cleanup(done_task: asyncio.Task[None]) -> None:
+            if self._script_audio_tasks.get(script_id) is done_task:
+                self._script_audio_tasks.pop(script_id, None)
+
+        task.add_done_callback(_cleanup)
+
+    async def _process_script_audio_generation(self, *, script_id: int) -> None:
+        try:
+            # Let the request transaction commit before the detached session reads the row.
+            await asyncio.sleep(0.1)
+            async with async_db_session.begin() as db:
+                script = await cloud_script_dao.get(db, script_id)
+                if script is None:
+                    log.warning(f'Script audio generation skipped: script_id={script_id}, reason=not_found')
+                    return
+                if int(script.favorite or 0) != 1:
+                    log.info(f'Script audio generation skipped: script_id={script_id}, reason=not_favorite')
+                    return
+                if not self._has_missing_audio(script.content):
+                    return
+
+                content = await self._build_script_content_with_audio(db=db, script=script)
+                await cloud_script_dao.update(db, script_id, {'content': content})
+                log.info(f'Script audio generation completed: script_id={script_id}')
+        except asyncio.CancelledError:
+            log.warning(f'Script audio generation cancelled: script_id={script_id}')
+            raise
+        except Exception as exc:
+            log.error(f'Script audio generation failed: script_id={script_id}, error={exc!r}')
+
+    @staticmethod
+    async def _build_script_content_with_audio(
+            *,
+            db: AsyncSession,
+            script: CloudScript,
+    ) -> list[dict[str, Any]]:
+        lines = [
+            ScriptLine.model_validate(line)
+            for line in (script.content or [])
+        ]
+        missing_audio_lines = [line for line in lines if not str(line.audio_url or '').strip()]
+        if not missing_audio_lines:
+            return [line.model_dump(mode='python') for line in lines]
+
+        toys = await toy_service.get_toys_by_ids(db=db, toy_ids=list(script.toy_ids or []))
+        toy_map = {int(toy.id): toy for toy in toys}
+        completed_lines: list[ScriptLine] = []
+
+        for line in lines:
+            if str(line.audio_url or '').strip():
+                completed_lines.append(line)
+                continue
+
+            toy = toy_map.get(line.toy_id)
+            speaker = str(toy.voice_id or '').strip() if toy is not None else ''
+            if not speaker:
+                raise errors.RequestError(
+                    msg=f'Toy voice_id is required for script TTS, toy_id={line.toy_id}'
+                )
+
+            request_id = await tts_cache.create_new_request()
+            await tts_stream_service.query_and_wait(
+                obj=HuoshanStreamTTSParam(
+                    text=line.text,
+                    speaker=speaker,
+                    speech_rate=0,
+                    loudness_rate=0,
+                ),
+                request_id=request_id,
+            )
+            audio_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
+            completed_lines.append(line.model_copy(update={'audio_url': audio_url}, deep=True))
+
+        return [line.model_dump(mode='python') for line in completed_lines]
 
     @staticmethod
     async def _ensure_user_owns_device(*, db: AsyncSession, user_id: int, device_id: int) -> None:
