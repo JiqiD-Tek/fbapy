@@ -848,7 +848,7 @@ class HuoshanVoiceService:
             *,
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
-            device_id: int = 0,
+            device_id: int = 1,
     ) -> HuoshanToyStoryScriptResult:
         toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
@@ -880,7 +880,7 @@ class HuoshanVoiceService:
             model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
-            device_id=0,
+            device_id=device_id,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
