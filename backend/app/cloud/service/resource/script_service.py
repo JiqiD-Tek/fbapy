@@ -7,14 +7,17 @@ import json
 import re
 from typing import Any
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_script import cloud_script_dao
 from backend.app.cloud.model import CloudScript
+from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.resource.script import (
     CreateScriptParam,
     ScriptAICreateParam,
     ScriptLine,
+    UpdateScriptFavoriteParam,
     UpdateScriptParam,
 )
 from backend.common.exception import errors
@@ -46,15 +49,15 @@ class CloudScriptService:
 
     @staticmethod
     async def get_script_list(
-        *,
-        db: AsyncSession,
-        title: str | None = None,
-        author: str | None = None,
-        status: int | None = None,
-        device_id: int | None = None,
-        favorite: int | None = None,
-        toy_ids: list[int] | None = None,
-        exact_toy_ids: list[int] | None = None,
+            *,
+            db: AsyncSession,
+            title: str | None = None,
+            author: str | None = None,
+            status: int | None = None,
+            device_id: int | None = None,
+            favorite: int | None = None,
+            toy_ids: list[int] | None = None,
+            exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         script_select = await cloud_script_dao.get_select(
             title=title,
@@ -68,19 +71,19 @@ class CloudScriptService:
         return await paging_data(db, script_select)
 
     async def create_script(
-        self,
-        *,
-        db: AsyncSession,
-        obj: CreateScriptParam,
+            self,
+            *,
+            db: AsyncSession,
+            obj: CreateScriptParam,
     ) -> CloudScript:
         if not obj.title.strip():
             raise errors.RequestError(msg='Title cannot be empty')
         return await cloud_script_dao.create(db, obj)
 
     async def ai_create_script_content(
-        self,
-        *,
-        obj: ScriptAICreateParam,
+            self,
+            *,
+            obj: ScriptAICreateParam,
     ) -> list[ScriptLine]:
         toy_ids = [toy.toy_id for toy in obj.toys]
         raw_content = await doubao_provider.chat(
@@ -95,11 +98,11 @@ class CloudScriptService:
         return self._parse_ai_created_script_content(raw_content, toy_ids=toy_ids)
 
     async def update_script(
-        self,
-        *,
-        db: AsyncSession,
-        pk: int,
-        obj: UpdateScriptParam,
+            self,
+            *,
+            db: AsyncSession,
+            pk: int,
+            obj: UpdateScriptParam,
     ) -> int:
         script = await cloud_script_dao.get(db, pk)
         if not script:
@@ -140,6 +143,40 @@ class CloudScriptService:
                 payload['content'] = [line.model_dump(mode='python') for line in validated_script.content]
 
         return await cloud_script_dao.update(db, pk, payload)
+
+    async def update_script_favorite(
+            self,
+            *,
+            db: AsyncSession,
+            user_id: int,
+            pk: int,
+            obj: UpdateScriptFavoriteParam,
+    ) -> int:
+        await self._ensure_user_owns_device(db=db, user_id=user_id, device_id=obj.device_id)
+
+        script = await cloud_script_dao.get(db, pk)
+        if not script:
+            raise errors.NotFoundError(msg='Script does not exist')
+
+        if int(script.device_id or 0) != obj.device_id:
+            raise errors.RequestError(msg='Script does not belong to current device')
+
+        current_favorite = int(script.favorite or 0)
+        if current_favorite == obj.favorite:
+            return 1
+
+        return await cloud_script_dao.update(db, pk, {'favorite': obj.favorite})
+
+    @staticmethod
+    async def _ensure_user_owns_device(*, db: AsyncSession, user_id: int, device_id: int) -> None:
+        stmt = (
+            select(func.count())
+            .select_from(user_device)
+            .where(user_device.c.user_id == user_id, user_device.c.device_id == device_id)
+        )
+        result = await db.execute(stmt)
+        if result.scalar_one() <= 0:
+            raise errors.RequestError(msg='Device does not belong to current user')
 
     async def delete_script(self, *, db: AsyncSession, pk: int) -> int:
         script = await cloud_script_dao.get(db, pk)
@@ -187,10 +224,10 @@ class CloudScriptService:
 
     @classmethod
     def _parse_ai_created_script_content(
-        cls,
-        raw_content: str,
-        *,
-        toy_ids: list[int],
+            cls,
+            raw_content: str,
+            *,
+            toy_ids: list[int],
     ) -> list[ScriptLine]:
         normalized = str(raw_content or '').strip()
         if not normalized:

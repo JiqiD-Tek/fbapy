@@ -30,6 +30,12 @@ def _strip_optional_text(value: Any) -> Any:
     return value
 
 
+def _normalize_favorite_flag(value: Any) -> Any:
+    if value is None:
+        return 0
+    return value
+
+
 def _validate_script_toy_ids(*, toy_ids: list[int], content: list['ScriptLine']) -> None:
     toy_id_set = set(toy_ids)
     content_toy_ids = {line.toy_id for line in content}
@@ -64,8 +70,8 @@ class ScriptSchemaBase(SchemaBase):
     title: str = Field(description='Title')
     toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
     content: list[ScriptLine] = Field(min_length=1, description='Script line content')
-    device_id: int = Field(default=0, description='Device ID, 0 means platform')
-    favorite: int | None = Field(default=0, description='Favorite flag (0 no, 1 yes)')
+    device_id: int = Field(default=0, ge=0, description='Device ID, 0 means platform')
+    favorite: int = Field(default=0, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
     version: int = Field(default=1, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
@@ -78,6 +84,11 @@ class ScriptSchemaBase(SchemaBase):
     def normalize_toy_ids(cls, value: list[int]) -> list[int]:
         return _normalize_toy_ids(value) or []
 
+    @field_validator('favorite', mode='before')
+    @classmethod
+    def normalize_favorite(cls, value: Any) -> Any:
+        return _normalize_favorite_flag(value)
+
     @model_validator(mode='after')
     def validate_toy_ids_content(self) -> 'ScriptSchemaBase':
         _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
@@ -86,6 +97,16 @@ class ScriptSchemaBase(SchemaBase):
 
 class CreateScriptParam(ScriptSchemaBase):
     pass
+
+
+class UpdateScriptFavoriteParam(SchemaBase):
+    device_id: int = Field(gt=0, description='Device ID')
+    favorite: int = Field(ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
+
+    @field_validator('favorite', mode='before')
+    @classmethod
+    def normalize_favorite(cls, value: Any) -> Any:
+        return _normalize_favorite_flag(value)
 
 
 class UpdateScriptParam(SchemaBase):
@@ -105,6 +126,11 @@ class UpdateScriptParam(SchemaBase):
     @classmethod
     def normalize_toy_ids(cls, value: list[int] | None) -> list[int] | None:
         return _normalize_toy_ids(value)
+
+    @field_validator('favorite', mode='before')
+    @classmethod
+    def normalize_favorite(cls, value: Any) -> Any:
+        return _normalize_favorite_flag(value)
 
     @model_validator(mode='after')
     def validate_toy_ids_content(self) -> 'UpdateScriptParam':

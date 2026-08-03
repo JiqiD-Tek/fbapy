@@ -5,13 +5,14 @@ Script resource API.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.resource.script import (
     CreateScriptParam,
     GetScriptDetail,
     ScriptAICreateParam,
     ScriptLine,
+    UpdateScriptFavoriteParam,
     UpdateScriptParam,
 )
 from backend.app.cloud.service.resource.script_service import cloud_script_service
@@ -72,6 +73,24 @@ async def create_script(
 ) -> ResponseSchemaModel[GetScriptDetail]:
     script = await cloud_script_service.create_script(db=db, obj=obj)
     return response_base.success(data=GetScriptDetail.model_validate(script))
+
+
+@router.put('/{pk}/favorite', summary='Update script favorite', dependencies=[DependsJwtAuth])
+async def update_script_favorite(
+    request: Request,
+    db: CurrentSessionTransaction,
+    pk: Annotated[int, Path(description='Script ID')],
+    obj: UpdateScriptFavoriteParam,
+) -> ResponseModel:
+    count = await cloud_script_service.update_script_favorite(
+        db=db,
+        user_id=request.user.id,
+        pk=pk,
+        obj=obj,
+    )
+    if count > 0:
+        return response_base.success()
+    return response_base.fail()
 
 
 @router.put('/{pk}', summary='Update script', dependencies=[DependsJwtAuth])
