@@ -52,6 +52,7 @@ class CloudScriptService:
         author: str | None = None,
         status: int | None = None,
         device_id: int | None = None,
+        favorite: int | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -60,6 +61,7 @@ class CloudScriptService:
             author=author,
             status=status,
             device_id=device_id,
+            favorite=favorite,
             toy_ids=CloudScriptService._normalize_toy_ids_filter(toy_ids),
             exact_toy_ids=CloudScriptService._normalize_toy_ids_filter(exact_toy_ids),
         )
@@ -120,6 +122,7 @@ class CloudScriptService:
             validated_script = CreateScriptParam.model_validate(
                 {
                     'device_id': payload.get('device_id', script.device_id),
+                    'favorite': payload.get('favorite', script.favorite),
                     'title': payload.get('title', script.title),
                     'version': payload.get('version', script.version),
                     'summary': payload.get('summary', script.summary),

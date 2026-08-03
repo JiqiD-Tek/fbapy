@@ -24,16 +24,26 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceListParam,
     HuoshanVoiceStatus,
 )
+from backend.app.cloud.schema.user import DeviceAuthParam
+from backend.app.cloud.service.device_service import device_service
 from backend.app.cloud.service.resource.huoshan.config import list_public_voices
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
 from backend.common.response.response_schema import ResponseSchemaModel, response_base, ResponseModel
+from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession
 
 router = APIRouter()
+
+
+async def _resolve_device_id(*, db: CurrentSession, auth_ctx: object) -> int:
+    if isinstance(auth_ctx, DeviceAuthParam):
+        device = await device_service.get_by_did(db=db, did=auth_ctx.did)
+        return int(device.id)
+    return 1
 
 
 @router.get(
@@ -69,13 +79,14 @@ async def list_clone_huoshan_voice_statuses(
     '/stories/script',
     summary='Submit toy-based story script generation task',
     response_model_by_alias=False,
-    dependencies=[DependsJwtAuth],
 )
 async def submit_huoshan_toy_story_script(
         db: CurrentSession,
         obj: HuoshanToyStoryScriptParam,
+        auth_ctx: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj)
+    device_id = await _resolve_device_id(db=db, auth_ctx=auth_ctx)
+    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, device_id=device_id)
     return response_base.success(data=data)
 
 

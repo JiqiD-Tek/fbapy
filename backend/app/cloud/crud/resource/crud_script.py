@@ -22,6 +22,7 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
         author: str | None,
         status: int | None,
         device_id: int | None = None,
+        favorite: int | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
     ) -> Select:
@@ -35,6 +36,8 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
             filters['status'] = status
         if device_id is not None:
             filters['device_id'] = device_id
+        if favorite is not None:
+            filters['favorite'] = favorite
 
         stmt = await self.select_order('id', 'desc', **filters)
 

@@ -36,7 +36,8 @@ def _validate_script_toy_ids(*, toy_ids: list[int], content: list['ScriptLine'])
 
     invalid_toy_ids = sorted(content_toy_ids - toy_id_set)
     if invalid_toy_ids:
-        raise ValueError(f'content contains toy_ids not present in toy_ids: {", ".join(str(toy_id) for toy_id in invalid_toy_ids)}')
+        raise ValueError(
+            f'content contains toy_ids not present in toy_ids: {", ".join(str(toy_id) for toy_id in invalid_toy_ids)}')
 
     missing_toy_ids = sorted(toy_id_set - content_toy_ids)
     if missing_toy_ids:
@@ -63,7 +64,8 @@ class ScriptSchemaBase(SchemaBase):
     title: str = Field(description='Title')
     toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
     content: list[ScriptLine] = Field(min_length=1, description='Script line content')
-    device_id: int = Field(default=0, ge=0, description='Owner ID, 0 means platform')
+    device_id: int = Field(default=0, description='Device ID, 0 means platform')
+    favorite: int | None = Field(default=0, description='Favorite flag (0 no, 1 yes)')
     version: int = Field(default=1, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
@@ -87,7 +89,8 @@ class CreateScriptParam(ScriptSchemaBase):
 
 
 class UpdateScriptParam(SchemaBase):
-    device_id: int | None = Field(None, ge=0, description='Owner ID, 0 means platform')
+    device_id: int | None = Field(None, ge=0, description='Device ID, 0 means platform')
+    favorite: int | None = Field(None, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
     title: str | None = Field(None, description='Title')
     version: int | None = Field(None, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
