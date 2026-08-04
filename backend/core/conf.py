@@ -121,7 +121,6 @@ class Settings(BaseSettings):
     TOKEN_REQUEST_UNDERLYING_SECURITY: bool = True
     TOKEN_REQUEST_PATH_EXCLUDE: list[str] = [  # JWT / RBAC 路由白名单
         f'{FASTAPI_API_V1_PATH}/auth/login',
-        f'{FASTAPI_API_V1_PATH}/live/coze/v1/chat',  # 聊天
     ]
     TOKEN_REQUEST_PATH_EXCLUDE_PATTERN: list[Pattern[str]] = []  # JWT / RBAC 路由白名单（正则）
 
@@ -347,6 +346,21 @@ class Settings(BaseSettings):
     EMAIL_CAPTCHA_REDIS_PREFIX: str
     EMAIL_CAPTCHA_EXPIRE_SECONDS: int
 
+    ##################################################
+    # [ Plugin ] ai
+    ##################################################
+    # 动态配置
+    AI_EXA_API_KEY: str = ''
+    AI_TAVILY_API_KEY: str = ''
+
+    # 基础配置（in plugin.toml）
+    AI_CODE_MODE_DYNAMIC_CATALOG: bool = False
+    AI_CODE_MODE_MAX_RETRIES: int = 3
+    AI_CODE_MODE_TOOLS: list[str] = []
+    AI_CONTEXT_WARNING_THRESHOLD: float = 0.8
+    AI_HTTP_MAX_RETRIES: int = 5
+    AI_MCP_MAX_RETRIES: int = 1
+
     # 脱敏密钥
     ENCRYPT_SECRET_KEY: str = ''  # AES-256
 
@@ -383,21 +397,10 @@ class Settings(BaseSettings):
     MINI_PROVISION_TOKEN_REDIS_PREFIX: str = 'fba:mini:provision'
     MINI_PROVISION_TOKEN_EXPIRE_SECONDS: int = 300
 
-    # Ximalaya
+    # ximalaya
     XIMALAYA_APP_KEY: str = ''
     XIMALAYA_APP_SECRET: SecretStr = ''
     XIMALAYA_SN: str = ''
-
-    # livekit
-    LIVEKIT_URL: str = ''
-    LIVEKIT_API_KEY: str = ''
-    LIVEKIT_API_SECRET: str = ''
-
-    # Coze
-    COZE_CLIENT_ID: str = ''
-    COZE_PRIVATE_KEY: str = ''
-    COZE_PUBLIC_KEY_ID: str = ''
-    COZE_BOT_ID: str = ''
 
     # MQTT
     MQTT_HOST: str = ''
