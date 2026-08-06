@@ -579,7 +579,6 @@ version = "0.31.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
 dependencies = [
     { name = "async-timeout", version = "4.0.3", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "async-timeout", version = "5.0.1", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_version < '0'" },
 ]
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/fe/cc/d18065ce2380d80b1bcce927c24a2642efd38918e33fd724bc4bca904877/asyncpg-0.31.0.tar.gz", hash = "sha256:c989386c83940bfbd787180f2b1519415e2d3d6277a70d9d0f0145ac73500735" }
 wheels = [
@@ -1322,23 +1321,6 @@ wheels = [
 ]
 
 [[package]]
-name = "cozepy"
-version = "0.20.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "authlib" },
-    { name = "distro" },
-    { name = "httpx", marker = "python_full_version < '4.0'" },
-    { name = "pydantic" },
-    { name = "typing-extensions" },
-    { name = "websockets" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/31/ae/608ca49d2d12941fa33ab588c0b1f54b2260c10a7380059af74448467aa0/cozepy-0.20.0.tar.gz", hash = "sha256:69e359beea826f4a3ecf38d3fbd3efe2dd7558e13006f6444095b74274883dda" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/4d/66/76a9d5e6820d66feee50444b21bf0886273dd55a90c82d4d8ee2b93478fd/cozepy-0.20.0-py3-none-any.whl", hash = "sha256:efcc032fb8ff0b5f41071fb1727a0f242bdfe9d304578d2dcb7837a18d98b181" },
-]
-
-[[package]]
 name = "crcmod"
 version = "1.7"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -1607,7 +1589,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219" }
 wheels = [
@@ -1684,7 +1666,6 @@ dependencies = [
     { name = "cappa" },
     { name = "celery" },
     { name = "celery-aio-pool" },
-    { name = "cozepy" },
     { name = "cryptography" },
     { name = "ddgs" },
     { name = "docstring-parser" },
@@ -1699,8 +1680,6 @@ dependencies = [
     { name = "itsdangerous" },
     { name = "jinja2" },
     { name = "langchain-community" },
-    { name = "livekit" },
-    { name = "livekit-api" },
     { name = "loguru" },
     { name = "msgspec" },
     { name = "openai" },
@@ -1773,7 +1752,6 @@ requires-dist = [
     { name = "cappa", specifier = ">=0.32.1" },
     { name = "celery", specifier = ">=5.6.3" },
     { name = "celery-aio-pool", specifier = ">=0.1.0rc8" },
-    { name = "cozepy", specifier = ">=0.20.0" },
     { name = "cryptography", specifier = ">=46.0.7" },
     { name = "ddgs", specifier = ">=9.10.0" },
     { name = "docstring-parser", specifier = ">=0.17.0" },
@@ -1788,8 +1766,6 @@ requires-dist = [
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "langchain-community", specifier = ">=0.4.1" },
-    { name = "livekit", specifier = ">=1.0.23" },
-    { name = "livekit-api", specifier = ">=1.1.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "msgspec", specifier = ">=0.21.1" },
     { name = "openai", specifier = ">=2.14.0" },
@@ -2885,56 +2861,6 @@ dependencies = [
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/17/eb/8883d1158c743d0aac350f09df7880714d27283497e8c80bb9fe3480f165/langsmith-0.8.5.tar.gz", hash = "sha256:3615243d99c12f4047f13042bdc05a373dce232d106a6511b3ca7b48c5af1c2c" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/23/85/968c88a63e32a59b3e5c68afd2fe114ce0708a125db0be1a85efc25fb2ea/langsmith-0.8.5-py3-none-any.whl", hash = "sha256:efc779f9d450dcaf9d97bc8894f4926276509d6e730e05289af9a64debce06ae" },
-]
-
-[[package]]
-name = "livekit"
-version = "1.1.14"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "numpy", version = "2.2.6", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version == '3.11.*'" },
-    { name = "numpy", version = "2.5.1", source = { registry = "https://mirrors.aliyun.com/pypi/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "protobuf" },
-    { name = "types-protobuf" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/ab/5d/bfaf1cc73f960b40294f604d334f05e628b0a07de3c47e475d760996a8d0/livekit-1.1.14.tar.gz", hash = "sha256:47428e10ecf20d7db4ee9fde4009bf96578c003b1ae6e1c5e7e4837a55902393" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/7a/ff/a2659522b3cf860b9b4453e1ec12d4b4c7e9cfd2b672f2cf925016d73492/livekit-1.1.14-py3-none-macosx_10_15_x86_64.whl", hash = "sha256:5f671b1752c93b878cb241b84fd3f72a31f857c3927755d672cfb7656a84778c" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/82/a2/89f32d369cc78cb1a50b2a9e635c653f88d86ea4338ccdfa7b2d4ca0aecd/livekit-1.1.14-py3-none-macosx_11_0_arm64.whl", hash = "sha256:efa16b9036b0b592e5399fdb858c1f04ec8a32c385184c705f030952f72174e8" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/8e/5b/dda7d660fa5d5b6e228dcfc6be3664a2442d1601481686052af2da642e5e/livekit-1.1.14-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:299146efefad5f67751cd15b8225bae759be0d7ad2f0b4ae1a22c15860d93cf9" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/21/e3/d9255eeaf205f090d63d762e5254097b62af394bfaa90106f71f1fb6740e/livekit-1.1.14-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:80962c4a22ddbf0e0ebd3563fc090fce42df66b39b90de68b161b7db01970f68" },
-    { url = "https://mirrors.aliyun.com/pypi/packages/f7/0a/514fb230e7c7f13ae7e53b9e39a6dd9ea1aa9ff5be9e588d55301d159a1e/livekit-1.1.14-py3-none-win_amd64.whl", hash = "sha256:b8f8d38f131956297923e520bc4375bc9ebfa255cab7f125cb7755bfca71df24" },
-]
-
-[[package]]
-name = "livekit-api"
-version = "1.2.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "livekit-protocol" },
-    { name = "protobuf" },
-    { name = "pyjwt" },
-    { name = "types-protobuf" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/f3/19/36ff6712ec638a4b7dad4d8f03795952e401dc31db0b04cddec7892650da/livekit_api-1.2.0.tar.gz", hash = "sha256:a89817b3bca9584873786ff07209839308217537a42f95ecb2609aafaa109ddc" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/bf/e7/8926f16d4bc1b2e0ae46d4a507321bb899396d263a757f1adaabcd3b3867/livekit_api-1.2.0-py3-none-any.whl", hash = "sha256:307f8e5cfb0358c3ca091814ab768af55896022151bcd7f951954ccefa036a24" },
-]
-
-[[package]]
-name = "livekit-protocol"
-version = "1.1.21"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "protobuf" },
-    { name = "types-protobuf" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/7f/ae/9d60fe37d85623e68a2e36ae31d18c671949db67d2a13a6438410d930466/livekit_protocol-1.1.21.tar.gz", hash = "sha256:8bb1ac1aba5d37d0af43e9d56d129a5d16295cbd91518b00fd157e258f20a6ef" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/2e/d2/ec10b1cdf912235c2b07898be6ba2535e50f23e8980bb719f29decbd8034/livekit_protocol-1.1.21-py3-none-any.whl", hash = "sha256:ce0bb763327c91349ee8831843c4f8bd72132c4d06ac572171f2ae5c0217211d" },
 ]
 
 [[package]]
@@ -4656,18 +4582,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pyjwt"
-version = "2.13.0"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
-]
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728" },
-]
-
-[[package]]
 name = "pymysql"
 version = "1.2.0"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
@@ -5347,15 +5261,6 @@ dependencies = [
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/ae/40/4a3db7990d1f62a53182aa96eaef57aeb2886a27f90a195bc66713565d31/typer-0.27.1.tar.gz", hash = "sha256:a79bef8469a79c45498e7b814ecf8d603cc7644e9acbd9e19cac0334240b18df" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/43/89/9518bc0c3929bee36b3a4a8e3daddd6e03f92f9961c66d4983b837160543/typer-0.27.1-py3-none-any.whl", hash = "sha256:53150287edd11baeb4e4722c8e394fcdf8181c0ae89485cba8d25c778d5edd56" },
-]
-
-[[package]]
-name = "types-protobuf"
-version = "7.34.1.20260518"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple" }
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/29/59/e2b13b499d15e6720150c4b1a8d91e31fcacf716b432397475b3151ff7e4/types_protobuf-7.34.1.20260518.tar.gz", hash = "sha256:28cfaded25889cb83ebfb63cfb0a43628f0b6f3785767bec17287dc6468795f2" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/2a/1f/ec5caf72c2e3b688ca3927e0979a04ddad19e1afc4bf1c199bd743e0f419/types_protobuf-7.34.1.20260518-py3-none-any.whl", hash = "sha256:a0a5337413347166439c0e07cbc26c6164d091401c6f01b1dfd8cdb966c4dd8f" },
 ]
 
 [[package]]
