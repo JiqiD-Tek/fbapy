@@ -13,19 +13,16 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from livekit import api
 from pyrate_limiter import Duration, Rate
 from starlette.background import BackgroundTasks
 
 from backend.app.cloud.schema.captcha import GetCaptchaDetail
 from backend.app.cloud.schema.device.device import DeviceCredentialsDetail, DeviceCredentialsParam
 from backend.app.cloud.schema.token import (
-    CozeToken,
     CurrentLocation,
     FbaToken,
     GetLoginToken,
     GetNewToken,
-    LivekitToken,
     MiniProvisionStatusDetail,
     MiniProvisionTokenDetail,
     OSSToken,
@@ -35,7 +32,6 @@ from backend.app.cloud.schema.user import (
     AuthLoginParam,
     DeviceAuthParam,
     GetUserInfoDetail,
-    LivekitDeviceParam,
     MiniProgramLoginParam,
     MiniProgramProfileParam,
     MQTTAuthParam,
@@ -287,70 +283,6 @@ async def current_location() -> ResponseSchemaModel[CurrentLocation]:
     return response_base.success(data=location)
 
 
-@router.post('/coze_token', summary='Coze 授权', dependencies=[DependsDeviceAuth])
-async def coze_token(
-        db: CurrentSessionTransaction,
-        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> ResponseSchemaModel[CozeToken]:
-    ttl = 600
-
-    config = {
-        'client_type': 'jwt',
-        'coze_www_base': 'https://www.coze.cn',
-        'coze_api_base': 'https://api.coze.cn',
-        'client_id': settings.COZE_CLIENT_ID,
-        'private_key': settings.COZE_PRIVATE_KEY,
-        'public_key_id': settings.COZE_PUBLIC_KEY_ID,
-    }
-
-    from cozepy import load_oauth_app_from_config
-
-    coze_oauth_app = load_oauth_app_from_config(config)
-    oauth_token = coze_oauth_app.get_access_token(ttl=ttl)
-
-    token = CozeToken(
-        token_type=oauth_token.token_type,
-        access_token=oauth_token.access_token,
-        expires_in=oauth_token.expires_in,
-        ttl=ttl,
-        bot_id=settings.COZE_BOT_ID,
-        tw_bot_id="7637473092688134179",  # 台湾版本音色差异
-    )
-    return response_base.success(data=token)
-
-
-@router.post('/livekit_token', summary='livekit 授权', dependencies=[DependsDeviceAuth])
-async def livekit_token(
-        db: CurrentSessionTransaction,
-        obj: LivekitDeviceParam,  # 业务字段（room/name/metadata）
-        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> ResponseSchemaModel[LivekitToken]:
-    ttl = 600
-
-    token = (
-        api
-        .AccessToken(
-            api_key=settings.LIVEKIT_API_KEY,
-            api_secret=settings.LIVEKIT_API_SECRET,
-        )
-        .with_identity(identity=auth_ctx.did)
-        .with_name(name=obj.name)
-        .with_metadata(metadata=obj.metadata)
-        .with_ttl(ttl=datetime.timedelta(seconds=ttl))
-        .with_grants(
-            api.VideoGrants(room=obj.room, room_join=True, can_publish=True, can_publish_data=True, can_subscribe=True)
-        )
-        .to_jwt()
-    )
-
-    token = LivekitToken(
-        url=settings.LIVEKIT_URL,
-        token=token,
-        ttl=ttl,
-    )
-    return response_base.success(data=token)
-
-
 @router.post('/fba_token', summary='fba 授权', dependencies=[DependsDeviceAuth])
 async def fba_token(
         db: CurrentSessionTransaction,
@@ -378,13 +310,3 @@ async def fba_token(
         ttl=ttl,
     )
     return response_base.success(data=token)
-
-
-@router.post('/end_usage', summary='断开会话', dependencies=[DependsDeviceAuth])
-async def end_usage(
-        db: CurrentSessionTransaction,
-        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
-) -> ResponseModel:
-    ttl = 600
-
-    return response_base.success(data=ttl)

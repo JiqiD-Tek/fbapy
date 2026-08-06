@@ -108,7 +108,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         access_token=settings.BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
             {'id': 'S_GKcK2x2X1', 'name': '曲老师'},
-            {'id': 'S_EKcK2x2X1', 'name': '虾球'},
+            {'id': 'S_EKcK2x2X1', 'name': '狗-果果'},
             {'id': 'S_DKcK2x2X1', 'name': '米粒'},
             {'id': 'S_CKcK2x2X1', 'name': '旁白'},
             {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
@@ -116,7 +116,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_zKcK2x2X1', 'name': '凯叔'},
             {'id': 'S_xKcK2x2X1', 'name': '成女温柔'},
             {'id': 'S_FKcK2x2X1', 'name': '成女活泼'},
-            {'id': 'S_yKcK2x2X1', 'name': '狐狸'},
+            {'id': 'S_yKcK2x2X1', 'name': '企鹅-奇奇'},
         ]),
     ),
     _build_project(
@@ -131,10 +131,10 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '旁白男'},
             {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
-            {'id': 'S_J6luyDOZ1', 'name': '童英'},
-            {'id': 'S_r5toyDOZ1', 'name': '男孩设计'},
+            {'id': 'S_J6luyDOZ1', 'name': '狐狸-Pax'},
+            {'id': 'S_r5toyDOZ1', 'name': '绵绵'},
             {'id': 'S_7tAjyDOZ1', 'name': '童音男'},
-            {'id': 'S_7V2ryDOZ1', 'name': '狗'},
+            {'id': 'S_7V2ryDOZ1', 'name': '海豹-卡卡'},
         ]),
     ),
 )
