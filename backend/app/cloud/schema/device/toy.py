@@ -107,6 +107,9 @@ class ToyReadSchemaBase(SchemaBase):
     voice_type: int | None = Field(None, ge=1, description='Voice type')
     voice_name: str | None = Field(None, description='Voice name')
     voice_language: str | None = Field(None, description='Voice language, such as zh-CN or en-US')
+    speech_rate: int | None = Field(None, description='Speech rate')
+    loudness_rate: int | None = Field(None, description='Voice loudness rate')
+    intro_audio_url: str | None = Field(None, description='Toy introduction audio URL')
     status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
     sort: int = Field(default=0, description='Sort value, lower comes first')
     remark: str | None = Field(None, description='Remark')
@@ -126,6 +129,9 @@ class CreateToyParam(SchemaBase):
     voice_type: int | None = Field(None, ge=1, description='Voice type')
     voice_name: str | None = Field(None, max_length=128, description='Voice name')
     voice_language: str | None = Field(None, max_length=32, description='Voice language, such as zh-CN or en-US')
+    speech_rate: int | None = Field(None, description='Speech rate')
+    loudness_rate: int | None = Field(None, description='Voice loudness rate')
+    intro_audio_url: str | None = Field(None, max_length=512, description='Toy introduction audio URL')
     status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
     sort: int = Field(default=0, description='Sort value, lower comes first')
     remark: str | None = Field(None, max_length=500, description='Remark')
@@ -144,6 +150,7 @@ class CreateToyParam(SchemaBase):
         'voice_id',
         'voice_name',
         'voice_language',
+        'intro_audio_url',
         'remark',
         mode='before',
     )
@@ -177,6 +184,9 @@ class UpdateToyParam(SchemaBase):
     voice_type: int | None = Field(None, ge=1, description='Voice type')
     voice_name: str | None = Field(None, max_length=128, description='Voice name')
     voice_language: str | None = Field(None, max_length=32, description='Voice language, such as zh-CN or en-US')
+    speech_rate: int | None = Field(None, description='Speech rate')
+    loudness_rate: int | None = Field(None, description='Voice loudness rate')
+    intro_audio_url: str | None = Field(None, max_length=512, description='Toy introduction audio URL')
     status: int | None = Field(None, description='Status: 0 disabled, 1 enabled')
     sort: int | None = Field(None, description='Sort value, lower comes first')
     remark: str | None = Field(None, max_length=500, description='Remark')
@@ -195,6 +205,7 @@ class UpdateToyParam(SchemaBase):
         'voice_id',
         'voice_name',
         'voice_language',
+        'intro_audio_url',
         'remark',
         mode='before',
     )

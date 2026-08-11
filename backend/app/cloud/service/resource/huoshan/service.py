@@ -866,6 +866,8 @@ class HuoshanVoiceService:
                     system_prompt=str(toy.system_prompt or '').strip(),
                     speaker=speaker,
                     voice_name=str(toy.voice_name or get_voice_name(speaker) or '').strip(),
+                    speech_rate=toy.speech_rate,
+                    loudness_rate=toy.loudness_rate,
                 )
             )
 
@@ -917,7 +919,12 @@ class HuoshanVoiceService:
             result = result.model_copy(update={'lines': updated_lines}, deep=True)
             await self._save_toy_story_script_task_result(result)
 
-            obj = HuoshanStreamTTSParam(text=line.text, speaker=toy.speaker, speech_rate=0, loudness_rate=0)
+            obj = HuoshanStreamTTSParam(
+                text=line.text,
+                speaker=toy.speaker,
+                speech_rate=toy.speech_rate or 0,
+                loudness_rate=toy.loudness_rate or 0,
+            )
             await tts_stream_service.query(obj=obj, request_id=request_id)
 
     @staticmethod

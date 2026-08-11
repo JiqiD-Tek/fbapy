@@ -48,6 +48,9 @@ class Toy(Base):
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy avatar URL')
     purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy purchase URL')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy summary')
+    intro_audio_url: Mapped[str | None] = mapped_column(
+        sa.String(512), default=None, comment='Toy introduction audio URL',
+    )
     related_toy_ids: Mapped[list[int] | None] = mapped_column(sa.JSON, default=None, comment='Related toy IDs')
     nfc_code: Mapped[str | None] = mapped_column(
         sa.String(64), default=None, unique=True, index=True, comment='NFC code',
@@ -64,6 +67,8 @@ class Toy(Base):
     voice_language: Mapped[str | None] = mapped_column(
         sa.String(32), default=None, comment='Voice language, such as zh-CN, en-US, zh-TW',
     )
+    speech_rate: Mapped[int] = mapped_column(default=0, comment='Speech rate')
+    loudness_rate: Mapped[int] = mapped_column(default=0, comment='Voice loudness rate')
 
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
     sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
