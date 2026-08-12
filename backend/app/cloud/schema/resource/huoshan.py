@@ -114,8 +114,8 @@ class HuoshanToyStoryToyInfo(HuoshanSchemaBase):
     system_prompt: str = Field('', description='Toy system prompt')
     speaker: str = Field('', description='TTS speaker ID')
     voice_name: str = Field('', description='TTS voice name')
-    speech_rate: int = Field(0, description='Speech rate')
-    loudness_rate: int = Field(0, description='Voice loudness rate')
+    speech_rate: int | None = Field(0, description='Speech rate')
+    loudness_rate: int | None = Field(0, description='Voice loudness rate')
 
 
 class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
