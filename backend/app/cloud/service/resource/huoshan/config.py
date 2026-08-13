@@ -126,7 +126,6 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         voices=_build_voice_profiles([
             {'id': 'S_RCrqyDOZ1', 'name': '方厚鑫'},
             {'id': 'S_fz5jyDOZ1', 'name': '英文男成'},
-            {'id': 'S_jBziyDOZ1', 'name': '英文女成'},
             {'id': 'S_jz2iyDOZ1', 'name': '英文儿童'},
             {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '旁白男'},
@@ -135,6 +134,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_J6luyDOZ1', 'name': '狐狸-Pax'},
             {'id': 'S_r5toyDOZ1', 'name': '绵羊-绵绵'},
             {'id': 'S_7V2ryDOZ1', 'name': '海豹-卡卡'},
+            {'id': 'S_jBziyDOZ1', 'name': '海豹-卡卡2'},
         ]),
     ),
 )
