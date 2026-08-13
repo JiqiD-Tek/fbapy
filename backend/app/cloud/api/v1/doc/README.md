@@ -210,4 +210,24 @@ Billing 不负责：
 POST /api/v1/resource/xiaozhi/turn/chat
 ```
 
-该接口写入 `u_device_chat`，用于后期按设备、宝宝、玩偶查询聊天记录；Billing 只保存扣费事实，不保存用户输入和回复内容。
+请求中的一轮对话使用单个 `content` JSON 保存，用户消息只存一次，并允许按回复顺序记录多个玩偶：
+
+```json
+{
+  "content": {
+    "user_message": "我们今天去哪里玩？",
+    "replies": [
+      {
+        "toy_id": 1,
+        "reply_message": "我们去公园吧。"
+      },
+      {
+        "toy_id": 2,
+        "reply_message": "我还想带上风筝。"
+      }
+    ]
+  }
+}
+```
+
+该接口写入 `u_device_chat`，用于后期按设备和宝宝查询聊天记录；Billing 只保存扣费事实，不保存用户输入和回复内容。

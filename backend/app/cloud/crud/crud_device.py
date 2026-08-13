@@ -82,7 +82,6 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
             self,
             *,
             device_id: int | None = None,
-            toy_id: int | None = None,
             user_id: int | None = None,
             baby_id: int | None = None,
     ) -> Select:
@@ -90,8 +89,6 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
 
         if device_id is not None:
             stmt = stmt.where(self.model.device_id == device_id)
-        if toy_id is not None:
-            stmt = stmt.where(self.model.toy_id == toy_id)
         if user_id is not None:
             stmt = stmt.where(self.model.user_id == user_id)
         if baby_id is not None:

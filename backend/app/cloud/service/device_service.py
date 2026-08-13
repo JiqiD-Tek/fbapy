@@ -152,7 +152,11 @@ class DeviceService:
         items = page_data.get('items') or []
         chat_items = [GetDeviceChatDetail.model_validate(item) for item in items]
 
-        toy_ids = {chat.toy_id for chat in chat_items}
+        toy_ids = {
+            reply.toy_id
+            for chat in chat_items
+            for reply in chat.content.replies
+        }
         toy_map: dict[int, DeviceChatToyInfo] = {}
         if toy_ids:
             result = await db.execute(select(Toy).where(Toy.deleted == 0, Toy.id.in_(toy_ids)))
@@ -161,10 +165,16 @@ class DeviceService:
                 for toy in result.scalars().all()
             }
 
-        page_data['items'] = [
-            chat.model_copy(update={'toy': toy_map.get(chat.toy_id)}).model_dump()
-            for chat in chat_items
-        ]
+        enriched_items: list[dict[str, Any]] = []
+        for chat in chat_items:
+            replies = [
+                reply.model_copy(update={'toy': toy_map.get(reply.toy_id)})
+                for reply in chat.content.replies
+            ]
+            content = chat.content.model_copy(update={'replies': replies})
+            enriched_items.append(chat.model_copy(update={'content': content}).model_dump())
+
+        page_data['items'] = enriched_items
         return page_data
 
     @staticmethod
