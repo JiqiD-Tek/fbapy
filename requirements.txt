@@ -24,7 +24,7 @@ async-timeout==5.0.1 ; python_full_version < '3.11.3'
     # via
     #   asyncpg
     #   redis
-asyncmy==0.2.13
+asyncmy==0.2.14
     # via fastapi-best-architecture
 asyncpg==0.31.0
     # via fastapi-best-architecture
