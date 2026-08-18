@@ -28,6 +28,7 @@ class ToySeries(Base):
     image_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series image URL')
     purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series purchase URL')
     description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy series description')
+    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='Price, unit: fen')
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
     sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
 
@@ -70,6 +71,7 @@ class Toy(Base):
     speech_rate: Mapped[int] = mapped_column(default=0, comment='Speech rate')
     loudness_rate: Mapped[int] = mapped_column(default=0, comment='Voice loudness rate')
 
+    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='Price, unit: fen')
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
     sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Remark')
