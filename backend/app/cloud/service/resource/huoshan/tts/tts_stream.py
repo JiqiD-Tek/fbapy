@@ -19,6 +19,8 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStreamTTSResult,
 )
 from backend.app.cloud.service.resource.huoshan.config import (
+    PUBLIC_VOICE_RESOURCE_ID_V2,
+    get_voice_profile,
     get_voice_project_for_speaker,
 )
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
@@ -126,15 +128,18 @@ class TTSStreamService:
         return str(value or '').strip()
 
     @classmethod
-    def _resolve_stream_config(cls) -> dict[str, Any]:
+    def _resolve_stream_config(cls, speaker: str | None = None) -> dict[str, Any]:
+        configured_resource_id = cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
+        voice_profile = get_voice_profile(speaker)
         return {
             'ws_url': (
                     cls._normalize_text(settings.BYTES_TTS_STREAM_WS_URL)
                     or 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
             ),
             'resource_id': (
-                    cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
-                    or 'seed-tts-2.0'
+                    cls._normalize_text(voice_profile.resource_id if voice_profile else None)
+                    or configured_resource_id
+                    or PUBLIC_VOICE_RESOURCE_ID_V2
             ),
             'audio_format': (
                     cls._normalize_text(settings.BYTES_TTS_STREAM_AUDIO_FORMAT)
@@ -201,7 +206,7 @@ class TTSStreamService:
             if not text:
                 raise errors.RequestError(msg='text is required')
 
-            stream_config = self._resolve_stream_config()
+            stream_config = self._resolve_stream_config(speaker)
             ws_url = stream_config['ws_url']
             resource_id = stream_config['resource_id']
             audio_format = stream_config['audio_format']
