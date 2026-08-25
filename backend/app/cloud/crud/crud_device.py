@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from typing import Any
 from collections.abc import Sequence
 
@@ -101,6 +102,40 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
         db.add(record)
         await db.flush()
         return record
+
+    async def get_daily_chat_counts(
+            self,
+            db: AsyncSession,
+            *,
+            baby_id: int,
+            start_time: datetime,
+            end_time: datetime,
+    ) -> dict[date, int]:
+        chat_date = func.date(self.model.created_time)
+        stmt = (
+            select(chat_date, func.count())
+            .where(
+                self.model.deleted == 0,
+                self.model.baby_id == baby_id,
+                self.model.created_time >= start_time,
+                self.model.created_time < end_time,
+            )
+            .group_by(chat_date)
+        )
+        result = await db.execute(stmt)
+
+        daily_counts: dict[date, int] = {}
+        for raw_chat_date, chat_count in result.all():
+            if isinstance(raw_chat_date, datetime):
+                chat_day = raw_chat_date.date()
+            elif isinstance(raw_chat_date, date):
+                chat_day = raw_chat_date
+            else:
+                chat_day = date.fromisoformat(str(raw_chat_date))
+
+            daily_counts[chat_day] = int(chat_count)
+
+        return daily_counts
 
 
 device_dao: CRUDDevice = CRUDDevice(Device)

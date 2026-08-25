@@ -19,6 +19,8 @@ class CloudScript(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
     title: Mapped[str] = mapped_column(sa.String(256), index=True, comment='Title')
+    content_type: Mapped[int | None] = mapped_column(
+        sa.SmallInteger, index=True, comment='请选择内容类型（1语言 2科学 3社会 4艺术 5健康）')
     summary: Mapped[str | None] = mapped_column(sa.String(1000), comment='Summary')
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), comment='Cover URL')
     author: Mapped[str | None] = mapped_column(sa.String(128), index=True, comment='Author')

@@ -68,6 +68,7 @@ class ScriptLine(SchemaBase):
 
 class ScriptSchemaBase(SchemaBase):
     title: str = Field(description='Title')
+    content_type: int | None = Field(None, ge=1, le=5, description='内容类型：1语言 2科学 3社会 4艺术 5健康')
     toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
     content: list[ScriptLine] = Field(min_length=1, description='Script line content')
     device_id: int = Field(default=0, ge=0, description='Device ID, 0 means platform')
@@ -113,6 +114,7 @@ class UpdateScriptParam(SchemaBase):
     device_id: int | None = Field(None, ge=0, description='Device ID, 0 means platform')
     favorite: int | None = Field(None, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
     title: str | None = Field(None, description='Title')
+    content_type: int | None = Field(None, ge=1, le=5, description='内容类型：1语言 2科学 3社会 4艺术 5健康')
     version: int | None = Field(None, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')

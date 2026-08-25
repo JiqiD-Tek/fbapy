@@ -17,6 +17,7 @@ from typing import Any, ClassVar, TypeVar
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from backend.app.cloud.crud.crud_device import device_chat_dao
 from backend.app.cloud.model import Baby
 from backend.app.cloud.schema.resource.report import (
     ActivityTrendPoint,
@@ -82,9 +83,9 @@ class UsageCounter:
         if not content_type:
             return None
 
-        source = payload.get('source')  # 播放来源
-        if source == 'jiqid':  # 1儿歌 2故事 3哄睡
-            return {1: '儿歌', 2: '故事', 3: '哄睡'}.get(content_type, None)
+        source = payload.get('source', 'jiqid')  # 播放来源
+        if source == 'jiqid':  # 内容类型，1：语言 2：科学 3：社会 4：艺术 5：健康
+            return {1: '语言', 2: '科学', 3: '社会', 4: '艺术', 5: '健康'}.get(content_type, None)
 
         if source == 'ximalaya':  #
             return None  # todo
@@ -106,9 +107,7 @@ class UsageCounter:
         return event_date, service, play_preference
 
     def add(self, service: str, *, play_preference: str | None = None) -> None:
-        if service == 'chat':
-            self.chat_count += 1
-        elif service == 'active':
+        if service == 'active':
             self.active_count += 1
         elif service == 'play':
             self.play_count += 1
@@ -371,14 +370,25 @@ class ReportService:
             insights=insights,
         )
 
-    async def _build_usage_preview(self, *, baby: Baby) -> UsageReportPreview:
+    async def _build_usage_preview(self, *, db: AsyncSession, baby: Baby) -> UsageReportPreview:
         start_time, end_time, dates = self._resolve_report_window()
-        rows = await self._query_usage_rows(
-            baby_id=baby.id,
-            start_time=start_time,
-            end_time=end_time,
+        rows, daily_chat_counts = await asyncio.gather(
+            self._query_usage_rows(
+                baby_id=baby.id,
+                start_time=start_time,
+                end_time=end_time,
+            ),
+            self._query_device_chat_counts(
+                db=db,
+                baby_id=baby.id,
+                start_time=start_time,
+                end_time=end_time,
+            ),
         )
         daily_counters = UsageCounter.aggregate_rows(rows, dates)
+        for current_date, chat_count in daily_chat_counts.items():
+            if current_date in daily_counters:
+                daily_counters[current_date].chat_count = chat_count
         recent_dates, previous_dates = self._split_report_dates(dates)
         recent_daily_counters = {current_date: daily_counters[current_date] for current_date in recent_dates}
         previous_daily_counters = {current_date: daily_counters[current_date] for current_date in previous_dates}
@@ -571,7 +581,26 @@ class ReportService:
             log.warning('failed to query TSDB usage rows, baby_id={}, error={}', baby_id, exc)
             return []
 
-    async def _get_or_build_usage_preview(self, *, baby: Baby) -> UsageReportPreview:
+    @staticmethod
+    async def _query_device_chat_counts(
+            *,
+            db: AsyncSession,
+            baby_id: int,
+            start_time: datetime,
+            end_time: datetime,
+    ) -> dict[date, int]:
+        try:
+            return await device_chat_dao.get_daily_chat_counts(
+                db,
+                baby_id=baby_id,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        except Exception as exc:
+            log.warning('failed to query device chat counts, baby_id={}, error={}', baby_id, exc)
+            return {}
+
+    async def _get_or_build_usage_preview(self, *, db: AsyncSession, baby: Baby) -> UsageReportPreview:
         cache_key = self._usage_preview_cache_key(baby.id)
         cached_preview = await self._get_cached_model(
             key=cache_key,
@@ -592,7 +621,7 @@ class ReportService:
             if cached_preview is not None:
                 return cached_preview
 
-            preview = await self._build_usage_preview(baby=baby)
+            preview = await self._build_usage_preview(db=db, baby=baby)
             return await self._set_cached_model(
                 key=cache_key,
                 baby_id=baby.id,
@@ -631,7 +660,7 @@ class ReportService:
             if cached_report is not None:
                 return cached_report
 
-            preview = await self._get_or_build_usage_preview(baby=baby)
+            preview = await self._get_or_build_usage_preview(db=db, baby=baby)
             report = await self._build_usage_report(baby=baby, preview=preview)
             return await self._set_cached_model(
                 key=cache_key,
@@ -651,7 +680,7 @@ class ReportService:
         if baby is None:
             raise errors.NotFoundError(msg='宝宝不存在')
 
-        return await self._get_or_build_usage_preview(baby=baby)
+        return await self._get_or_build_usage_preview(db=db, baby=baby)
 
 
 report_service: ReportService = ReportService()
