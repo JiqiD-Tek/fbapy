@@ -417,12 +417,6 @@ class Settings(BaseSettings):
         '$share/group/js61/+/up/property',
     ]
 
-    # 微软 大模型
-    AZURE_OPENAI_MODEL: str = ''
-    AZURE_OPENAI_ENDPOINT: str = ''
-    AZURE_OPENAI_SUBSCRIPTION_KEY: SecretStr = ''
-    AZURE_OPENAI_API_VERSION: str = ''
-
     # 火山 TTS
     JS61_BYTES_TTS_APPID: str = ''
     JS61_BYTES_TTS_TOKEN: str = ''

@@ -6,6 +6,8 @@
 @Date    : 2026/03/25
 """
 
+from typing import Any
+
 import sqlalchemy as sa
 
 from sqlalchemy.orm import Mapped, mapped_column
@@ -28,6 +30,9 @@ class CloudSong(Base):
     play_url: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='播放地址')
     artist: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='歌手/主播')
     content: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='歌曲/故事内容')
+    script_content: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        sa.JSON, default_factory=list, comment='多片段音频合成脚本',
+    )
     duration: Mapped[int] = mapped_column(default=0, comment='时长(秒)')
     track_no: Mapped[int] = mapped_column(default=0, comment='曲目序号')
     status: Mapped[int] = mapped_column(default=1, index=True, comment='状态(0禁用 1启用)')
