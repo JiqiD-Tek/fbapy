@@ -125,3 +125,51 @@ def _probe_duration_seconds(ffmpeg_path: str, path: Path) -> float:
         return 0.0
 
     return hours * 3600.0 + minutes * 60.0 + seconds
+
+
+def probe_audio_duration(path: Path) -> float:
+    """Return an audio file duration in seconds."""
+    return _probe_duration_seconds(_resolve_ffmpeg_executable(), path)
+
+
+def concatenate_audio_segments(segment_paths: list[Path], output_path: Path) -> None:
+    """Concatenate MP3 segments into one MP3 file without re-encoding."""
+    if not segment_paths:
+        raise ValueError('at least one audio segment is required')
+    if any(not path.exists() for path in segment_paths):
+        raise ValueError('all audio segments must exist')
+
+    ffmpeg_path = _resolve_ffmpeg_executable()
+    concat_file = output_path.with_suffix('.concat.txt')
+    concat_lines = []
+    for path in segment_paths:
+        escaped_path = path.resolve().as_posix().replace("'", "'\\''")
+        concat_lines.append(f"file '{escaped_path}'\n")
+    concat_file.write_text(''.join(concat_lines), encoding='utf-8')
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        command = [
+            ffmpeg_path,
+            '-y',
+            '-v',
+            'error',
+            '-f',
+            'concat',
+            '-safe',
+            '0',
+            '-i',
+            str(concat_file),
+            '-c',
+            'copy',
+            str(output_path),
+        ]
+        subprocess.run(
+            command,
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        detail = exc.stderr.decode('utf-8', errors='replace').strip()
+        raise RuntimeError(f'audio concatenation failed: {detail or output_path}') from exc
+    finally:
+        concat_file.unlink(missing_ok=True)

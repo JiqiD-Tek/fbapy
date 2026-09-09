@@ -307,15 +307,7 @@ class TTSStreamService:
 
     @staticmethod
     async def upload_audio_to_oss(*, request_id: str) -> str:
-        chunks: list[bytes] = []
-        try:
-            async with tts_cache.stream_audio_generator(request_id=request_id) as stream:
-                async for chunk in stream:
-                    chunks.append(chunk)
-        except ValueError as exc:
-            raise errors.NotFoundError(msg=f'TTS task not found, request_id={request_id}') from exc
-
-        audio_data = b''.join(chunks)
+        audio_data = await TTSStreamService.get_audio_bytes(request_id=request_id)
         if not audio_data:
             raise errors.GatewayError(msg='TTS cache returned empty audio data')
 
@@ -326,6 +318,17 @@ class TTSStreamService:
             raise errors.GatewayError(msg='Failed to upload TTS audio to OSS')
 
         return download_url
+
+    @staticmethod
+    async def get_audio_bytes(*, request_id: str) -> bytes:
+        chunks: list[bytes] = []
+        try:
+            async with tts_cache.stream_audio_generator(request_id=request_id) as stream:
+                async for chunk in stream:
+                    chunks.append(chunk)
+        except ValueError as exc:
+            raise errors.NotFoundError(msg=f'TTS task not found, request_id={request_id}') from exc
+        return b''.join(chunks)
 
     @staticmethod
     async def _send_protocol_message(

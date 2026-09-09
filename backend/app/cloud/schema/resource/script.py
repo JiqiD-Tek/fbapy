@@ -53,16 +53,17 @@ def _validate_script_toy_ids(*, toy_ids: list[int], content: list['ScriptLine'])
 class ScriptLine(SchemaBase):
     toy_id: int = Field(gt=0, description='Toy ID')
     text: str = Field(min_length=1, description='Line text')
-    audio_url: str | None = Field(None, description='Line audio URL')
+    start_at: str | None = Field(None, description='开始时间')
+    end_at: str | None = Field(None, description='结束时间')
 
     @field_validator('text', mode='before')
     @classmethod
     def strip_text(cls, value: Any) -> Any:
         return _strip_required_text(value)
 
-    @field_validator('audio_url', mode='before')
+    @field_validator('start_at', 'end_at', mode='before')
     @classmethod
-    def strip_audio_url(cls, value: Any) -> Any:
+    def strip_time(cls, value: Any) -> Any:
         return _strip_optional_text(value)
 
 
@@ -77,6 +78,7 @@ class ScriptSchemaBase(SchemaBase):
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
     author: str | None = Field(None, description='Author')
+    play_url: str | None = Field(None, max_length=1000, description='播放地址')
     status: int = Field(default=0, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
 
@@ -119,6 +121,7 @@ class UpdateScriptParam(SchemaBase):
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
     author: str | None = Field(None, description='Author')
+    play_url: str | None = Field(None, max_length=1000, description='播放地址')
     toy_ids: list[int] | None = Field(None, min_length=1, description='Toy ID list')
     content: list[ScriptLine] | None = Field(None, min_length=1, description='Script line content')
     status: int | None = Field(None, description='Status (0 draft, 1 enabled, 2 disabled)')
@@ -138,46 +141,6 @@ class UpdateScriptParam(SchemaBase):
     def validate_toy_ids_content(self) -> 'UpdateScriptParam':
         if self.toy_ids is not None and self.content is not None:
             _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
-        return self
-
-
-class ScriptAICreateToy(SchemaBase):
-    toy_id: int = Field(gt=0, description='Toy ID')
-    name: str = Field(min_length=1, max_length=128, description='Toy name')
-    summary: str | None = Field(None, max_length=500, description='Toy summary')
-    system_prompt: str | None = Field(None, description='Toy system prompt')
-
-    @field_validator('name', mode='before')
-    @classmethod
-    def strip_name(cls, value: Any) -> Any:
-        return _strip_required_text(value)
-
-    @field_validator('summary', 'system_prompt', mode='before')
-    @classmethod
-    def strip_optional_text(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-
-class ScriptAICreateParam(SchemaBase):
-    title: str = Field(min_length=1, max_length=256, description='Script title')
-    summary: str | None = Field(None, max_length=1000, description='Script summary')
-    toys: list[ScriptAICreateToy] = Field(min_length=1, max_length=10, description='Toy list')
-
-    @field_validator('title', mode='before')
-    @classmethod
-    def strip_title(cls, value: Any) -> Any:
-        return _strip_required_text(value)
-
-    @field_validator('summary', mode='before')
-    @classmethod
-    def strip_summary(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-    @model_validator(mode='after')
-    def validate_toys(self) -> 'ScriptAICreateParam':
-        toy_ids = [toy.toy_id for toy in self.toys]
-        if len(set(toy_ids)) != len(toy_ids):
-            raise ValueError('toys contains duplicate toy_id')
         return self
 
 

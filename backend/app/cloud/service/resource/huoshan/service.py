@@ -23,16 +23,16 @@ from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from backend.app.cloud.schema.resource.huoshan import (
-    HuoshanStreamTTSParam,
-    HuoshanToyStoryToyInfo,
-    HuoshanToyStoryScriptLine,
-    HuoshanToyStoryScriptParam,
-    HuoshanToyStoryScriptResult,
     HuoshanStoryGenerateParam,
     HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
+    HuoshanStreamTTSParam,
+    HuoshanToyStoryScriptLine,
+    HuoshanToyStoryScriptParam,
+    HuoshanToyStoryScriptResult,
+    HuoshanToyStoryToyInfo,
     HuoshanVoiceListParam,
     HuoshanVoiceListResult,
     HuoshanVoiceStatus,
@@ -60,7 +60,11 @@ from backend.app.cloud.service.resource.huoshan.config import (
     get_voice_profile,
     get_voice_project_for_speaker,
 )
-from backend.app.cloud.service.resource.huoshan.audio_tools import mix_audio_with_bgm
+from backend.app.cloud.service.resource.huoshan.audio_tools import (
+    concatenate_audio_segments,
+    mix_audio_with_bgm,
+    probe_audio_duration,
+)
 from backend.app.cloud.service.resource.huoshan.client import HuoshanLongTextTTSClient, HuoshanOpenAPIClient
 from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanAPIError, HuoshanOpenAPIError, HuoshanTTSError
 from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
@@ -928,18 +932,90 @@ class HuoshanVoiceService:
             await tts_stream_service.query(obj=obj, request_id=request_id)
 
     @staticmethod
-    async def _build_toy_story_script_content(result: HuoshanToyStoryScriptResult) -> list[ScriptLine]:
-        content: list[ScriptLine] = []
-        for line in result.lines:
-            request_id = str(line.tts_token or '').strip()
-            if not request_id:
-                raise errors.GatewayError(
-                    msg=f'Toy story script line is missing tts_token, task_id={result.task_id}, toy_id={line.toy_id}'
-                )
+    def _format_script_timestamp(seconds: float) -> str:
+        milliseconds = max(0, round(seconds * 1000))
+        hours, remainder = divmod(milliseconds, 3_600_000)
+        minutes, remainder = divmod(remainder, 60_000)
+        seconds_part, milliseconds_part = divmod(remainder, 1000)
+        return f'{hours:02d}:{minutes:02d}:{seconds_part:02d}.{milliseconds_part:03d}'
 
-            # download_url = await tts_stream_service.upload_audio_to_oss(request_id=request_id)
-            content.append(ScriptLine(toy_id=line.toy_id, text=line.text, audio_url=None))
-        return content
+    async def _build_toy_story_script_content(
+            self,
+            result: HuoshanToyStoryScriptResult,
+    ) -> tuple[list[ScriptLine], str]:
+        if not result.lines:
+            raise errors.GatewayError(msg=f'Toy story script has no lines, task_id={result.task_id}')
+
+        toy_map = {toy.toy_id: toy for toy in result.toys}
+        segment_paths: list[Path] = []
+        content: list[ScriptLine] = []
+        current_offset = 0.0
+
+        with TemporaryDirectory(prefix='huoshan_script_') as temp_dir:
+            temp_path = Path(temp_dir)
+            for index, line in enumerate(result.lines):
+                token = str(line.tts_token or '').strip()
+                if not token:
+                    raise errors.GatewayError(
+                        msg=(
+                            f'Toy story script line is missing tts_token, task_id={result.task_id}, '
+                            f'toy_id={line.toy_id}'
+                        )
+                    )
+
+                toy = toy_map.get(line.toy_id)
+                if toy is None:
+                    raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
+
+                request_id = token
+                if not line.tts_status:
+                    await tts_stream_service.query_and_wait(
+                        obj=HuoshanStreamTTSParam(
+                            text=line.text,
+                            speaker=toy.speaker,
+                            speech_rate=toy.speech_rate or 0,
+                            loudness_rate=toy.loudness_rate or 0,
+                        ),
+                        request_id=request_id,
+                    )
+
+                audio_data = await tts_stream_service.get_audio_bytes(request_id=request_id)
+                if not audio_data:
+                    raise errors.GatewayError(
+                        msg=f'Toy story script line returned empty audio, task_id={result.task_id}, line={index}'
+                    )
+
+                segment_path = temp_path / f'{index:04d}.mp3'
+                segment_path.write_bytes(audio_data)
+                segment_paths.append(segment_path)
+
+                duration = probe_audio_duration(segment_path)
+                if duration <= 0:
+                    raise errors.GatewayError(
+                        msg=f'Toy story script line audio duration is invalid, task_id={result.task_id}, line={index}'
+                    )
+
+                content.append(
+                    ScriptLine(
+                        toy_id=line.toy_id,
+                        text=line.text,
+                        start_at=self._format_script_timestamp(current_offset),
+                        end_at=self._format_script_timestamp(current_offset + duration),
+                    )
+                )
+                current_offset += duration
+
+            output_path = temp_path / 'complete.mp3'
+            await asyncio.to_thread(concatenate_audio_segments, segment_paths, output_path)
+            output_audio = output_path.read_bytes()
+
+        date_path = timezone.now().strftime('%Y%m%d')
+        oss_key = f'cloud/huoshan/script/{date_path}/{result.task_id}.mp3'
+        play_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
+        if not play_url:
+            raise errors.GatewayError(msg='Failed to upload complete toy story script audio')
+
+        return content, play_url
 
     async def _save_toy_story_script(
             self,
@@ -951,7 +1027,7 @@ class HuoshanVoiceService:
         try:
             async with async_db_session() as db:
                 try:
-                    content = await self._build_toy_story_script_content(result)
+                    content, play_url = await self._build_toy_story_script_content(result)
                     script = await cloud_script_service.create_script(
                         db=db,
                         obj=CreateScriptParam(
@@ -961,6 +1037,7 @@ class HuoshanVoiceService:
                             author=None,
                             toy_ids=list(result.toy_ids),
                             content=content,
+                            play_url=play_url,
                             device_id=result.device_id,
                             status=0,
                             remark=None,

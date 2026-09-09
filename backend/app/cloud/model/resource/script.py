@@ -26,6 +26,7 @@ class CloudScript(Base):
     author: Mapped[str | None] = mapped_column(sa.String(128), index=True, comment='Author')
     toy_ids: Mapped[list[int]] = mapped_column(sa.JSON, comment='Toy ID list')
     content: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, comment='Script line content')
+    play_url: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='播放地址')
     device_id: Mapped[int] = mapped_column(default=0, index=True, comment='Device ID, 0 means platform')
     favorite: Mapped[int] = mapped_column(
         sa.SmallInteger,
