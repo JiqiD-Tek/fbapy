@@ -24,7 +24,7 @@ class StateSnapshot:
     repeat_mode: int | None = None
 
 
-class StateStore:
+class ShadowStore:
     STATE_REDIS_PREFIX: ClassVar[str] = 'fba:device:state'
     STATE_TTL_SECONDS: ClassVar[int] = 60 * 60 * 24
     STATE_FIELDS: ClassVar[tuple[str, ...]] = (

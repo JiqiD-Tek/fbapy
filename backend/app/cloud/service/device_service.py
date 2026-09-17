@@ -32,7 +32,7 @@ from backend.app.cloud.schema.device.device import (
 )
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.schema.user import UserDeviceParam
-from backend.app.cloud.timeseries.state_store import StateStore
+from backend.app.cloud.service.device.shadow_store import ShadowStore
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.database.redis import redis_client
@@ -330,7 +330,7 @@ class DeviceService:
     @staticmethod
     async def get_state(*, db: AsyncSession, user_id: int, pk: int) -> dict[str, Any] | None:
         device = await DeviceService._ensure_user_has_device(db=db, user_id=user_id, device_id=pk)
-        return await StateStore.get(device.did)
+        return await ShadowStore.get(device.did)
 
     @staticmethod
     async def update(*, db: AsyncSession, user_id: int, pk: int, obj: UpdateDeviceParam) -> int:

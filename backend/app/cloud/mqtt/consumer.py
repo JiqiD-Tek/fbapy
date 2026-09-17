@@ -5,7 +5,7 @@ import weakref
 
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.app.cloud.timeseries.mqtt_route import normalize_mqtt_payload, parse_mqtt_topic
-from backend.app.cloud.timeseries.state_store import StateStore
+from backend.app.cloud.service.device.shadow_store import ShadowStore
 from backend.common.log import log
 from backend.common.mqtt_broker import MQTTBroker, MQTTMessageContext
 from backend.core.conf import settings
@@ -66,7 +66,7 @@ class CloudMQTTConsumer:
     async def _handle_property(*, route, payload: object, message_ctx: MQTTMessageContext) -> None:
         try:
             payload = normalize_mqtt_payload(payload)
-            await StateStore.update(
+            await ShadowStore.update(
                 route=route,
                 payload=payload,
                 timestamp=message_ctx.timestamp,
@@ -77,7 +77,7 @@ class CloudMQTTConsumer:
     @staticmethod
     async def _handle_event(*, route, payload: object, message_ctx: MQTTMessageContext) -> None:
         try:
-            await StateStore.touch(
+            await ShadowStore.touch(
                 route=route,
                 timestamp=message_ctx.timestamp,
             )
