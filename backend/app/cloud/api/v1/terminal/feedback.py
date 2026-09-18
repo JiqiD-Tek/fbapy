@@ -16,14 +16,14 @@ from backend.app.cloud.schema.feedback import (
     UpdateFeedbackParam,
 )
 from backend.app.cloud.schema.user import DeviceAuthParam
-from backend.app.cloud.service.device.messaging import MessagingService
+from backend.app.cloud.service.device.gateway import DeviceGateway
 from backend.app.cloud.service.feedback_service import feedback_service
 from backend.common.exception import errors
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
-from backend.common.mqtt_broker import MQTTDependency
+from backend.common.mqtt import MQTTDependency
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
@@ -85,8 +85,14 @@ async def create_feedback(
 
     if isinstance(auth_ctx, DeviceAuthParam) and status == 1:
         mqtt_client = await MQTTDependency.get_manager()
-        messaging_service = MessagingService(mqtt_client=mqtt_client, did=auth_ctx.did, model=auth_ctx.model)
-        await messaging_service.send_request_log(feedback_id=feedback.id)
+        gateway = DeviceGateway(mqtt_client=mqtt_client)
+        await gateway.publish_command(
+            model=auth_ctx.model,
+            did=auth_ctx.did,
+            service='feedback',
+            action='request_log',
+            payload={'feedback_id': feedback.id},
+        )
 
     return response_base.success(data=feedback)
 

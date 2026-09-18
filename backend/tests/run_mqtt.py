@@ -11,11 +11,11 @@ import json
 import time
 
 from backend.common.log import log
-from backend.common.mqtt_broker import MQTTMessageContext, close_mqtt, init_mqtt
+from backend.common.mqtt import MQTTMessageContext, close_mqtt, init_mqtt
 
 
 async def main() -> None:
-    """Example usage of MQTTBroker."""
+    """Example usage of MQTTClient."""
 
     client_id = 'TEST_DEVICE_DID'
     mqtt = await init_mqtt()

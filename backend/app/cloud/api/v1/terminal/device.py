@@ -10,10 +10,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, Request
 
-from backend.common.mqtt_broker import MQTTDependency
-from backend.app.cloud.service.device.messaging import MessagingService
+from backend.common.mqtt import MQTTDependency
 from backend.app.cloud.schema.baby import DeviceBabyParam, GetBabyDetail
 from backend.app.cloud.schema.device.device import (
+    DeviceCommandRequest,
     DeviceToyUnlockParam,
     GetDeviceBindStateDetail,
     GetDeviceDetail,
@@ -27,6 +27,7 @@ from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.device_service import device_service
+from backend.app.cloud.service.device.gateway import DeviceGateway
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth
@@ -34,6 +35,25 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+@router.post('/request', summary='通用设备请求', dependencies=[DependsDeviceAuth])
+async def request_device(
+        obj: DeviceCommandRequest,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseModel:
+    """通过统一通道向设备发送 service/action/payload 请求。"""
+    mqtt_client = await MQTTDependency.get_manager()
+    gateway = DeviceGateway(mqtt_client=mqtt_client)
+    data = await gateway.request(
+        model=auth_ctx.model,
+        did=auth_ctx.did,
+        service=obj.service,
+        action=obj.action,
+        payload=obj.payload,
+        timeout=obj.timeout,
+    )
+    return response_base.success(data=data)
 
 
 @router.get('/bind/state', summary='设备绑定关系', dependencies=[DependsDeviceAuth])
@@ -198,6 +218,12 @@ async def delete_device(
 
     # 设备恢复出厂
     mqtt_client = await MQTTDependency.get_manager()
-    service = MessagingService(mqtt_client=mqtt_client, did=device.did, model=device.model)
-    await service.send_system_control(action='factory_reset', target='', value='')
+    gateway = DeviceGateway(mqtt_client=mqtt_client)
+    await gateway.publish_command(
+        model=device.model,
+        did=device.did,
+        service='system',
+        action='factory_reset',
+        payload={'target': '', 'value': ''},
+    )
     return response_base.success()

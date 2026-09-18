@@ -98,6 +98,15 @@ class DeviceToyUnlockParam(SchemaBase):
         return value
 
 
+class DeviceCommandRequest(SchemaBase):
+    """通用设备命令请求。"""
+
+    service: str = Field(min_length=1, max_length=64, pattern=r'^[A-Za-z0-9_.-]+$', description='设备服务名')
+    action: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9_.-]+$', description='设备动作名')
+    payload: dict[str, Any] = Field(default_factory=dict, description='透传给设备的业务参数')
+    timeout: float = Field(default=10.0, gt=0, le=30.0, description='等待设备响应的秒数')
+
+
 class DeviceToyListItem(SchemaBase):
     toy_id: int = Field(description='Toy ID')
     series_id: int | None = Field(None, description='Toy series ID')

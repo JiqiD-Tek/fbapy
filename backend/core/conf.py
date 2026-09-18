@@ -408,8 +408,11 @@ class Settings(BaseSettings):
     MQTT_PORT: int = 1883
     MQTT_USERNAME: str = ''
     MQTT_JWT_SECRET: str = ''
-    MQTT_CALLBACK_QUEUE_MAXSIZE: int = 10000
-    MQTT_CALLBACK_SHARDS: int = 8
+    MQTT_CALLBACK_QUEUE_MAXSIZE: int = 10000  # 回调队列最大容量
+    MQTT_CALLBACK_SHARDS: int = 8  # 回调处理并发度
+    MQTT_REQUEST_MAX_PENDING: int = 200  # 客户端请求的上限
+    MQTT_MAX_INFLIGHT_MESSAGES: int = 100  # 并发传输的上限
+    MQTT_MAX_QUEUED_MESSAGES: int = 1000  # 等待发送的缓冲区
     MQTT_UP_TOPICS: list[str] = [
         '$share/group/k11/+/up/event',
         '$share/group/k11/+/up/property',

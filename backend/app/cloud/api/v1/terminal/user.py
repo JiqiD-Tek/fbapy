@@ -3,8 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.service.device_service import device_service
-from backend.common.mqtt_broker import MQTTDependency
-from backend.app.cloud.service.device.messaging import MessagingService
+from backend.common.mqtt import MQTTDependency
+from backend.app.cloud.service.device.gateway import DeviceGateway
 from backend.app.cloud.schema.baby import GetBabyDetail
 from backend.app.cloud.schema.device.device import GetDeviceDetail
 from backend.app.cloud.schema.user import GetUserInfoDetail, UserDeviceParam
@@ -121,6 +121,12 @@ async def unbind_device(
 
     # 设备解绑
     mqtt_client = await MQTTDependency.get_manager()
-    service = MessagingService(mqtt_client=mqtt_client, did=device.did, model=device.model)
-    await service.send_system_control(action='unbind', target='', value='')
+    gateway = DeviceGateway(mqtt_client=mqtt_client)
+    await gateway.publish_command(
+        model=device.model,
+        did=device.did,
+        service='system',
+        action='unbind',
+        payload={'target': '', 'value': ''},
+    )
     return response_base.success()

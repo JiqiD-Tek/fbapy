@@ -23,7 +23,7 @@ from backend.core.conf import settings
 from backend.utils.timezone import timezone
 
 if TYPE_CHECKING:
-    from backend.common.mqtt_broker import MQTTMessageContext
+    from backend.common.mqtt import MQTTMessageContext
 
 
 @dataclass(slots=True)

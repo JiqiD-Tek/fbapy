@@ -32,7 +32,7 @@ from backend.app.cloud.schema.device.device import (
 )
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.schema.user import UserDeviceParam
-from backend.app.cloud.service.device.shadow_store import ShadowStore
+from backend.app.cloud.service.device.store import ShadowStore
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.database.redis import redis_client
@@ -115,6 +115,21 @@ class DeviceService:
         device = await device_dao.get_by_did(db, did)
         if not device:
             raise errors.NotFoundError(msg='设备不存在')
+        return device
+
+    @staticmethod
+    async def get_user_device_by_did(*, db: AsyncSession, user_id: int, did: str) -> Device:
+        """按 DID 查询设备，并确认该设备属于当前用户。"""
+        stmt = (
+            select(Device)
+            .join(user_device, user_device.c.device_id == Device.id)
+            .where(Device.did == did, user_device.c.user_id == user_id)
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        device = result.scalar_one_or_none()
+        if device is None:
+            raise errors.NotFoundError(msg='设备不存在或无权访问')
         return device
 
     @staticmethod

@@ -5,15 +5,15 @@ import weakref
 
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.app.cloud.timeseries.mqtt_route import normalize_mqtt_payload, parse_mqtt_topic
-from backend.app.cloud.service.device.shadow_store import ShadowStore
+from backend.app.cloud.service.device.store import ShadowStore
 from backend.common.log import log
-from backend.common.mqtt_broker import MQTTBroker, MQTTMessageContext
+from backend.common.mqtt import MQTTClient, MQTTMessageContext
 from backend.core.conf import settings
 
 
-class CloudMQTTConsumer:
+class MQTTConsumer:
     def __init__(self) -> None:
-        self._registered_topics_by_broker: weakref.WeakKeyDictionary[MQTTBroker, set[str]] = weakref.WeakKeyDictionary()
+        self._registered_topics: weakref.WeakKeyDictionary[MQTTClient, set[str]] = weakref.WeakKeyDictionary()
 
     @staticmethod
     def _decode_payload(payload: bytes) -> object:
@@ -30,13 +30,13 @@ class CloudMQTTConsumer:
         except ValueError:
             return payload_text
 
-    async def register(self, broker: MQTTBroker) -> None:
-        registered_topics = self._registered_topics_by_broker.setdefault(broker, set())
+    async def register(self, client: MQTTClient) -> None:
+        registered_topics = self._registered_topics.setdefault(client, set())
 
         for topic in settings.MQTT_UP_TOPICS:
             if topic in registered_topics:
                 continue
-            await broker.subscribe(topic, self.handle_message, shard_key_extractor=self.extract_shard_key)
+            await client.subscribe(topic, self.handle_message, shard_key_extractor=self.extract_shard_key)
             registered_topics.add(topic)
             log.debug(f'已注册全局订阅: {topic}')
 
@@ -90,4 +90,4 @@ class CloudMQTTConsumer:
             log.debug(f'保存历史消息失败: {exc}', exc_info=True)
 
 
-cloud_mqtt_consumer: CloudMQTTConsumer = CloudMQTTConsumer()
+mqtt_consumer: MQTTConsumer = MQTTConsumer()

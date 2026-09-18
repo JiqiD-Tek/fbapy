@@ -16,13 +16,13 @@ from starlette_context.middleware import ContextMiddleware
 from starlette_context.plugins import RequestIdPlugin
 
 from backend import __version__
-from backend.app.cloud.mqtt import cloud_mqtt_consumer
+from backend.app.cloud.mqtt import mqtt_consumer
 from backend.app.cloud.timeseries.event_store import EventStore
 from backend.common.cache.pubsub import cache_pubsub_manager
 from backend.common.exception.exception_handler import register_exception
 from backend.common.lifespan import lifespan_manager
 from backend.common.log import set_custom_logfile, setup_logging
-from backend.common.mqtt_broker import close_mqtt, init_mqtt
+from backend.common.mqtt import close_mqtt, init_mqtt
 from backend.common.observability.otel import init_otel
 from backend.common.response.response_code import StandardResponseCode
 from backend.core.conf import settings
@@ -76,8 +76,8 @@ async def register_init(app: FastAPI) -> AsyncGenerator[None, None]:
     await EventStore.start()
 
     # 初始化mqtt连接
-    broker = await init_mqtt()
-    await cloud_mqtt_consumer.register(broker)
+    mqtt_client = await init_mqtt()
+    await mqtt_consumer.register(mqtt_client)
 
     try:
         yield
