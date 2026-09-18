@@ -1,5 +1,5 @@
 insert into sys_menu (title, name, path, sort, icon, type, component, perms, status, display, cache, link, remark, parent_id, created_time, updated_time)
-values ('code_generator.menu', 'PluginCodeGenerator', '/plugins/code-generator', 10, 'tabler:code', 1, '/plugins/code_generator/views/index', null, 1, 1, 1, '', null, null, now(), null);
+values ('code-generator.menu', 'PluginCodeGenerator', '/plugins/code-generator', 10, 'tabler:code', 1, '/plugins/code-generator/views/index', null, 1, 1, 1, '', null, null, now(), null);
 
 set @codegen_menu_id = LAST_INSERT_ID();
 
@@ -14,10 +14,10 @@ values
 ('导入', 'ImportGenCode', null, 0, null, 2, null, 'codegen:table:import', 1, 0, 1, '', null, @codegen_menu_id, now(), null),
 ('写入', 'WriteGenCode', null, 0, null, 2, null, 'codegen:local:write', 1, 0, 1, '', null, @codegen_menu_id, now(), null);
 
-insert into gen_business (id, app_name, table_name, doc_comment, table_comment, class_name, schema_name, filename, datetime_mixin, api_version, gen_path, remark, created_time, updated_time)
+insert into code_gen_business (id, app_name, table_name, doc_comment, table_comment, class_name, schema_name, filename, datetime_mixin, api_version, gen_path, remark, created_time, updated_time)
 values (1, 'test', 'sys_opera_log', '操作日志表', '操作日志表', 'SysOperaLog', 'SysOperaLog', 'sys_opera_log', true, 'v1', null, null, '2025-12-15 15:30:33', null);
 
-insert into gen_column (id, name, comment, type, pd_type, `default`, sort, `length`, is_pk, is_nullable, gen_business_id)
+insert into code_gen_column (id, name, comment, type, pd_type, `default`, sort, `length`, is_pk, is_nullable, code_gen_business_id)
 values
 (1, 'trace_id', '请求跟踪 ID', 'String', 'str', null, 2, 32, false, false, 1),
 (2, 'username', '用户名', 'String', 'str', null, 3, 64, false, true, 1),

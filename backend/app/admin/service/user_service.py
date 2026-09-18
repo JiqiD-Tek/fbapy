@@ -21,7 +21,8 @@ from backend.common.enums import UserPermissionType
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 from backend.common.response.response_code import CustomErrorCode
-from backend.common.security.jwt import get_token, jwt_decode
+from backend.common.security.jwt import jwt_decode
+from backend.common.security.token import get_token, revoke_user_tokens
 from backend.core.conf import settings
 from backend.database.redis import redis_client
 from backend.utils.serializers import select_join_serialize
@@ -169,24 +170,19 @@ class UserService:
                 user = await user_dao.get(db, pk)
                 if not user:
                     raise errors.NotFoundError(msg='用户不存在')
-                multi_login = user.is_multi_login if pk != user.id else request.user.is_multi_login
+                multi_login = user.is_multi_login if pk != request.user.id else request.user.is_multi_login
                 new_multi_login = not multi_login
                 count = await user_dao.set_multi_login(db, pk, multi_login=new_multi_login)
                 token = get_token(request)
                 token_payload = jwt_decode(token)
-                if pk == user.id:
+                if pk == request.user.id:
                     # 系统管理员修改自身时，除当前 token 外，其他 token 失效
                     if not new_multi_login:
-                        key_prefix = f'{settings.TOKEN_REDIS_PREFIX}:{user.id}'
-                        await redis_client.delete_by_prefix(
-                            key_prefix,
-                            exclude_keys=f'{key_prefix}:{token_payload.session_uuid}',
-                        )
+                        await revoke_user_tokens(user.id, exclude_session_uuid=token_payload.session_uuid)
                 else:
                     # 系统管理员修改他人时，他人 token 全部失效
                     if not new_multi_login:
-                        key_prefix = f'{settings.TOKEN_REDIS_PREFIX}:{user.id}'
-                        await redis_client.delete_by_prefix(key_prefix)
+                        await revoke_user_tokens(user.id)
             case _:
                 raise errors.RequestError(msg='权限类型不存在')
 
@@ -209,13 +205,12 @@ class UserService:
 
         await validate_new_password(db, user.id, password)
         count = await user_dao.reset_password(db, user.id, password)
-
         history_obj = CreateUserPasswordHistoryParam(user_id=user.id, password=user.password)
         await password_security_service.save_password_history(db, history_obj)
         await user_dao.update_password_changed_time(db, user.id)
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REDIS_PREFIX}:{user.id}')
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user.id}')
-        await redis_client.delete_by_prefix(f'{settings.JWT_USER_REDIS_PREFIX}:{user.id}')
+        await revoke_user_tokens(user.id)
+        await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{user.id}')
+
         return count
 
     @staticmethod
@@ -257,7 +252,8 @@ class UserService:
         :param email: 邮箱
         :return:
         """
-        captcha_code = await redis_client.get(f'{settings.EMAIL_CAPTCHA_REDIS_PREFIX}:{ctx.ip}')
+        captcha_key = f'{settings.EMAIL_CAPTCHA_REDIS_PREFIX}:{ctx.ip}'
+        captcha_code = await redis_client.get(captcha_key)
         if not captcha_code:
             raise errors.RequestError(msg='验证码已失效，请重新获取')
         if captcha != captcha_code:
@@ -265,7 +261,7 @@ class UserService:
         email_user = await user_dao.check_email(db, email)
         if email_user and email_user.id != user_id:
             raise errors.ConflictError(msg='邮箱已被绑定')
-        await redis_client.delete(f'{settings.EMAIL_CAPTCHA_REDIS_PREFIX}:{ctx.ip}')
+        await redis_client.delete(captcha_key)
         count = await user_dao.update_email(db, user_id, email)
         await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
         return count
@@ -281,22 +277,19 @@ class UserService:
         :return:
         """
         user = await user_dao.get(db, user_id)
-
         if user.password and not password_verify(obj.old_password, user.password):
             raise errors.RequestError(msg='原密码错误')
-
         if obj.new_password != obj.confirm_password:
             raise errors.RequestError(msg='两次密码输入不一致')
 
         await validate_new_password(db, user_id, obj.new_password)
         count = await user_dao.reset_password(db, user_id, obj.new_password)
-
         history_obj = CreateUserPasswordHistoryParam(user_id=user.id, password=user.password)
         await password_security_service.save_password_history(db, history_obj)
         await user_dao.update_password_changed_time(db, user.id)
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}')
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user_id}')
-        await redis_client.delete_by_prefix(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
+        await revoke_user_tokens(user_id)
+        await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{user_id}')
+
         return count
 
     @staticmethod
@@ -311,10 +304,11 @@ class UserService:
         user = await user_dao.get(db, pk)
         if not user:
             raise errors.NotFoundError(msg='用户不存在')
+
         count = await user_dao.delete(db, user.id)
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REDIS_PREFIX}:{user.id}')
-        await redis_client.delete_by_prefix(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user.id}')
-        await redis_client.delete_by_prefix(f'{settings.JWT_USER_REDIS_PREFIX}:{user.id}')
+        await revoke_user_tokens(user.id)
+        await redis_client.delete(f'{settings.JWT_USER_REDIS_PREFIX}:{user.id}')
+
         return count
 
 

@@ -36,12 +36,12 @@ from backend.common.i18n import t
 from backend.common.log import log
 from backend.common.response.response_code import CustomErrorCode
 from backend.common.security.auth import identity_verifier
-from backend.common.security.jwt import (
+from backend.common.security.jwt import jwt_decode
+from backend.common.security.token import (
     create_access_token,
     create_new_token,
     create_refresh_token,
     get_token,
-    jwt_decode,
 )
 from backend.core.conf import settings
 from backend.database.db import uuid4_str

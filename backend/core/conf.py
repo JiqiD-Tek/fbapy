@@ -68,6 +68,8 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_TIMEOUT: int = 5
+    REDIS_MAX_CONNECTIONS: int = 100  # 连接池上限
+    REDIS_POOL_TIMEOUT: int = 20  # 等待空闲连接超时（秒）
 
     # TSDB
     TSDB_ENABLED: bool = False
@@ -97,6 +99,7 @@ class Settings(BaseSettings):
     CACHE_PUBSUB_CHANNEL: str = 'fba:cache:invalidate'
     CACHE_PUBSUB_RECONNECT_DELAY: int = 5  # 重连延迟（秒）
     CACHE_PUBSUB_MAX_RECONNECT_ATTEMPTS: int = 10  # 最大重连次数
+    CACHE_PUBSUB_POLL_TIMEOUT: float = 1.0  # 订阅消息轮询超时（秒）
 
     # .env Snowflake
     SNOWFLAKE_ENABLED: bool = False
@@ -119,6 +122,7 @@ class Settings(BaseSettings):
     TOKEN_EXTRA_INFO_REDIS_PREFIX: str = 'fba:token_extra_info'
     TOKEN_ONLINE_REDIS_PREFIX: str = 'fba:token_online'
     TOKEN_REFRESH_REDIS_PREFIX: str = 'fba:refresh_token'
+    TOKEN_SESSION_REDIS_PREFIX: str = 'fba:token_session'
     TOKEN_REQUEST_UNDERLYING_SECURITY: bool = True
     TOKEN_REQUEST_PATH_EXCLUDE: list[str] = [  # JWT / RBAC 路由白名单
         f'{FASTAPI_API_V1_PATH}/auth/login',
