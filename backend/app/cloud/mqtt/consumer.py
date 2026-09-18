@@ -36,16 +36,9 @@ class MQTTConsumer:
         for topic in settings.MQTT_UP_TOPICS:
             if topic in registered_topics:
                 continue
-            await client.subscribe(topic, self.handle_message, shard_key_extractor=self.extract_shard_key)
+            await client.subscribe(topic, self.handle_message)
             registered_topics.add(topic)
             log.debug(f'已注册全局订阅: {topic}')
-
-    @staticmethod
-    def extract_shard_key(message_ctx: MQTTMessageContext) -> str | None:
-        route = parse_mqtt_topic(message_ctx.topic)
-        if route is None:
-            return None
-        return route.did
 
     async def handle_message(self, message_ctx: MQTTMessageContext) -> None:
         payload = self._decode_payload(message_ctx.payload)

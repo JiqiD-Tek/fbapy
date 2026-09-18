@@ -71,9 +71,6 @@ class MQTTPublishResult:
 
 
 MessageCallback: TypeAlias = Callable[[MQTTMessageContext], None | Awaitable[None]]
-CallbackShardKeyExtractor: TypeAlias = Callable[[MQTTMessageContext], str | None]
-
-
 class MQTTConnectionError(Exception):
     """MQTT 连接失败的自定义异常。"""
 
@@ -85,4 +82,3 @@ class MQTTSubscription:
     topic: str
     qos: int
     callback: MessageCallback
-    shard_key_extractor: CallbackShardKeyExtractor | None = None

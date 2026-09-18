@@ -9,10 +9,8 @@
 import asyncio
 import inspect
 import json
-import math
 import random
 import uuid
-import zlib
 
 from asyncio import Queue, QueueEmpty
 from collections.abc import Awaitable, Callable
@@ -33,7 +31,6 @@ from backend.common.observability.prometheus.queue import inc_queue_exception, o
 from backend.core.conf import settings
 from backend.utils.timezone import timezone
 from backend.common.mqtt.types import (
-    CallbackShardKeyExtractor,
     MessageCallback,
     MQTTConfig,
     MQTTConnectionError,
@@ -48,14 +45,6 @@ from backend.common.mqtt.types import (
 class MQTTDispatchItem:
     callbacks: tuple[MessageCallback, ...]
     message_ctx: MQTTMessageContext
-
-
-@dataclass(slots=True)
-class _QueueGroupView:
-    queues: tuple[Queue[Any], ...]
-
-    def qsize(self) -> int:
-        return sum(queue.qsize() for queue in self.queues)
 
 
 class MQTTClient:
@@ -89,13 +78,11 @@ class MQTTClient:
 
         self._connection_task: asyncio.Task | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
-        self._callback_shards = max(1, settings.MQTT_CALLBACK_SHARDS)
+        # 普通 MQTT 消息统一进入一个有界队列，避免 Paho 网络线程执行耗时业务回调。
+        # 默认只启动一个回调处理协程，保留同一连接收到消息的处理顺序；需要并行时再调大该配置。
+        self._callback_workers = max(1, settings.MQTT_CALLBACK_WORKERS)
         self._callback_queue_maxsize = max(1, settings.MQTT_CALLBACK_QUEUE_MAXSIZE)
-        self._callback_queue_shard_maxsize = max(1, math.ceil(self._callback_queue_maxsize / self._callback_shards))
-        self._callback_queues: list[Queue[MQTTDispatchItem]] = [
-            Queue(maxsize=self._callback_queue_shard_maxsize) for _ in range(self._callback_shards)
-        ]
-        self._callback_queue_view = _QueueGroupView(tuple(self._callback_queues))
+        self._callback_queue: Queue[MQTTDispatchItem] = Queue(maxsize=self._callback_queue_maxsize)
         self._callback_tasks: list[asyncio.Task] = []
         self._callback_started = False
         self._callback_start_lock = asyncio.Lock()
@@ -124,56 +111,30 @@ class MQTTClient:
 
             self._callback_tasks = [
                 asyncio.create_task(
-                    self._callback_worker(shard_id=shard_id),
-                    name=f'mqtt_callback_worker_{shard_id}',
+                    self._callback_worker(worker_id=worker_id),
+                    name=f'mqtt_callback_worker_{worker_id}',
                 )
-                for shard_id in range(self._callback_shards)
+                for worker_id in range(self._callback_workers)
             ]
             self._callback_started = True
             self._observe_callback_queue_sizes()
 
     def _observe_callback_queue_sizes(self) -> None:
-        observe_queue_size(self._callback_queue_view, queue_name='mqtt_callback')
+        observe_queue_size(self._callback_queue, queue_name='mqtt_callback')
 
-    @staticmethod
-    def _resolve_shard_id_from_key(shard_key: str, shard_count: int) -> int:
-        return zlib.crc32(shard_key.encode('utf-8')) % shard_count
-
-    def _resolve_callback_shard_id(
-            self,
-            *,
-            message_ctx: MQTTMessageContext,
-            shard_key_extractor: CallbackShardKeyExtractor | None,
-    ) -> int:
-        shard_key: str | None = None
-        if shard_key_extractor is not None:
-            try:
-                shard_key = shard_key_extractor(message_ctx)
-            except Exception as exc:
-                log.error(f'MQTT shard key extractor failed: {exc}', exc_info=True)
-
-        if shard_key:
-            return self._resolve_shard_id_from_key(shard_key, self._callback_shards)
-
-        return self._resolve_shard_id_from_key(message_ctx.topic, self._callback_shards)
-
-    def _enqueue_dispatch_item_nowait(self, shard_id: int, item: MQTTDispatchItem) -> None:
-        queue = self._callback_queues[shard_id]
+    def _enqueue_dispatch_item_nowait(self, item: MQTTDispatchItem) -> None:
+        queue = self._callback_queue
         try:
             queue.put_nowait(item)
             self._observe_callback_queue_sizes()
         except asyncio.QueueFull:
             inc_queue_exception(queue_name='mqtt_callback')
             log.warning(
-                f'MQTT callback shard queue is full, dropping message: shard={shard_id}, topic={item.message_ctx.topic}'
+                f'MQTT 回调队列已满，丢弃消息: topic={item.message_ctx.topic}'
             )
 
-    def _enqueue_dispatch_items_nowait(self, items: list[tuple[int, MQTTDispatchItem]]) -> None:
-        for shard_id, item in items:
-            self._enqueue_dispatch_item_nowait(shard_id, item)
-
-    async def _callback_worker(self, *, shard_id: int) -> None:
-        queue = self._callback_queues[shard_id]
+    async def _callback_worker(self, *, worker_id: int) -> None:
+        queue = self._callback_queue
         while True:
             item = await queue.get()
             self._observe_callback_queue_sizes()
@@ -181,7 +142,7 @@ class MQTTClient:
                 await self._run_callback(item)
             except Exception as exc:
                 inc_queue_exception(queue_name='mqtt_callback')
-                log.error(f'MQTT callback worker failed: shard={shard_id}, error={exc}', exc_info=True)
+                log.error(f'MQTT 回调处理协程执行失败: worker={worker_id}, error={exc}', exc_info=True)
             finally:
                 queue.task_done()
 
@@ -196,7 +157,7 @@ class MQTTClient:
                 inc_queue_exception(queue_name='mqtt_callback')
                 callback_name = getattr(callback, '__qualname__', getattr(callback, '__name__', repr(callback)))
                 log.error(
-                    f'MQTT callback failed: callback={callback_name}, topic={item.message_ctx.topic}, error={exc}',
+                    f'MQTT 业务回调执行失败: callback={callback_name}, topic={item.message_ctx.topic}, error={exc}',
                     exc_info=True)
 
     async def _shutdown_callback_workers(self) -> None:
@@ -209,13 +170,12 @@ class MQTTClient:
         self._callback_tasks.clear()
         self._callback_started = False
 
-        for queue in self._callback_queues:
-            while True:
-                try:
-                    queue.get_nowait()
-                    queue.task_done()
-                except QueueEmpty:
-                    break
+        while True:
+            try:
+                self._callback_queue.get_nowait()
+                self._callback_queue.task_done()
+            except QueueEmpty:
+                break
 
         self._observe_callback_queue_sizes()
 
@@ -328,34 +288,21 @@ class MQTTClient:
         if topic == self._response_topic and message_ctx.correlation_data:
             self._call_loop_threadsafe(self._resolve_pending_response, message_ctx)
 
-        # 2. 查找匹配的回调函数，并按分片交给有界调度队列
-        dispatch_items: list[tuple[int, MQTTDispatchItem]] = []
+        # 2. 查找匹配的回调函数，并统一交给有界调度队列
+        callbacks: list[MessageCallback] = []
         with self._callback_lock:
             # 使用 MQTTMatcher 查找所有匹配该主题的订阅回调
             for subscriptions in self._matcher.iter_match(topic):
                 if not isinstance(subscriptions, dict):
                     continue
-                shard_buckets: dict[int, list[MessageCallback]] = {}
                 for subscription in subscriptions.values():
-                    shard_id = self._resolve_callback_shard_id(
-                        message_ctx=message_ctx,
-                        shard_key_extractor=subscription.shard_key_extractor,
-                    )
-                    shard_buckets.setdefault(shard_id, []).append(subscription.callback)
+                    callbacks.append(subscription.callback)
 
-                dispatch_items.extend(
-                    (
-                        shard_id,
-                        MQTTDispatchItem(
-                            callbacks=tuple(bucket_callbacks),
-                            message_ctx=message_ctx,
-                        ),
-                    )
-                    for shard_id, bucket_callbacks in shard_buckets.items()
-                )
-
-        if dispatch_items:
-            self._call_loop_threadsafe(self._enqueue_dispatch_items_nowait, dispatch_items)
+        if callbacks:
+            self._call_loop_threadsafe(
+                self._enqueue_dispatch_item_nowait,
+                MQTTDispatchItem(callbacks=tuple(callbacks), message_ctx=message_ctx),
+            )
 
     def _on_subscribe(self, client: mqtt.Client, userdata: Any, mid: int, reason_codes: list[ReasonCode],
                       properties: Properties | None = None) -> None:
@@ -589,11 +536,10 @@ class MQTTClient:
             topic: str,
             callback: MessageCallback,
             qos: int = 1,
-            shard_key_extractor: CallbackShardKeyExtractor | None = None,
     ) -> None:
         """
         订阅一个主题并注册回调函数。
-        同一原始 Topic 重复注册时覆盖旧的回调、QoS 和分片键。
+        同一原始 Topic 重复注册时覆盖旧的回调和 QoS。
         """
         if not callable(callback):
             raise TypeError('callback 必须是可调用对象')
@@ -608,7 +554,6 @@ class MQTTClient:
                     topic=topic,
                     qos=qos,
                     callback=callback,
-                    shard_key_extractor=shard_key_extractor,
                 )
                 self.subscriptions[topic] = subscription
 

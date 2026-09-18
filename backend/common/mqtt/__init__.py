@@ -3,7 +3,6 @@
 from backend.common.mqtt.client import MQTTClient
 from backend.common.mqtt.dependency import MQTTDependency, close_mqtt, create_mqtt_config, init_mqtt
 from backend.common.mqtt.types import (
-    CallbackShardKeyExtractor,
     MessageCallback,
     MQTTConfig,
     MQTTConnectionError,
@@ -14,7 +13,6 @@ from backend.common.mqtt.types import (
 )
 
 __all__ = [
-    'CallbackShardKeyExtractor',
     'MessageCallback',
     'MQTTClient',
     'MQTTConfig',
