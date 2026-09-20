@@ -22,7 +22,7 @@ from backend.app.cloud.schema.analytics import (
     VikingAnalyticsDetail,
     VikingMemorySectionDetail,
 )
-from backend.app.cloud.timeseries.event_store import EventStore
+from backend.app.cloud.telemetry.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.providers.viking_memory import viking_memory_client
 from backend.database.tsdb import tsdb

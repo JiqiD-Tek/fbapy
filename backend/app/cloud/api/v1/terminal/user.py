@@ -121,10 +121,8 @@ async def unbind_device(
 
     # 设备解绑
     mqtt_client = await MQTTDependency.get_manager()
-    gateway = DeviceGateway(mqtt_client=mqtt_client)
-    await gateway.publish_command(
-        model=device.model,
-        did=device.did,
+    gateway = DeviceGateway(mqtt_client=mqtt_client, model=device.model, did=device.did)
+    await gateway.publish(
         service='system',
         action='unbind',
         payload={'target': '', 'value': ''},

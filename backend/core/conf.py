@@ -413,7 +413,6 @@ class Settings(BaseSettings):
     MQTT_USERNAME: str = ''
     MQTT_JWT_SECRET: str = ''
     MQTT_CALLBACK_QUEUE_MAXSIZE: int = 10000  # 回调队列最大容量
-    MQTT_CALLBACK_WORKERS: int = 1  # 回调队列消费者数量；大于 1 时不保证消息处理顺序
     MQTT_REQUEST_MAX_PENDING: int = 200  # 客户端请求的上限
     MQTT_MAX_INFLIGHT_MESSAGES: int = 100  # 并发传输的上限
     MQTT_MAX_QUEUED_MESSAGES: int = 1000  # 等待发送的缓冲区

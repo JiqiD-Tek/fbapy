@@ -12,33 +12,23 @@ from backend.utils.timezone import timezone
 
 
 class DeviceGateway:
-    """将统一的 service/action/payload 请求转发到指定设备。"""
+    """将统一的 service/action/payload 请求转发到构造时绑定的设备。"""
 
-    def __init__(self, mqtt_client: MQTTClient) -> None:
-        self.client = mqtt_client
+    def __init__(self, mqtt_client: MQTTClient, *, model: str, did: str) -> None:
+        self._mqtt_client = mqtt_client
+        self._did = did
+        self._command_topic = f'{model}/{did}/down/command'
+        self._request_topic = f'{model}/{did}/down/request'
 
-    async def publish_message(self, *, model: str, did: str, message: dict[str, Any], qos: int = 1) -> str:
-        """发布已经封装好的设备消息，返回业务消息 ID。"""
-        result = await self.client.publish(
-            topic=f'{model}/{did}/down/command',
-            payload=message,
-            qos=qos,
-        )
-        if not result.published:
-            raise errors.ServerError(msg=f'MQTT publish failed: {result.error or "unknown error"}')
-        return str(message.get('msg_id', ''))
-
-    async def publish_command(
+    async def publish(
             self,
             *,
-            model: str,
-            did: str,
             service: str,
             action: str,
             payload: dict[str, Any],
             qos: int = 1,
-    ) -> str:
-        """封装并发布通用 command 消息，供业务服务复用。"""
+    ) -> dict[str, Any]:
+        """发布无需设备响应的命令；成功仅表示 MQTT 已确认发布，不表示设备已执行。"""
         message = {
             'msg_id': uuid.uuid4().hex,
             'timestamp': timezone.now().timestamp(),
@@ -48,13 +38,27 @@ class DeviceGateway:
                 **payload,
             },
         }
-        return await self.publish_message(model=model, did=did, message=message, qos=qos)
+        try:
+            await self._mqtt_client.publish(
+                topic=self._command_topic,
+                payload=message,
+                qos=qos,
+            )
+        except TimeoutError as exc:
+            raise errors.GatewayError(msg='MQTT 消息发布确认超时') from exc
+        except Exception as exc:
+            raise errors.GatewayError(msg=f'MQTT 消息发布失败: {exc}') from exc
+        return {
+            'request_id': message['msg_id'],
+            'device_id': self._did,
+            'success': True,
+            'response': None,
+            'topic': self._command_topic,
+        }
 
     async def request(
             self,
             *,
-            model: str,
-            did: str,
             service: str,
             action: str,
             payload: dict[str, Any],
@@ -72,9 +76,8 @@ class DeviceGateway:
             'payload': payload,
         }
         try:
-            context: MQTTMessageContext = await self.client.request(
-                # down/request 专用于需要响应的请求；无需响应的命令固定使用 down/command。
-                topic=f'{model}/{did}/down/request',
+            context: MQTTMessageContext = await self._mqtt_client.request(
+                topic=self._request_topic,
                 payload=message,
                 timeout=timeout,
                 qos=1,
@@ -92,7 +95,7 @@ class DeviceGateway:
         response_success = decoded.get('success', True) if isinstance(decoded, dict) else True
         return {
             'request_id': message['msg_id'],
-            'device_id': did,
+            'device_id': self._did,
             'success': bool(response_success),
             'response': decoded,
             'topic': context.topic,

@@ -32,7 +32,7 @@ from backend.app.cloud.schema.resource.report import (
     UsagePreviewSection,
 )
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.timeseries.event_store import EventStore
+from backend.app.cloud.telemetry.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.providers.doubao import DEFAULT_DOUBAO_MINI_MODEL, doubao_provider

@@ -44,10 +44,8 @@ async def request_device(
 ) -> ResponseModel:
     """通过统一通道向设备发送 service/action/payload 请求。"""
     mqtt_client = await MQTTDependency.get_manager()
-    gateway = DeviceGateway(mqtt_client=mqtt_client)
+    gateway = DeviceGateway(mqtt_client=mqtt_client, model=auth_ctx.model, did=auth_ctx.did)
     data = await gateway.request(
-        model=auth_ctx.model,
-        did=auth_ctx.did,
         service=obj.service,
         action=obj.action,
         payload=obj.payload,
@@ -218,10 +216,8 @@ async def delete_device(
 
     # 设备恢复出厂
     mqtt_client = await MQTTDependency.get_manager()
-    gateway = DeviceGateway(mqtt_client=mqtt_client)
-    await gateway.publish_command(
-        model=device.model,
-        did=device.did,
+    gateway = DeviceGateway(mqtt_client=mqtt_client, model=device.model, did=device.did)
+    await gateway.publish(
         service='system',
         action='factory_reset',
         payload={'target': '', 'value': ''},

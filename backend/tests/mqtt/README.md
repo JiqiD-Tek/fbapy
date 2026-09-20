@@ -28,7 +28,7 @@ backend/tests/mqtt/
 业务代码统一从下面的入口导入：
 
 ```python
-from backend.common.mqtt import MQTTClient, MQTTConfig, MQTTVersion
+from backend.common.mqtt import MQTTClient, MQTTConfig, MQTTConnectionError, MQTTVersion
 ```
 
 ## 2. MQTT 基本概念
@@ -62,13 +62,13 @@ MQTT 的 `publish()` 默认是异步消息发送。消息发布成功不代表�
 
 - 创建和管理 Paho MQTT 连接；
 - 使用 MQTT 5 Callback API v2 接收连接、发布、订阅和消息回调；
-- 断线检测、退避重连和已注册 Topic 的重新订阅；
+- 使用 Paho 原生退避重连，并在重连成功后恢复已注册 Topic；
 - 将 Paho 线程中的回调安全地切回 asyncio 事件循环；
 - 提供发布、订阅、取消订阅和 MQTT 5 请求-响应 API；
 - 管理发布确认、请求响应、超时和断线时的 Future 清理。
 
 它不负责设备权限、设备归属、业务 action 实现、数据库持久化或 HTTP 响应。设备路由和业务协议由上层的 `DeviceGateway`、
-`MQTTConsumer` 等模块负责。
+`DeviceMQTTConsumer` 等模块负责。
 
 ### 3.2 配置和创建
 
@@ -84,6 +84,10 @@ client = MQTTClient(MQTTConfig(
     password='jwt-password',
     version=MQTTVersion.V5,
     client_id='server-instance-a',
+    subscribe_timeout=5,
+    publish_timeout=5,
+    shutdown_timeout=5,
+    callback_queue_maxsize=10000,
     request_max_pending=200,
     max_inflight_messages=100,
     max_queued_messages=1000,
@@ -105,27 +109,33 @@ await client.connect()
 await client.disconnect()
 ```
 
-更推荐使用异步上下文管理器，确保异常时也会断开连接并清理回调任务：
+Web 应用通过 `MQTTDependency` 统一管理共享客户端的连接和断开。命令行脚本或独立测试直接创建客户端时，应使用
+`try/finally` 确保异常时也能清理连接和回调任务：
 
 ```python
-async with client.context() as mqtt_client:
-    result = await mqtt_client.publish(
+client = MQTTClient(config)
+try:
+    if not await client.connect():
+        raise MQTTConnectionError('MQTT 连接失败')
+    result = await client.publish(
         'js61/TEST_DEVICE_DID/down/command',
         {'msg_id': 'command-001'},
     )
+finally:
+    await client.disconnect()
 ```
 
-`connect()` 会启动回调工作队列和连接循环；连接成功后，客户端会订阅自己的响应 Topic。`disconnect()` 会停止连接循环、停止 Paho
-网络线程、结束 pending Future 并清空回调队列。
+`connect()` 会启动单个回调处理协程和 Paho 网络循环；连接成功后，客户端会订阅自己的响应 Topic。意外断线后的退避重连由 Paho
+负责，重连成功后重新订阅业务 Topic。`disconnect()` 会停止 Paho 网络线程、结束 pending Future 并清空回调队列。
 
 ### 3.4 公共消息 API
 
-| 方法                                                          | 用途                     | 返回值                  |
-|-------------------------------------------------------------|------------------------|----------------------|
-| `subscribe(topic, callback, qos)`                           | 注册 Topic 和异步回调         | `None`               |
-| `unsubscribe(topic)`                                        | 删除 Topic、回调和 Broker 订阅 | `bool`               |
-| `publish(topic, payload, qos, retain, properties, timeout)` | 发布消息并等待 Paho 发布确认      | `MQTTPublishResult`  |
-| `request(topic, payload, qos, timeout, retain)`             | MQTT 5 发布请求并等待设备响应     | `MQTTMessageContext` |
+| 方法                                                             | 用途                     | 返回值                  |
+|----------------------------------------------------------------|------------------------|----------------------|
+| `subscribe(topic, callback, qos)`                              | 注册 Topic 和异步回调         | `None`               |
+| `unsubscribe(topic)`                                           | 删除 Topic、回调和 Broker 订阅 | `bool`               |
+| `publish(topic, payload, *, qos, retain, timeout, properties)` | 发布消息并等待 Paho 发布确认      | `MQTTPublishResult`  |
+| `request(topic, payload, *, qos, timeout)`                     | MQTT 5 发布请求并等待设备响应     | `MQTTMessageContext` |
 
 订阅示例：
 
@@ -141,8 +151,8 @@ await client.subscribe(
 )
 ```
 
-普通订阅消息统一进入一个有界异步队列。默认使用一个回调处理协程，保证单个客户端内消息按队列顺序处理；可以通过
-`MQTT_CALLBACK_WORKERS` 增加回调处理协程数量来提高吞吐，但数量大于 1 时不再保证消息处理顺序。
+普通订阅消息统一进入一个有界异步队列，并固定由一个回调处理协程消费，保证单个客户端内消息按队列顺序处理。`subscribe()` 会等待
+Broker 返回 SUBACK；本地发送订阅成功但 Broker 拒绝订阅时，调用方会立即收到异常。
 
 ### 3.5 `publish()` 的确认语义
 
@@ -152,13 +162,13 @@ await client.subscribe(
 Paho publish() -> MID
 Broker PUBACK  -> on_publish(MID)
                -> 完成 ack Future
-               -> 检查 is_published()
                -> 返回 MQTTPublishResult
 ```
 
 因此：
 
-- `published=True` 表示消息完成 MQTT 发布确认；
+- 正常返回 `MQTTPublishResult` 表示消息完成 MQTT 发布确认；
+- 未连接、Broker 拒绝和发布超时会分别抛出连接异常或 `TimeoutError`，不再通过错误字符串判断结果；
 - 不表示设备已经收到、执行或执行成功；
 - 设备业务结果需要使用 `request()` 或设备上行事件另行获取。
 
@@ -180,11 +190,12 @@ Paho 网络线程
 
 ### 3.7 请求状态和响应状态
 
-客户端内部有两类独立的 Future：
+客户端内部有三类独立的 Future：
 
 ```text
 _pending_publishes[mid]              -> 发布确认 Future
 _pending_requests[correlation_data]  -> 设备响应 Future
+_pending_subscriptions[mid]          -> 业务主题 SUBACK Future
 ```
 
 发布确认 Future 的结果是 `None`，它只表示 PUBLISH 已确认；设备响应 Future 的结果是 `MQTTMessageContext`，它才是 `request()`
@@ -221,12 +232,12 @@ API / DependsDeviceAuth
 应用启动
     -> init_mqtt()
     -> MQTTDependency 创建并连接 MQTTClient
-    -> 注册 CloudMQTTConsumer
+    -> 注册 DeviceMQTTConsumer
 
 HTTP 请求
     -> MQTTDependency.get_manager()
-    -> DeviceGateway(mqtt_client=共享实例)
-    -> gateway.request() / gateway.publish_command()
+    -> DeviceGateway(mqtt_client=共享实例, model=型号, did=设备标识)
+    -> gateway.request() / gateway.publish()
 
 应用关闭
     -> close_mqtt()
@@ -237,27 +248,22 @@ HTTP 请求
 
 ```python
 mqtt_client = await MQTTDependency.get_manager()
-gateway = DeviceGateway(mqtt_client=mqtt_client)
+gateway = DeviceGateway(mqtt_client=mqtt_client, model=model, did=did)
 return await gateway.request(...)
 ```
 
-`DeviceGateway` 是无状态的请求转发对象，不负责连接、断开或清理 MQTTClient。不要在每个 HTTP 请求中这样使用共享客户端：
+`DeviceGateway` 是绑定单台设备的轻量请求转发对象，只保存设备路由信息，不负责连接、断开或清理 MQTTClient。单次 HTTP
+请求不能调用共享客户端的 `connect()` 或 `disconnect()`，否则会影响其他正在使用该连接的 Gateway 和 Consumer。
 
 ```python
-# 不要这样做：请求结束后会断开整个应用共享的 MQTTClient。
-async with mqtt_client.context():
+# 不要这样做：会断开整个应用共享的 MQTTClient。
+try:
     await gateway.request(...)
+finally:
+    await mqtt_client.disconnect()
 ```
 
-`context()` 适合命令行脚本、独立测试或由当前函数自己创建并独占的 MQTTClient：
-
-```python
-client = MQTTClient(config)
-async with client.context():
-    await client.request(topic, payload)
-```
-
-在 Web 应用中，连接的所有权属于应用生命周期，不属于单次 Gateway 请求。
+`MQTTClient` 不提供上下文管理器，避免把应用共享客户端误当成单次请求资源。只有创建该客户端的应用生命周期或独立脚本才拥有关闭连接的责任。
 
 ## 4. Topic 协议
 
@@ -463,6 +469,12 @@ DID。
 }
 ```
 
+`DeviceGateway.publish()` 和 `DeviceGateway.request()` 都返回上述统一结构。两者的确认语义不同：
+
+- `publish()` 的 `success=true` 只表示 Broker 已确认消息发布，`response` 固定为 `null`，不表示设备已经执行命令；
+- `request()` 的 `success` 来自设备响应，`response` 保存设备返回的数据；
+- `request_id` 均为服务端生成的业务消息 ID，可用于日志追踪和设备端幂等处理。
+
 “服务端只做通道”不等于完全不校验。建议服务端至少：
 
 - 不允许小程序直接提交任意 MQTT Topic；
@@ -490,7 +502,7 @@ GET  /device/commands/{id}  -> 查询设备处理结果
 | `max_queued_messages`   | 限制 Paho 本地排队消息数量                   |
 | 单一 request deadline     | Semaphore、订阅等待、发布确认和响应等待共用一个截止时间   |
 | `on_publish` + Future   | 不使用线程池阻塞等待发布确认                     |
-| SUBACK MID 校验           | 只接受当前响应 Topic 订阅对应的 SUBACK         |
+| SUBACK MID 校验           | 响应 Topic 和普通业务 Topic 都检查 Broker 确认   |
 | 断线清理 pending            | 连接断开时结束等待中的发布和请求 Future            |
 | 有界回调队列                  | 将 Paho 网络线程与 asyncio 业务回调解耦，限制内存增长 |
 
@@ -499,7 +511,7 @@ GET  /device/commands/{id}  -> 查询设备处理结果
 - `publish()` 成功只代表 MQTT 发布确认成功，不代表设备业务成功。
 - `request()` 超时不一定代表设备没有执行，业务动作必须依赖 `msg_id` 幂等。
 - 回调队列达到上限时会丢弃普通业务回调并记录日志，应结合容量、消费速度和监控调优。
-- 断线后当前进程中的请求会失败，不会自动重放设备动作。
+- 断线后当前进程中的等待请求会失败；Paho 可能按 QoS 语义重发尚未确认的消息，因此设备仍须按 `msg_id` 幂等。
 - 当前没有做相同在途请求合并，也没有设备级并发信号量。
 
 ## 12. 启动模拟服务

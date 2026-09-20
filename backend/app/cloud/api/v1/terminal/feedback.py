@@ -85,10 +85,8 @@ async def create_feedback(
 
     if isinstance(auth_ctx, DeviceAuthParam) and status == 1:
         mqtt_client = await MQTTDependency.get_manager()
-        gateway = DeviceGateway(mqtt_client=mqtt_client)
-        await gateway.publish_command(
-            model=auth_ctx.model,
-            did=auth_ctx.did,
+        gateway = DeviceGateway(mqtt_client=mqtt_client, model=auth_ctx.model, did=auth_ctx.did)
+        await gateway.publish(
             service='feedback',
             action='request_log',
             payload={'feedback_id': feedback.id},

@@ -5,7 +5,7 @@ import json
 from dataclasses import asdict, dataclass, replace
 from typing import Any, ClassVar
 
-from backend.app.cloud.timeseries.mqtt_route import MQTTEventRoute
+from backend.app.cloud.service.device.topic import MQTTEventRoute
 from backend.common.log import log
 from backend.database.redis import redis_client
 

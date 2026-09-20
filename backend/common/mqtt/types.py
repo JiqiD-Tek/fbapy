@@ -33,12 +33,13 @@ class MQTTConfig:
     version: MQTTVersion = MQTTVersion.V5
     keepalive: int = 60
     reconnect_interval: int = 5
-    max_reconnect_attempts: int = 12
     client_id: str | None = None
     backoff_max: int = 60
-    backoff_jitter: float = 0.1
-    unsubscribe_timeout: float = 5.0
     connection_timeout: float = 30.0
+    subscribe_timeout: float = 5.0
+    publish_timeout: float = 5.0
+    shutdown_timeout: float = 5.0
+    callback_queue_maxsize: int = field(default_factory=lambda: settings.MQTT_CALLBACK_QUEUE_MAXSIZE)
     request_max_pending: int = field(default_factory=lambda: settings.MQTT_REQUEST_MAX_PENDING)
     max_inflight_messages: int = field(default_factory=lambda: settings.MQTT_MAX_INFLIGHT_MESSAGES)
     max_queued_messages: int = field(default_factory=lambda: settings.MQTT_MAX_QUEUED_MESSAGES)
@@ -60,14 +61,12 @@ class MQTTMessageContext:
 
 @dataclass(frozen=True, slots=True)
 class MQTTPublishResult:
-    """MQTT 发布结果。"""
+    """MQTT 发布成功后的确认信息。"""
 
     topic: str
     qos: int
     retain: bool
-    mid: int | None
-    published: bool
-    error: str | None = None
+    mid: int
 
 
 MessageCallback: TypeAlias = Callable[[MQTTMessageContext], None | Awaitable[None]]

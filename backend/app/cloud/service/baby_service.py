@@ -43,7 +43,7 @@ class BabyService:
         if did is None:
             return
 
-        from backend.app.cloud.timeseries.event_store import EventStore
+        from backend.app.cloud.telemetry.event_store import EventStore
 
         EventStore.invalidate_baby_id_cache(did)
         await cls._delete_cache_key(cls._device_baby_cache_key(did))

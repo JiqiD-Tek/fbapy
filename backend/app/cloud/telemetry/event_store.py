@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING, ClassVar
 import cachebox
 
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.timeseries.model.js61_event import JS61EventTable
-from backend.app.cloud.timeseries.mqtt_route import MQTTEventRoute, parse_mqtt_topic
+from backend.app.cloud.service.device.topic import MQTTEventRoute, parse_mqtt_topic
+from backend.app.cloud.telemetry.model.js61_event import JS61EventTable
 from backend.common._queue import batch_dequeue
 from backend.common.log import log
 from backend.common.observability.prometheus.queue import inc_queue_exception, observe_queue_size
