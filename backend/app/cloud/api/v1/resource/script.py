@@ -39,6 +39,10 @@ async def get_script_paginated(
     status: Annotated[int | None, Query(description='Status')] = None,
     device_id: Annotated[int | None, Query(description='Device ID, 0 means platform')] = None,
     favorite: Annotated[int | None, Query(description='Favorite flag (0 no, 1 yes)')] = None,
+    content_types: Annotated[
+        list[int] | None,
+        Query(description='包含指定内容类型：1语言 2科学 3社会 4艺术 5健康'),
+    ] = None,
     toy_ids: Annotated[list[int] | None, Query(description='Contains all specified toy IDs')] = None,
     exact_toy_ids: Annotated[list[int] | None, Query(description='Exactly matches the specified toy ID set')] = None,
 ) -> ResponseSchemaModel[PageData[GetScriptDetail]]:
@@ -49,6 +53,7 @@ async def get_script_paginated(
         status=status,
         device_id=device_id,
         favorite=favorite,
+        content_types=content_types,
         toy_ids=toy_ids,
         exact_toy_ids=exact_toy_ids,
     )

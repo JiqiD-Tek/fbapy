@@ -10,6 +10,20 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from backend.common.schema import SchemaBase
 
+SCRIPT_CONTENT_TYPES_DESCRIPTION = '内容类型列表：1语言 2科学 3社会 4艺术 5健康'
+
+
+def _normalize_content_types(value: list[int] | None) -> list[int] | None:
+    if value is None:
+        return None
+
+    normalized = sorted(dict.fromkeys(int(content_type) for content_type in value))
+    if not normalized:
+        raise ValueError('内容类型列表不能为空')
+    if any(content_type < 1 or content_type > 5 for content_type in normalized):
+        raise ValueError('内容类型必须是 1 到 5')
+    return normalized
+
 
 def _normalize_toy_ids(value: list[int] | None) -> list[int] | None:
     if value is None:
@@ -69,7 +83,7 @@ class ScriptLine(SchemaBase):
 
 class ScriptSchemaBase(SchemaBase):
     title: str = Field(description='Title')
-    content_type: int | None = Field(None, ge=1, le=5, description='内容类型：1语言 2科学 3社会 4艺术 5健康')
+    content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
     toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
     content: list[ScriptLine] = Field(min_length=1, description='Script line content')
     device_id: int = Field(default=0, ge=0, description='Device ID, 0 means platform')
@@ -81,6 +95,11 @@ class ScriptSchemaBase(SchemaBase):
     play_url: str | None = Field(None, max_length=1000, description='播放地址')
     status: int = Field(default=0, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
+
+    @field_validator('content_types')
+    @classmethod
+    def normalize_content_types(cls, value: list[int] | None) -> list[int] | None:
+        return _normalize_content_types(value)
 
     @field_validator('toy_ids')
     @classmethod
@@ -116,7 +135,7 @@ class UpdateScriptParam(SchemaBase):
     device_id: int | None = Field(None, ge=0, description='Device ID, 0 means platform')
     favorite: int | None = Field(None, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
     title: str | None = Field(None, description='Title')
-    content_type: int | None = Field(None, ge=1, le=5, description='内容类型：1语言 2科学 3社会 4艺术 5健康')
+    content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
     version: int | None = Field(None, ge=1, description='Version')
     summary: str | None = Field(None, description='Summary')
     cover_url: str | None = Field(None, description='Cover URL')
@@ -126,6 +145,11 @@ class UpdateScriptParam(SchemaBase):
     content: list[ScriptLine] | None = Field(None, min_length=1, description='Script line content')
     status: int | None = Field(None, description='Status (0 draft, 1 enabled, 2 disabled)')
     remark: str | None = Field(None, description='Remark')
+
+    @field_validator('content_types')
+    @classmethod
+    def normalize_content_types(cls, value: list[int] | None) -> list[int] | None:
+        return _normalize_content_types(value)
 
     @field_validator('toy_ids')
     @classmethod

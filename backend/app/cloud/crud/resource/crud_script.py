@@ -4,6 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy import Select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import CloudScript
@@ -23,6 +24,7 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
         status: int | None,
         device_id: int | None = None,
         favorite: int | None = None,
+        content_types: list[int] | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
     ) -> Select:
@@ -41,6 +43,8 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
 
         stmt = await self.select_order('id', 'desc', **filters)
 
+        if content_types:
+            stmt = stmt.where(self._build_json_array_contains_condition(self.model.content_types, content_types))
         if toy_ids:
             stmt = stmt.where(self._build_contains_toy_ids_condition(toy_ids))
         if exact_toy_ids:
@@ -58,10 +62,17 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
     def _build_contains_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
+        return self._build_json_array_contains_condition(self.model.toy_ids, toy_ids)
+
+    @staticmethod
+    def _build_json_array_contains_condition(
+            column: InstrumentedAttribute,
+            values: list[int],
+    ) -> sa.ColumnElement[bool]:
         if settings.DATABASE_TYPE == DataBaseType.postgresql:
-            toy_ids_expr = sa.cast(self.model.toy_ids, postgresql.JSONB)
-            return toy_ids_expr.contains(toy_ids)
-        return sa.func.JSON_CONTAINS(self.model.toy_ids, json.dumps(toy_ids)) == 1
+            json_array = sa.cast(column, postgresql.JSONB)
+            return json_array.contains(values)
+        return sa.func.JSON_CONTAINS(column, json.dumps(values)) == 1
 
     def _build_exact_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
         if settings.DATABASE_TYPE == DataBaseType.postgresql:

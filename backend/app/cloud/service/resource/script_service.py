@@ -37,6 +37,7 @@ class CloudScriptService:
             status: int | None = None,
             device_id: int | None = None,
             favorite: int | None = None,
+            content_types: list[int] | None = None,
             toy_ids: list[int] | None = None,
             exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -46,6 +47,7 @@ class CloudScriptService:
             status=status,
             device_id=device_id,
             favorite=favorite,
+            content_types=CloudScriptService._normalize_content_types_filter(content_types),
             toy_ids=CloudScriptService._normalize_toy_ids_filter(toy_ids),
             exact_toy_ids=CloudScriptService._normalize_toy_ids_filter(exact_toy_ids),
         )
@@ -91,6 +93,7 @@ class CloudScriptService:
                     'device_id': payload.get('device_id', script.device_id),
                     'favorite': payload.get('favorite', script.favorite),
                     'title': payload.get('title', script.title),
+                    'content_types': payload.get('content_types', script.content_types),
                     'version': payload.get('version', script.version),
                     'summary': payload.get('summary', script.summary),
                     'cover_url': payload.get('cover_url', script.cover_url),
@@ -154,6 +157,15 @@ class CloudScriptService:
         if not toy_ids:
             return None
         return sorted(dict.fromkeys(int(toy_id) for toy_id in toy_ids))
+
+    @staticmethod
+    def _normalize_content_types_filter(content_types: list[int] | None) -> list[int] | None:
+        if not content_types:
+            return None
+        normalized = sorted(dict.fromkeys(int(content_type) for content_type in content_types))
+        if any(content_type < 1 or content_type > 5 for content_type in normalized):
+            raise errors.RequestError(msg='内容类型必须是 1 到 5')
+        return normalized
 
 
 cloud_script_service: CloudScriptService = CloudScriptService()
