@@ -14,64 +14,83 @@ from backend.common.model import Base, UniversalText, id_key
 
 
 class ToySeries(Base):
-    """Cloud toy series table."""
+    """云端玩偶系列表。"""
 
     __tablename__ = 'u_toy_series'
     __table_args__ = (
         sa.Index('idx_status_sort', 'status', 'sort'),
-        {'comment': 'Cloud toy series table'},
+        {'comment': '云端玩偶系列表'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
 
-    name: Mapped[str] = mapped_column(sa.String(64), index=True, comment='Toy series name')
-    image_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series image URL')
-    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy series purchase URL')
-    description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy series description')
-    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='Price, unit: fen')
-    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
-    sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
+    name: Mapped[str] = mapped_column(sa.String(64), index=True, comment='玩偶系列名称')
+    image_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶系列图片地址')
+    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶系列购买地址')
+    description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶系列描述')
+    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='价格，单位：分')
+    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
+    sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')
 
 
 class Toy(Base):
-    """Cloud toy table."""
+    """云端玩偶表。"""
 
     __tablename__ = 'u_toy'
     __table_args__ = (
         sa.Index('idx_status_sort', 'status', 'sort'),
-        {'comment': 'Cloud toy table'},
+        {'comment': '云端玩偶表'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
 
-    series_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='Toy series ID')
-    name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='Toy name')
-    avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy avatar URL')
-    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='Toy purchase URL')
-    summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Toy summary')
+    series_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='玩偶系列 ID')
+    name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='玩偶名称')
+    avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶头像地址')
+    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶购买地址')
+    summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶简介')
     intro_audio_url: Mapped[str | None] = mapped_column(
-        sa.String(512), default=None, comment='Toy introduction audio URL',
+        sa.String(512), default=None, comment='玩偶介绍音频地址',
     )
-    related_toy_ids: Mapped[list[int] | None] = mapped_column(sa.JSON, default=None, comment='Related toy IDs')
-    nfc_code: Mapped[str | None] = mapped_column(
-        sa.String(64), default=None, unique=True, index=True, comment='NFC code',
-    )
+    related_toy_ids: Mapped[list[int] | None] = mapped_column(sa.JSON, default=None, comment='关联玩偶 ID 列表')
 
-    system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='System prompt')
+    system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='系统提示词')
 
-    voice_provider: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='Voice provider')
-    voice_id: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='Voice ID')
+    voice_provider: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='声音服务商')
+    voice_id: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='声音 ID')
     voice_type: Mapped[int | None] = mapped_column(
-        sa.SmallInteger, default=None, comment='Voice type: 1 public voice, 2 cloned voice, 3 custom voice',
+        sa.SmallInteger, default=None, comment='声音类型：1 公共声音，2 克隆声音，3 自定义声音',
     )
-    voice_name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='Voice name')
+    voice_name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='声音名称')
     voice_language: Mapped[str | None] = mapped_column(
-        sa.String(32), default=None, comment='Voice language, such as zh-CN, en-US, zh-TW',
+        sa.String(32), default=None, comment='声音语言，例如 zh-CN、en-US、zh-TW',
     )
-    speech_rate: Mapped[int] = mapped_column(default=0, comment='Speech rate')
-    loudness_rate: Mapped[int] = mapped_column(default=0, comment='Voice loudness rate')
+    speech_rate: Mapped[int] = mapped_column(default=0, comment='语速')
+    loudness_rate: Mapped[int] = mapped_column(default=0, comment='音量')
 
-    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='Price, unit: fen')
-    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='Status: 0 disabled, 1 enabled')
-    sort: Mapped[int] = mapped_column(default=0, comment='Sort value, lower comes first')
-    remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='Remark')
+    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='价格，单位：分')
+    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
+    sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')
+    remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')
+
+
+class ToyNfc(Base):
+    """玩偶 NFC 编码绑定表。"""
+
+    __tablename__ = 'u_toy_nfc'
+    __table_args__ = (
+        sa.UniqueConstraint('nfc_code', name='uq_toy_nfc_code'),
+        sa.Index('idx_toy_nfc_toy_id', 'toy_id'),
+        sa.Index('idx_toy_nfc_batch_no', 'batch_no'),
+        {'comment': '玩偶 NFC 编码绑定表'},
+    )
+
+    id: Mapped[id_key] = mapped_column(init=False)
+
+    toy_id: Mapped[int] = mapped_column(
+        sa.BigInteger, sa.ForeignKey('u_toy.id', ondelete='RESTRICT'), nullable=False, comment='玩偶 ID',
+    )
+    nfc_code: Mapped[str] = mapped_column(sa.String(64), nullable=False, comment='NFC 编码')
+    batch_no: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='NFC 批次号')
+    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
+    remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')

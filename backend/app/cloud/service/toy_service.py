@@ -14,14 +14,17 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.cloud.crud.crud_toy import toy_dao, toy_series_dao
-from backend.app.cloud.model import Toy, ToySeries
+from backend.app.cloud.crud.crud_toy import toy_dao, toy_nfc_dao, toy_series_dao
+from backend.app.cloud.model import Toy, ToyNfc, ToySeries
 from backend.app.cloud.schema.device.toy import (
+    BatchCreateToyNfcParam,
+    CreateToyNfcParam,
     CreateToyParam,
     CreateToySeriesParam,
     GenerateToySystemPromptParam,
     GenerateToySystemPromptResult,
     UpdateToyParam,
+    UpdateToyNfcParam,
     UpdateToySeriesParam,
 )
 from backend.common.exception import errors
@@ -47,7 +50,7 @@ class ToyService:
     async def get_toy_series(*, db: AsyncSession, pk: int) -> ToySeries:
         series = await toy_series_dao.get(db, pk)
         if not series:
-            raise errors.NotFoundError(msg='Toy series does not exist')
+            raise errors.NotFoundError(msg='玩偶系列不存在')
         return series
 
     @staticmethod
@@ -78,7 +81,7 @@ class ToyService:
 
         payload = obj.model_dump(exclude_unset=True)
         if not payload:
-            raise errors.RequestError(msg='Update payload cannot be empty')
+            raise errors.RequestError(msg='更新内容不能为空')
 
         try:
             return await toy_series_dao.update(db, pk, payload)
@@ -192,7 +195,8 @@ class ToyService:
         if not payload:
             raise errors.RequestError(msg='Update payload cannot be empty')
 
-        old_nfc_code = toy.nfc_code
+        existing_bindings = await toy_nfc_dao.get_by_toy_id(db, toy_id=pk)
+        existing_nfc_codes = [binding.nfc_code for binding in existing_bindings]
         ToyService._validate_voice_binding(payload, current_toy=toy)
         if 'series_id' in payload:
             await ToyService._ensure_series_exists(db=db, series_id=payload['series_id'])
@@ -204,8 +208,10 @@ class ToyService:
             )
         try:
             count = await toy_dao.update(db, pk, payload)
-            await ToyService._delete_nfc_cache(old_nfc_code)
-            await ToyService._delete_nfc_cache(payload.get('nfc_code'))
+            if 'status' in payload:
+                await ToyService._delete_nfc_caches(
+                    existing_nfc_codes,
+                )
             return count
         except IntegrityError:
             raise errors.ServerError(msg='Failed to update toy, please try again later') from None
@@ -215,8 +221,96 @@ class ToyService:
         toy = await toy_dao.get(db, pk)
         if not toy:
             raise errors.NotFoundError(msg='Toy does not exist')
-        count = await toy_dao.delete(db, pk)
-        await ToyService._delete_nfc_cache(toy.nfc_code)
+        bindings = await toy_nfc_dao.get_by_toy_id(db, toy_id=pk)
+        if bindings:
+            raise errors.ConflictError(msg='该玩偶仍绑定 NFC 编码，请先解除绑定')
+        return await toy_dao.delete(db, pk)
+
+    @staticmethod
+    async def get_toy_nfc(*, db: AsyncSession, pk: int) -> ToyNfc:
+        binding = await toy_nfc_dao.get(db, pk)
+        if not binding:
+            raise errors.NotFoundError(msg='NFC 绑定记录不存在')
+        return binding
+
+    @staticmethod
+    async def get_toy_nfc_list(
+            *,
+            db: AsyncSession,
+            toy_id: int | None = None,
+            nfc_code: str | None = None,
+            status: int | None = None,
+    ) -> dict[str, Any]:
+        stmt = await toy_nfc_dao.get_select(
+            toy_id=toy_id,
+            nfc_code=ToyService._normalize_query_text(nfc_code),
+            status=status,
+        )
+        return await paging_data(db, stmt)
+
+    @staticmethod
+    async def create_toy_nfc(*, db: AsyncSession, obj: CreateToyNfcParam) -> ToyNfc:
+        await ToyService.get_toy(db=db, pk=obj.toy_id)
+        if await toy_nfc_dao.get_by_code(db, nfc_code=obj.nfc_code):
+            raise errors.ConflictError(msg='该 NFC 编码已绑定玩偶')
+        try:
+            return await toy_nfc_dao.create(db, obj)
+        except IntegrityError:
+            raise errors.ConflictError(msg='该 NFC 编码已存在') from None
+
+    @staticmethod
+    async def batch_create_toy_nfc(
+            *,
+            db: AsyncSession,
+            obj: BatchCreateToyNfcParam,
+    ) -> Sequence[ToyNfc]:
+        await ToyService.get_toy(db=db, pk=obj.toy_id)
+        existing = await toy_nfc_dao.get_by_codes(db, nfc_codes=obj.nfc_codes)
+        if existing:
+            existing_codes = ', '.join(binding.nfc_code for binding in existing[:20])
+            suffix = ' 等' if len(existing) > 20 else ''
+            raise errors.ConflictError(msg=f'以下 NFC 编码已存在：{existing_codes}{suffix}')
+        try:
+            bindings = await toy_nfc_dao.create_batch(
+                db,
+                toy_id=obj.toy_id,
+                nfc_codes=obj.nfc_codes,
+                batch_no=obj.batch_no,
+                status=obj.status,
+                remark=obj.remark,
+            )
+        except IntegrityError:
+            raise errors.ConflictError(msg='批量添加 NFC 编码失败，编码可能已存在') from None
+        await ToyService._delete_nfc_caches(obj.nfc_codes)
+        return bindings
+
+    @staticmethod
+    async def update_toy_nfc(*, db: AsyncSession, pk: int, obj: UpdateToyNfcParam) -> int:
+        binding = await ToyService.get_toy_nfc(db=db, pk=pk)
+        payload = obj.model_dump(exclude_unset=True)
+        if not payload:
+            raise errors.RequestError(msg='更新内容不能为空')
+        if 'toy_id' in payload:
+            await ToyService.get_toy(db=db, pk=payload['toy_id'])
+        if 'nfc_code' in payload:
+            existing = await toy_nfc_dao.get_by_code(db, nfc_code=payload['nfc_code'])
+            if existing is not None and int(existing.id) != pk:
+                raise errors.ConflictError(msg='该 NFC 编码已绑定玩偶')
+        try:
+            count = await toy_nfc_dao.update(db, pk, payload)
+        except IntegrityError:
+            raise errors.ConflictError(msg='该 NFC 编码已存在') from None
+        if 'nfc_code' in payload:
+            await ToyService._delete_nfc_caches([binding.nfc_code, payload['nfc_code']])
+        elif payload.get('status') == 0:
+            await ToyService._delete_nfc_cache(binding.nfc_code)
+        return count
+
+    @staticmethod
+    async def delete_toy_nfc(*, db: AsyncSession, pk: int) -> int:
+        binding = await ToyService.get_toy_nfc(db=db, pk=pk)
+        count = await toy_nfc_dao.delete(db, pk=pk, toy_id=int(binding.toy_id))
+        await ToyService._delete_nfc_cache(binding.nfc_code)
         return count
 
     @classmethod
@@ -351,7 +445,7 @@ class ToyService:
     async def get_enabled_toy_id_by_nfc_code(cls, *, db: AsyncSession, nfc_code: str) -> int:
         normalized_nfc_code = cls._normalize_query_text(nfc_code)
         if normalized_nfc_code is None:
-            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
+            raise errors.NotFoundError(msg='未找到对应玩偶，玩偶可能已禁用或 NFC 编码无效')
 
         cache_key = cls._toy_nfc_cache_key(normalized_nfc_code)
         with suppress(Exception):
@@ -361,7 +455,7 @@ class ToyService:
 
         toy = await toy_dao.get_by_nfc_code(db, nfc_code=normalized_nfc_code, enabled_only=True)
         if toy is None:
-            raise errors.NotFoundError(msg='Toy does not exist, is disabled, or NFC code is invalid')
+            raise errors.NotFoundError(msg='未找到对应玩偶，玩偶可能已禁用或 NFC 编码无效')
 
         with suppress(Exception):
             await redis_client.set(cache_key, str(toy.id), ex=cls.DEVICE_TOY_NFC_CACHE_TTL_SECONDS)
@@ -380,7 +474,12 @@ class ToyService:
         try:
             await redis_client.delete(cls._toy_nfc_cache_key(normalized_nfc_code))
         except Exception as exc:
-            log.warning('failed to delete toy nfc cache, nfc_code={}, error={}', normalized_nfc_code, exc)
+            log.warning('删除玩偶 NFC 缓存失败，nfc_code={}，错误={}', normalized_nfc_code, exc)
+
+    @classmethod
+    async def _delete_nfc_caches(cls, nfc_codes: Sequence[object]) -> None:
+        for nfc_code in dict.fromkeys(nfc_codes):
+            await cls._delete_nfc_cache(nfc_code)
 
     @staticmethod
     def _validate_voice_binding(

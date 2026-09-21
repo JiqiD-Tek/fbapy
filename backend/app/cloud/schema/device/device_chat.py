@@ -57,7 +57,7 @@ class DeviceChatToyInfo(SchemaBase):
     name: str | None = Field(None, description='Toy name')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
     summary: str | None = Field(None, description='Toy summary')
-    nfc_code: str | None = Field(None, description='Toy NFC code')
+    nfc_code: str | None = Field(None, description='玩偶 NFC 编码')
 
 
 class DeviceChatReplyDetail(DeviceChatReply):

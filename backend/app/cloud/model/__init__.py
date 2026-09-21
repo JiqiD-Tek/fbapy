@@ -17,6 +17,7 @@ from backend.app.cloud.model.m2m import user_device as user_device
 
 from backend.app.cloud.model.resource.album import CloudAlbum as CloudAlbum
 from backend.app.cloud.model.toy import Toy as Toy
+from backend.app.cloud.model.toy import ToyNfc as ToyNfc
 from backend.app.cloud.model.toy import ToySeries as ToySeries
 from backend.app.cloud.model.resource.script import CloudScript as CloudScript
 from backend.app.cloud.model.resource.song import CloudSong as CloudSong

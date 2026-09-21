@@ -88,7 +88,7 @@ class GetDeviceBindStateDetail(SchemaBase):
 
 
 class DeviceToyUnlockParam(SchemaBase):
-    nfc_code: str = Field(min_length=1, max_length=64, description='Toy NFC code')
+    nfc_code: str = Field(min_length=1, max_length=64, description='玩偶 NFC 编码')
 
     @field_validator('nfc_code', mode='before')
     @classmethod

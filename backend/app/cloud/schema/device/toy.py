@@ -14,6 +14,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from backend.common.schema import SchemaBase
 
 PositiveToyId = Annotated[int, Field(gt=0)]
+NfcCode = Annotated[str, Field(min_length=1, max_length=64)]
 
 
 def _strip_required_text(value: Any) -> Any:
@@ -36,23 +37,23 @@ def _deduplicate_toy_ids(value: list[int] | None) -> list[int] | None:
 
 
 class ToySeriesReadSchemaBase(SchemaBase):
-    name: str = Field(description='Toy series name')
-    image_url: str | None = Field(None, description='Toy series image URL')
-    purchase_url: str | None = Field(None, description='Toy series purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
-    description: str | None = Field(None, description='Toy series description')
-    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
-    sort: int = Field(default=0, description='Sort value, lower comes first')
+    name: str = Field(description='玩偶系列名称')
+    image_url: str | None = Field(None, description='玩偶系列图片地址')
+    purchase_url: str | None = Field(None, description='玩偶系列购买地址')
+    price: int | None = Field(None, gt=0, description='价格，单位：分')
+    description: str | None = Field(None, description='玩偶系列描述')
+    status: int = Field(default=1, description='状态：0 禁用，1 启用')
+    sort: int = Field(default=0, description='排序值，越小越靠前')
 
 
 class CreateToySeriesParam(SchemaBase):
-    name: str = Field(min_length=1, max_length=64, description='Toy series name')
-    image_url: str | None = Field(None, max_length=512, description='Toy series image URL')
-    purchase_url: str | None = Field(None, max_length=512, description='Toy series purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
-    description: str | None = Field(None, max_length=500, description='Toy series description')
-    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
-    sort: int = Field(default=0, description='Sort value, lower comes first')
+    name: str = Field(min_length=1, max_length=64, description='玩偶系列名称')
+    image_url: str | None = Field(None, max_length=512, description='玩偶系列图片地址')
+    purchase_url: str | None = Field(None, max_length=512, description='玩偶系列购买地址')
+    price: int | None = Field(None, gt=0, description='价格，单位：分')
+    description: str | None = Field(None, max_length=500, description='玩偶系列描述')
+    status: int = Field(default=1, description='状态：0 禁用，1 启用')
+    sort: int = Field(default=0, description='排序值，越小越靠前')
 
     @field_validator('name', mode='before')
     @classmethod
@@ -66,13 +67,13 @@ class CreateToySeriesParam(SchemaBase):
 
 
 class UpdateToySeriesParam(SchemaBase):
-    name: str | None = Field(None, min_length=1, max_length=64, description='Toy series name')
-    image_url: str | None = Field(None, max_length=512, description='Toy series image URL')
-    purchase_url: str | None = Field(None, max_length=512, description='Toy series purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
-    description: str | None = Field(None, max_length=500, description='Toy series description')
-    status: int | None = Field(None, description='Status: 0 disabled, 1 enabled')
-    sort: int | None = Field(None, description='Sort value, lower comes first')
+    name: str | None = Field(None, min_length=1, max_length=64, description='玩偶系列名称')
+    image_url: str | None = Field(None, max_length=512, description='玩偶系列图片地址')
+    purchase_url: str | None = Field(None, max_length=512, description='玩偶系列购买地址')
+    price: int | None = Field(None, gt=0, description='价格，单位：分')
+    description: str | None = Field(None, max_length=500, description='玩偶系列描述')
+    status: int | None = Field(None, description='状态：0 禁用，1 启用')
+    sort: int | None = Field(None, description='排序值，越小越靠前')
 
     @field_validator('name', mode='before')
     @classmethod
@@ -96,6 +97,74 @@ class GetToySeriesDetail(ToySeriesInfo):
     updated_time: datetime | None = Field(None, description='Updated time')
 
 
+class ToyNfcInfo(SchemaBase):
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    id: int = Field(description='NFC 绑定 ID')
+    toy_id: int = Field(description='玩偶 ID')
+    nfc_code: str = Field(description='NFC 编码')
+    batch_no: str | None = Field(None, description='NFC 批次号')
+    status: int = Field(description='状态：0 禁用，1 启用')
+    remark: str | None = Field(None, description='备注')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')
+
+
+class CreateToyNfcParam(SchemaBase):
+    toy_id: PositiveToyId = Field(description='玩偶 ID')
+    nfc_code: str = Field(min_length=1, max_length=64, description='NFC 编码')
+    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
+    status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
+    remark: str | None = Field(None, max_length=500, description='备注')
+
+    @field_validator('nfc_code', 'batch_no', 'remark', mode='before')
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class BatchCreateToyNfcParam(SchemaBase):
+    toy_id: PositiveToyId = Field(description='玩偶 ID')
+    nfc_codes: list[NfcCode] = Field(min_length=1, max_length=5000, description='NFC 编码列表')
+    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
+    status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
+    remark: str | None = Field(None, max_length=500, description='备注')
+
+    @field_validator('nfc_codes', mode='before')
+    @classmethod
+    def normalize_nfc_codes(cls, value: Any) -> Any:
+        if not isinstance(value, list):
+            return value
+        result: list[Any] = []
+        seen: set[str] = set()
+        for item in value:
+            if isinstance(item, str):
+                item = item.strip()
+                if item in seen:
+                    continue
+                seen.add(item)
+            result.append(item)
+        return result
+
+    @field_validator('batch_no', 'remark', mode='before')
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
+class UpdateToyNfcParam(SchemaBase):
+    toy_id: PositiveToyId | None = Field(None, description='玩偶 ID')
+    nfc_code: str | None = Field(None, min_length=1, max_length=64, description='NFC 编码')
+    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
+    status: int | None = Field(None, ge=0, le=1, description='状态：0 禁用，1 启用')
+    remark: str | None = Field(None, max_length=500, description='备注')
+
+    @field_validator('nfc_code', 'batch_no', 'remark', mode='before')
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        return _strip_optional_text(value)
+
+
 class ToyReadSchemaBase(SchemaBase):
     series_id: int | None = Field(None, description='Toy series ID')
     name: str | None = Field(None, description='Toy name')
@@ -105,7 +174,6 @@ class ToyReadSchemaBase(SchemaBase):
     price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, description='Toy summary')
     related_toy_ids: list[int] | None = Field(None, description='Related toy ID list')
-    nfc_code: str | None = Field(None, description='NFC code')
     voice_provider: str | None = Field(None, description='Voice provider')
     voice_id: str | None = Field(None, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -128,7 +196,6 @@ class CreateToyParam(SchemaBase):
     price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
-    nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -150,7 +217,6 @@ class CreateToyParam(SchemaBase):
         'avatar_url',
         'purchase_url',
         'summary',
-        'nfc_code',
         'voice_provider',
         'voice_id',
         'voice_name',
@@ -184,7 +250,6 @@ class UpdateToyParam(SchemaBase):
     price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
-    nfc_code: str | None = Field(None, max_length=64, description='NFC code')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
     voice_id: str | None = Field(None, max_length=128, description='Voice ID')
     voice_type: int | None = Field(None, ge=1, description='Voice type')
@@ -206,7 +271,6 @@ class UpdateToyParam(SchemaBase):
         'avatar_url',
         'purchase_url',
         'summary',
-        'nfc_code',
         'voice_provider',
         'voice_id',
         'voice_name',
