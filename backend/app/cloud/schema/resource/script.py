@@ -54,7 +54,7 @@ class ScriptLine(SchemaBase):
 
 
 class ScriptSchemaBase(SchemaBase):
-    album_id: int = Field(gt=0, description='剧本专辑 ID')
+    album_id: int | None = Field(None, gt=0, description='剧本专辑 ID，NULL 表示不属于专辑')
     title: str = Field(min_length=1, max_length=256, description='剧本标题')
     content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
     content: list[ScriptLine] = Field(min_length=1, description='剧本台词内容')
@@ -96,7 +96,7 @@ class UpdateScriptFavoriteParam(SchemaBase):
 
 
 class UpdateScriptParam(SchemaBase):
-    album_id: int | None = Field(None, gt=0, description='剧本专辑 ID')
+    album_id: int | None = Field(None, gt=0, description='剧本专辑 ID，NULL 表示不属于专辑')
     device_id: int | None = Field(None, ge=0, description='设备 ID，0 表示平台')
     favorite: int | None = Field(None, ge=0, le=1, description='是否收藏：0 否，1 是')
     title: str | None = Field(None, min_length=1, max_length=256, description='剧本标题')

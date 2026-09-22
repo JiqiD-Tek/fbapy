@@ -39,10 +39,8 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
-from backend.app.cloud.schema.resource.script_album import CreateScriptAlbumParam
 from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import song_service
-from backend.app.cloud.service.resource.script_album_service import script_album_service
 from backend.app.cloud.service.resource.script_service import script_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
@@ -1057,19 +1055,10 @@ class HuoshanVoiceService:
             async with async_db_session() as db:
                 try:
                     content, play_url = await self._build_toy_story_script_content(result)
-                    album = await script_album_service.create_album(
-                        db=db,
-                        obj=CreateScriptAlbumParam(
-                            title=result.text[:256],
-                            toy_ids=list(result.toy_ids),
-                            description=result.text,
-                            status=1,
-                        ),
-                    )
                     script = await script_service.create_script(
                         db=db,
                         obj=CreateScriptParam(
-                            album_id=album.id,
+                            album_id=None,
                             title=result.text[:256],
                             summary=result.text,
                             cover_url=None,

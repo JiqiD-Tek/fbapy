@@ -41,12 +41,16 @@ class ScriptService:
     async def create_script(*, db: AsyncSession, obj: CreateScriptParam) -> Script:
         if not obj.title.strip():
             raise errors.RequestError(msg='剧本标题不能为空')
-        album = await script_album_dao.get(db, obj.album_id)
-        if not album:
-            raise errors.NotFoundError(msg='剧本专辑不存在')
-        ScriptService._validate_content_toys(album.toy_ids, obj.content)
-        script = await script_dao.create(db, obj)
-        await ScriptService._sync_album_count(db, obj.album_id)
+        album_id = obj.album_id
+        if album_id is not None:
+            album = await script_album_dao.get(db, album_id)
+            if not album:
+                raise errors.NotFoundError(msg='剧本专辑不存在')
+            ScriptService._validate_content_toys(album.toy_ids, obj.content)
+        payload = obj.model_dump(mode='python')
+        payload['album_id'] = album_id
+        script = await script_dao.create(db, payload)
+        await ScriptService._sync_album_count(db, album_id)
         return script
 
     @staticmethod
@@ -58,11 +62,14 @@ class ScriptService:
         if 'title' in payload and (payload['title'] is None or not payload['title'].strip()):
             raise errors.RequestError(msg='剧本标题不能为空')
         target_album_id = payload.get('album_id', script.album_id)
-        album = await script_album_dao.get(db, target_album_id)
-        if not album:
-            raise errors.NotFoundError(msg='剧本专辑不存在')
+        if 'album_id' in payload:
+            payload['album_id'] = target_album_id
         content = payload.get('content', script.content)
-        ScriptService._validate_content_toys(album.toy_ids, content)
+        if target_album_id is not None:
+            album = await script_album_dao.get(db, target_album_id)
+            if not album:
+                raise errors.NotFoundError(msg='剧本专辑不存在')
+            ScriptService._validate_content_toys(album.toy_ids, content)
         if 'content' in payload:
             payload['content'] = [line.model_dump(mode='python') for line in obj.content or []]
         old_album_id = script.album_id
@@ -104,7 +111,9 @@ class ScriptService:
             raise errors.RequestError(msg='剧本内容中的玩偶必须与专辑玩偶集合完全一致')
 
     @staticmethod
-    async def _sync_album_count(db: AsyncSession, album_id: int) -> None:
+    async def _sync_album_count(db: AsyncSession, album_id: int | None) -> None:
+        if not album_id or album_id <= 0:
+            return
         count = await script_dao.count_by_album_id(db, album_id)
         await script_album_dao.update_track_count(db, album_id, count)
 

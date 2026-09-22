@@ -17,8 +17,10 @@ class Script(Base):
     __table_args__ = (sa.Index('idx_script_album_id', 'album_id'), {'comment': '剧本表。'})
 
     id: Mapped[id_key] = mapped_column(init=False)
-    album_id: Mapped[int] = mapped_column(
-        sa.ForeignKey('u_script_album.id', ondelete='RESTRICT'), comment='剧本专辑 ID',
+    album_id: Mapped[int | None] = mapped_column(
+        sa.ForeignKey('u_script_album.id', ondelete='RESTRICT'),
+        nullable=True,
+        comment='剧本专辑 ID，NULL 表示不属于专辑',
     )
     title: Mapped[str] = mapped_column(sa.String(256), index=True, comment='剧本标题')
     content_types: Mapped[list[int] | None] = mapped_column(
