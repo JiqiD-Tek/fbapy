@@ -26,9 +26,7 @@ class ToySeries(Base):
 
     name: Mapped[str] = mapped_column(sa.String(64), index=True, comment='玩偶系列名称')
     image_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶系列图片地址')
-    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶系列购买地址')
     description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶系列描述')
-    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='价格，单位：分')
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
     sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')
 
@@ -44,10 +42,12 @@ class Toy(Base):
 
     id: Mapped[id_key] = mapped_column(init=False)
 
-    series_id: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, index=True, comment='玩偶系列 ID')
+    series_id: Mapped[int | None] = mapped_column(
+        sa.BigInteger, sa.ForeignKey('u_toy_series.id', ondelete='RESTRICT'),
+        default=None, index=True, comment='玩偶系列 ID',
+    )
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='玩偶名称')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶头像地址')
-    purchase_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶购买地址')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶简介')
     intro_audio_url: Mapped[str | None] = mapped_column(
         sa.String(512), default=None, comment='玩偶介绍音频地址',
@@ -68,7 +68,6 @@ class Toy(Base):
     speech_rate: Mapped[int] = mapped_column(default=0, comment='语速')
     loudness_rate: Mapped[int] = mapped_column(default=0, comment='音量')
 
-    price: Mapped[int | None] = mapped_column(sa.BigInteger, default=None, comment='价格，单位：分')
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
     sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')

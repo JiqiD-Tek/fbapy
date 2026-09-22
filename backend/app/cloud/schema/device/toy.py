@@ -39,8 +39,6 @@ def _deduplicate_toy_ids(value: list[int] | None) -> list[int] | None:
 class ToySeriesReadSchemaBase(SchemaBase):
     name: str = Field(description='玩偶系列名称')
     image_url: str | None = Field(None, description='玩偶系列图片地址')
-    purchase_url: str | None = Field(None, description='玩偶系列购买地址')
-    price: int | None = Field(None, gt=0, description='价格，单位：分')
     description: str | None = Field(None, description='玩偶系列描述')
     status: int = Field(default=1, description='状态：0 禁用，1 启用')
     sort: int = Field(default=0, description='排序值，越小越靠前')
@@ -49,8 +47,6 @@ class ToySeriesReadSchemaBase(SchemaBase):
 class CreateToySeriesParam(SchemaBase):
     name: str = Field(min_length=1, max_length=64, description='玩偶系列名称')
     image_url: str | None = Field(None, max_length=512, description='玩偶系列图片地址')
-    purchase_url: str | None = Field(None, max_length=512, description='玩偶系列购买地址')
-    price: int | None = Field(None, gt=0, description='价格，单位：分')
     description: str | None = Field(None, max_length=500, description='玩偶系列描述')
     status: int = Field(default=1, description='状态：0 禁用，1 启用')
     sort: int = Field(default=0, description='排序值，越小越靠前')
@@ -60,7 +56,7 @@ class CreateToySeriesParam(SchemaBase):
     def strip_name(cls, value: Any) -> Any:
         return _strip_required_text(value)
 
-    @field_validator('image_url', 'purchase_url', 'description', mode='before')
+    @field_validator('image_url', 'description', mode='before')
     @classmethod
     def strip_optional_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
@@ -69,8 +65,6 @@ class CreateToySeriesParam(SchemaBase):
 class UpdateToySeriesParam(SchemaBase):
     name: str | None = Field(None, min_length=1, max_length=64, description='玩偶系列名称')
     image_url: str | None = Field(None, max_length=512, description='玩偶系列图片地址')
-    purchase_url: str | None = Field(None, max_length=512, description='玩偶系列购买地址')
-    price: int | None = Field(None, gt=0, description='价格，单位：分')
     description: str | None = Field(None, max_length=500, description='玩偶系列描述')
     status: int | None = Field(None, description='状态：0 禁用，1 启用')
     sort: int | None = Field(None, description='排序值，越小越靠前')
@@ -80,7 +74,7 @@ class UpdateToySeriesParam(SchemaBase):
     def strip_name(cls, value: Any) -> Any:
         return _strip_required_text(value)
 
-    @field_validator('image_url', 'purchase_url', 'description', mode='before')
+    @field_validator('image_url', 'description', mode='before')
     @classmethod
     def strip_optional_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
@@ -170,8 +164,6 @@ class ToyReadSchemaBase(SchemaBase):
     name: str | None = Field(None, description='Toy name')
     system_prompt: str | None = Field(None, description='System prompt')
     avatar_url: str | None = Field(None, description='Toy avatar URL')
-    purchase_url: str | None = Field(None, description='Toy purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, description='Toy summary')
     related_toy_ids: list[int] | None = Field(None, description='Related toy ID list')
     voice_provider: str | None = Field(None, description='Voice provider')
@@ -192,8 +184,6 @@ class CreateToyParam(SchemaBase):
     name: str = Field(min_length=1, max_length=128, description='Toy name')
     system_prompt: str = Field(min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
-    purchase_url: str | None = Field(None, max_length=512, description='Toy purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
@@ -215,7 +205,6 @@ class CreateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
-        'purchase_url',
         'summary',
         'voice_provider',
         'voice_id',
@@ -246,8 +235,6 @@ class UpdateToyParam(SchemaBase):
     name: str | None = Field(None, min_length=1, max_length=128, description='Toy name')
     system_prompt: str | None = Field(None, min_length=1, description='System prompt')
     avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
-    purchase_url: str | None = Field(None, max_length=512, description='Toy purchase URL')
-    price: int | None = Field(None, gt=0, description='Price in fen')
     summary: str | None = Field(None, max_length=500, description='Toy summary')
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
     voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
@@ -269,7 +256,6 @@ class UpdateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
-        'purchase_url',
         'summary',
         'voice_provider',
         'voice_id',
