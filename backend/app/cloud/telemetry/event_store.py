@@ -35,22 +35,28 @@ class TSDBInsertItem:
 
 
 class EventStore:
-    """Persist and query MQTT device events in TSDB."""
+    """将 MQTT 设备事件写入时序数据库并提供查询能力。"""
 
-    TABLES_BY_MODEL: ClassVar[dict[str, TSDBTable]] = {
+    # 设备型号与事件稳定表的映射，后续新增设备型号时在此注册。
+    MODEL_TABLES: ClassVar[dict[str, TSDBTable]] = {
         'js61': JS61EventTable.__table__,
     }
+
+    # 缓存 DID 对应的宝宝 ID，并使用 DID 级锁避免缓存未命中时重复查询数据库。
     BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, global_ttl=600)
     DID_LOCKS: ClassVar[dict[str, asyncio.Lock]] = {}
+    # 保护 DID 锁字典，避免并发创建同一个 DID 的多把锁。
     DID_LOCKS_GUARD: ClassVar[asyncio.Lock] = asyncio.Lock()
 
+    # MQTT 消费只负责入队，由后台写入任务合并批量写入 TSDB。
     TSDB_WRITE_QUEUE: ClassVar[Queue[TSDBInsertItem]] = Queue(maxsize=settings.TSDB_WRITE_QUEUE_MAXSIZE)
-    TSDB_WRITE_TASKS: ClassVar[list[asyncio.Task]] = []
-    TSDB_WRITE_STARTED: ClassVar[bool] = False
-    TSDB_WRITE_START_LOCK: ClassVar[asyncio.Lock] = asyncio.Lock()
+    TSDB_WRITER_TASKS: ClassVar[list[asyncio.Task]] = []
+    TSDB_WRITER_STARTED: ClassVar[bool] = False
+    TSDB_WRITER_LOCK: ClassVar[asyncio.Lock] = asyncio.Lock()
 
-    MAX_PAYLOAD_LENGTH = 4096
-    MAX_QUERY_LIMIT = 50000
+    # 分别对应 payload 字符数上限和单次查询返回行数上限。
+    MAX_PAYLOAD_CHARS = 4096
+    MAX_QUERY_ROWS = 50000
 
     @classmethod
     def _normalize_text(cls, value: str | None, *, lowercase: bool = False) -> str | None:
@@ -109,26 +115,26 @@ class EventStore:
         return f'{model}_{baby_id}'
 
     @classmethod
-    def _ensure_tsdb_read_ready(cls, *, action: str) -> bool:
+    def _ensure_tsdb_ready(cls, *, action: str, write: bool) -> bool:
         if not tsdb.enabled:
-            log.debug(f'skip TSDB {action} because TSDB client is not enabled')
+            log.debug(f'跳过时序数据库操作 {action}：时序数据库客户端未启用')
             return False
-        if not tsdb.read_ready:
-            log.debug(f'skip TSDB {action} because TSDB client is not ready')
+
+        ready = tsdb.write_ready if write else tsdb.read_ready
+        if not ready:
+            client_type = '写客户端' if write else '读客户端'
+            log.debug(f'跳过时序数据库操作 {action}：时序数据库{client_type}未就绪')
             return False
 
         return True
 
     @classmethod
-    def _ensure_tsdb_write_ready(cls, *, action: str) -> bool:
-        if not tsdb.enabled:
-            log.debug(f'skip TSDB {action} because TSDB write client is not enabled')
-            return False
-        if not tsdb.write_ready:
-            log.debug(f'skip TSDB {action} because TSDB write client is not ready')
-            return False
+    def _ensure_tsdb_read_ready(cls, *, action: str) -> bool:
+        return cls._ensure_tsdb_ready(action=action, write=False)
 
-        return True
+    @classmethod
+    def _ensure_tsdb_write_ready(cls, *, action: str) -> bool:
+        return cls._ensure_tsdb_ready(action=action, write=True)
 
     @classmethod
     def _resolve_model_table(cls, model: str) -> tuple[str, TSDBTable] | None:
@@ -136,7 +142,7 @@ class EventStore:
         if model_key is None:
             return None
 
-        table = cls.TABLES_BY_MODEL.get(model_key)
+        table = cls.MODEL_TABLES.get(model_key)
         if table is None:
             return None
 
@@ -149,9 +155,9 @@ class EventStore:
 
         text = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
 
-        if len(text) > cls.MAX_PAYLOAD_LENGTH:
-            log.debug(f'payload is too long, topic={topic}, payload={text}')
-            return text[: cls.MAX_PAYLOAD_LENGTH - 3] + '...'
+        if len(text) > cls.MAX_PAYLOAD_CHARS:
+            log.debug(f'事件载荷过长，将截断：topic={topic}, payload={text}')
+            return text[: cls.MAX_PAYLOAD_CHARS - 3] + '...'
 
         return text
 
@@ -167,13 +173,24 @@ class EventStore:
     @classmethod
     def _resolve_toy_ids(cls, payload: object) -> list[str]:
         if not isinstance(payload, dict):
-            return ['']
+            return []
 
         raw_toy_ids = payload.get('toy_ids')
-        if isinstance(raw_toy_ids, list | tuple | set):
-            return list(raw_toy_ids)
+        if not isinstance(raw_toy_ids, list | tuple | set):
+            return []
 
-        return ['']
+        normalized = sorted({
+            str(toy_id).strip()
+            for toy_id in raw_toy_ids
+            if toy_id is not None and str(toy_id).strip()
+        })
+        return normalized
+
+    @staticmethod
+    def _build_toy_ids_index(toy_ids: list[str]) -> str:
+        if not toy_ids:
+            return ''
+        return f",{','.join(toy_ids)},"
 
     @classmethod
     def _normalize_time_filter(cls, value: datetime | str | None) -> datetime | None:
@@ -202,7 +219,7 @@ class EventStore:
             normalized_start = timezone.now() - timedelta(days=30)
 
         if normalized_start is not None and normalized_end is not None and normalized_start > normalized_end:
-            raise ValueError('start_time must be earlier than or equal to end_time')
+            raise ValueError('开始时间必须早于或等于结束时间')
 
         return normalized_start, normalized_end
 
@@ -227,12 +244,18 @@ class EventStore:
         for field_name, field_value in (
                 ('category', category),
                 ('service', service),
-                ('toy_id', toy_id),
         ):
             normalized_value = cls._normalize_text(field_value)
             if normalized_value is None:
                 continue
             filters.append(f'{quote_identifier(field_name)} = {quote_value(normalized_value)}')
+
+        normalized_toy_id = cls._normalize_text(toy_id)
+        if normalized_toy_id is not None:
+            filters.append(
+                f'{quote_identifier("toy_ids")} LIKE '
+                f'{quote_value(f"%,{normalized_toy_id},%")}'
+            )
 
         return filters
 
@@ -248,40 +271,41 @@ class EventStore:
             message_ctx: MQTTMessageContext,
             route: MQTTEventRoute,
             payload: object,
-            toy_id: str,
+            event_id: str,
+            toy_ids: list[str],
     ) -> dict[str, object]:
         return {
             'ts': int(message_ctx.timestamp * 1000),
-            'event_id': uuid.uuid4().hex,
+            'event_id': event_id,
             'did': route.did,
             'category': route.category,
             'service': cls._resolve_service_name(payload),
             'topic': message_ctx.topic,
-            'toy_id': toy_id,
+            'toy_ids': cls._build_toy_ids_index(toy_ids),
             'payload': cls._serialize_message_payload(message_ctx.topic, payload),
         }
 
     @classmethod
     async def start(cls) -> None:
-        if not cls._ensure_tsdb_write_ready(action='writer start'):
+        if not cls._ensure_tsdb_write_ready(action='写入器启动'):
             return
 
-        if cls.TSDB_WRITE_STARTED:
+        if cls.TSDB_WRITER_STARTED:
             return
 
-        async with cls.TSDB_WRITE_START_LOCK:
-            if cls.TSDB_WRITE_STARTED:
+        async with cls.TSDB_WRITER_LOCK:
+            if cls.TSDB_WRITER_STARTED:
                 return
 
-            cls.TSDB_WRITE_TASKS = [
+            cls.TSDB_WRITER_TASKS = [
                 asyncio.create_task(cls._writer_worker(index), name=f'tsdb_writer_worker_{index}')
                 for index in range(settings.TSDB_WRITE_WORKERS)
             ]
-            cls.TSDB_WRITE_STARTED = True
+            cls.TSDB_WRITER_STARTED = True
             observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
             log.info(
-                f'TSDB writer started with {settings.TSDB_WRITE_WORKERS} workers, '
-                f'batch={settings.TSDB_WRITE_BATCH_SIZE}, queue={settings.TSDB_WRITE_QUEUE_MAXSIZE}'
+                f'时序数据库写入器已启动：工作线程数={settings.TSDB_WRITE_WORKERS}，'
+                f'批量大小={settings.TSDB_WRITE_BATCH_SIZE}，队列容量={settings.TSDB_WRITE_QUEUE_MAXSIZE}'
             )
 
     @classmethod
@@ -300,7 +324,7 @@ class EventStore:
                 await cls._flush_batch(items)
             except Exception as exc:
                 inc_queue_exception(queue_name='tsdb_write')
-                log.error(f'TSDB batch flush failed in worker {worker_id}: {exc}', exc_info=True)
+                log.error(f'时序数据库批量写入失败：工作线程={worker_id}，错误={exc}', exc_info=True)
             finally:
                 for _ in items:
                     cls.TSDB_WRITE_QUEUE.task_done()
@@ -318,12 +342,12 @@ class EventStore:
 
     @classmethod
     async def shutdown(cls) -> None:
-        for task in cls.TSDB_WRITE_TASKS:
+        for task in cls.TSDB_WRITER_TASKS:
             task.cancel()
-        if cls.TSDB_WRITE_TASKS:
-            await asyncio.gather(*cls.TSDB_WRITE_TASKS, return_exceptions=True)
-        cls.TSDB_WRITE_TASKS.clear()
-        cls.TSDB_WRITE_STARTED = False
+        if cls.TSDB_WRITER_TASKS:
+            await asyncio.gather(*cls.TSDB_WRITER_TASKS, return_exceptions=True)
+        cls.TSDB_WRITER_TASKS.clear()
+        cls.TSDB_WRITER_STARTED = False
 
         while True:
             try:
@@ -333,7 +357,7 @@ class EventStore:
                 break
 
         observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
-        log.info('TSDB writer stopped')
+        log.info('时序数据库写入器已停止')
 
     @classmethod
     def _get_selected_columns(cls, table: TSDBTable) -> tuple[tuple[str, ...], str]:
@@ -368,48 +392,54 @@ class EventStore:
 
     @classmethod
     async def insert(cls, message_ctx: MQTTMessageContext, *, payload: object) -> None:
-        """Persist one MQTT message into the matching TSDB subtable."""
+        """将一条 MQTT 消息写入匹配的时序数据库子表。"""
 
-        if not cls._ensure_tsdb_write_ready(action='message insert'):
-            log.debug('TSDB is not ready, skipping message insert')
+        if not cls._ensure_tsdb_write_ready(action='消息写入'):
+            log.debug('时序数据库未就绪，跳过消息写入')
             return
 
         route = parse_mqtt_topic(message_ctx.topic)
         if route is None:
-            log.debug(f'invalid message topic, topic={message_ctx.topic}')
+            log.debug(f'消息主题无效，跳过写入：topic={message_ctx.topic}')
             return
 
         resolved_table = cls._resolve_model_table(route.model)
         if resolved_table is None:
-            log.debug(f'model not found for model={route.model}')
+            log.debug(f'未找到对应的数据模型，跳过写入：model={route.model}')
             return
 
         baby_id = await cls._resolve_baby_id(route.did)
         if baby_id is None:
-            log.debug(f'baby_id not found for did={route.did}')
+            log.debug(f'未找到设备对应的宝宝 ID，跳过写入：did={route.did}')
             return
 
         model_key, table = resolved_table
+        event_id = uuid.uuid4().hex
         toy_ids = cls._resolve_toy_ids(payload)
         try:
-            for toy_id in toy_ids:
-                item = TSDBInsertItem(
-                    table=table,
-                    subtable_name=cls._resolve_subtable_name(model_key, baby_id),
-                    tags=cls._build_insert_tags(baby_id=baby_id),
-                    values=cls._build_insert_values(message_ctx, route, payload, toy_id),
-                )
-                await asyncio.wait_for(
-                    cls.TSDB_WRITE_QUEUE.put(item),
-                    timeout=settings.TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS,
-                )
+            item = TSDBInsertItem(
+                table=table,
+                subtable_name=cls._resolve_subtable_name(model_key, baby_id),
+                tags=cls._build_insert_tags(baby_id=baby_id),
+                values=cls._build_insert_values(
+                    message_ctx=message_ctx,
+                    route=route,
+                    payload=payload,
+                    event_id=event_id,
+                    toy_ids=toy_ids,
+                ),
+            )
+            await asyncio.wait_for(
+                cls.TSDB_WRITE_QUEUE.put(item),
+                timeout=settings.TSDB_WRITE_ENQUEUE_TIMEOUT_SECONDS,
+            )
             observe_queue_size(cls.TSDB_WRITE_QUEUE, queue_name='tsdb_write')
         except asyncio.TimeoutError:
             inc_queue_exception(queue_name='tsdb_write')
-            log.warning(f'TSDB write queue enqueue timeout, dropping message: {message_ctx.topic}')
+            log.warning(f'时序数据库写入队列入队超时，丢弃消息：{message_ctx.topic}')
         except Exception as exc:
             log.error(
-                f'failed to ingest MQTT message into TSDB, table={table.name}, topic={message_ctx.topic}, error={exc}'
+                f'MQTT 消息写入时序数据库失败：数据表={table.name}，主题={message_ctx.topic}，错误={exc}'
             )
 
     @classmethod
@@ -425,18 +455,18 @@ class EventStore:
             toy_id: str | None = None,
             limit: int = 10000,
     ) -> list[dict[str, object]]:
-        """Query device event messages from the model stable."""
+        """从数据模型对应的时序数据库子表查询设备事件。"""
 
         resolved_table = cls._resolve_model_table(model)
         if resolved_table is None:
             return []
 
-        if not cls._ensure_tsdb_read_ready(action='message query'):
+        if not cls._ensure_tsdb_read_ready(action='消息查询'):
             return []
 
         _, table = resolved_table
         range_start, range_end = cls._resolve_time_range(start_time=start_time, end_time=end_time)
-        safe_limit = max(1, min(limit, cls.MAX_QUERY_LIMIT))
+        safe_limit = max(1, min(limit, cls.MAX_QUERY_ROWS))
         column_names, selected_columns = cls._get_selected_columns(table)
         filters = cls._build_query_filters(
             baby_id=baby_id,

@@ -11,8 +11,8 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query, Request
 
 from backend.app.cloud.schema.baby import CreateBabyParam, GetBabyDetail, UpdateBabyParam
-from backend.app.cloud.schema.analytics import TSDBAnalyticsDetail, VikingAnalyticsDetail
-from backend.app.cloud.service.analytics_service import analytics_service
+from backend.app.cloud.schema.usage import TSDBUsageDetail, VikingUsageDetail
+from backend.app.cloud.service.usage_service import usage_service
 from backend.app.cloud.service.baby_service import baby_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
@@ -98,8 +98,8 @@ async def get_viking(
         assistant_id: Annotated[str | None, Query(description='按 assistant 隔离的 ID')] = None,
         start_time: Annotated[str | None, Query(description='Viking 查询开始时间，支持 ISO 字符串或毫秒时间戳')] = None,
         end_time: Annotated[str | None, Query(description='Viking 查询结束时间，支持 ISO 字符串或毫秒时间戳')] = None,
-) -> ResponseSchemaModel[VikingAnalyticsDetail]:
-    data = await analytics_service.query_viking(
+) -> ResponseSchemaModel[VikingUsageDetail]:
+    data = await usage_service.query_viking(
         db=db,
         user_id=request.user.id,
         baby_id=pk,
@@ -122,9 +122,10 @@ async def get_tsdb(
         end_time: Annotated[str | None, Query(description='TSDB 查询结束时间')] = None,
         category: Annotated[str | None, Query(description='TSDB 事件分类')] = None,
         service: Annotated[str | None, Query(description='TSDB 服务来源')] = None,
+        toy_id: Annotated[str | None, Query(description='玩偶 ID，查询包含该玩偶的事件')] = None,
         limit: Annotated[int, Query(description='TSDB 返回条数', ge=1, le=50000)] = 100,
-) -> ResponseSchemaModel[TSDBAnalyticsDetail]:
-    data = await analytics_service.query_tsdb(
+) -> ResponseSchemaModel[TSDBUsageDetail]:
+    data = await usage_service.query_tsdb(
         db=db,
         user_id=request.user.id,
         baby_id=pk,
@@ -132,6 +133,7 @@ async def get_tsdb(
         end_time=end_time,
         category=category,
         service=service,
+        toy_id=toy_id,
         limit=limit,
     )
     return response_base.success(data=data)

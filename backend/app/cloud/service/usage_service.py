@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 """
 @Project : fbapy
-@File    : analytics_service.py
+@File    : usage_service.py
 @Author  : OpenAI
 @Date    : 2026/04/23
 """
@@ -16,10 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.device_service import device_service
-from backend.app.cloud.schema.analytics import (
+from backend.app.cloud.schema.usage import (
     TSDBEventDetail,
-    TSDBAnalyticsDetail,
-    VikingAnalyticsDetail,
+    TSDBUsageDetail,
+    VikingUsageDetail,
     VikingMemorySectionDetail,
 )
 from backend.app.cloud.telemetry.event_store import EventStore
@@ -28,8 +28,8 @@ from backend.common.providers.viking_memory import viking_memory_client
 from backend.database.tsdb import tsdb
 
 
-class AnalyticsService:
-    """Aggregate baby-related TSDB and Viking data."""
+class UsageService:
+    """聚合宝宝的 TSDB 使用记录和 Viking 数据。"""
 
     @staticmethod
     async def _query_viking_events(
@@ -109,7 +109,7 @@ class AnalyticsService:
             assistant_id: str | None = None,
             start_time: datetime | str | int | float | None = None,
             end_time: datetime | str | int | float | None = None,
-    ) -> VikingAnalyticsDetail:
+    ) -> VikingUsageDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
         if baby.device_id is None:
             raise errors.RequestError(msg='宝宝未绑定设备')
@@ -133,7 +133,7 @@ class AnalyticsService:
             ),
         )
 
-        return VikingAnalyticsDetail(
+        return VikingUsageDetail(
             enabled=viking_memory_client.enabled,
             events=viking_event_result,
             profiles=viking_profile_result,
@@ -149,8 +149,9 @@ class AnalyticsService:
             end_time: datetime | str | None,
             category: str | None,
             service: str | None,
-            limit: int,
-    ) -> TSDBAnalyticsDetail:
+            toy_id: str | None = None,
+            limit: int = 100,
+    ) -> TSDBUsageDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
         if baby.device_id is None:
             raise errors.RequestError(msg='宝宝未绑定设备')
@@ -164,17 +165,18 @@ class AnalyticsService:
                 end_time=end_time,
                 category=category,
                 service=service,
+                toy_id=toy_id,
                 limit=limit,
             )
             items = [TSDBEventDetail.model_validate(row) for row in rows]
-            return TSDBAnalyticsDetail(
+            return TSDBUsageDetail(
                 enabled=tsdb.enabled,
                 ready=tsdb.read_ready,
                 error=None,
                 items=items,
             )
         except Exception as exc:
-            return TSDBAnalyticsDetail(
+            return TSDBUsageDetail(
                 enabled=tsdb.enabled,
                 ready=tsdb.read_ready,
                 error=str(exc),
@@ -182,4 +184,4 @@ class AnalyticsService:
             )
 
 
-analytics_service = AnalyticsService()
+usage_service = UsageService()
