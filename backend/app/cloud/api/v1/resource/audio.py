@@ -10,19 +10,19 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from backend.app.cloud.schema.resource.album import (
+from backend.app.cloud.schema.resource.song_album import (
     ContentType,
-    CreateAlbumParam,
-    GetAlbumDetail,
-    UpdateAlbumParam,
+    CreateSongAlbumParam,
+    GetSongAlbumDetail,
+    UpdateSongAlbumParam,
 )
 from backend.app.cloud.schema.resource.song import (
     CreateSongParam,
     GetSongDetail,
     UpdateSongParam,
 )
-from backend.app.cloud.service.resource.album_service import cloud_album_service
-from backend.app.cloud.service.resource.song_service import cloud_song_service
+from backend.app.cloud.service.resource.song_album_service import song_album_service
+from backend.app.cloud.service.resource.song_service import song_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -36,8 +36,8 @@ router = APIRouter()
 async def get_album(
         db: CurrentSession,
         pk: Annotated[int, Path(description='专辑 ID')],
-) -> ResponseSchemaModel[GetAlbumDetail]:
-    data = await cloud_album_service.get_album(db=db, pk=pk)
+) -> ResponseSchemaModel[GetSongAlbumDetail]:
+    data = await song_album_service.get_album(db=db, pk=pk)
     return response_base.success(data=data)
 
 
@@ -49,8 +49,8 @@ async def get_album_paginated(
         status: Annotated[int | None, Query(description='状态')] = None,
         column: Annotated[str | None, Query(description='排序字段')] = 'id',
         order: Annotated[str | None, Query(description='排序方式')] = 'desc',
-) -> ResponseSchemaModel[PageData[GetAlbumDetail]]:
-    page_data = await cloud_album_service.get_album_list(
+) -> ResponseSchemaModel[PageData[GetSongAlbumDetail]]:
+    page_data = await song_album_service.get_album_list(
         db=db,
         title=title,
         content_type=content_type,
@@ -64,9 +64,9 @@ async def get_album_paginated(
 @router.post('/albums', summary='创建专辑', dependencies=[DependsJwtAuth])
 async def create_album(
         db: CurrentSessionTransaction,
-        obj: CreateAlbumParam,
-) -> ResponseSchemaModel[GetAlbumDetail]:
-    album = await cloud_album_service.create_album(db=db, obj=obj)
+        obj: CreateSongAlbumParam,
+) -> ResponseSchemaModel[GetSongAlbumDetail]:
+    album = await song_album_service.create_album(db=db, obj=obj)
     return response_base.success(data=album)
 
 
@@ -74,9 +74,9 @@ async def create_album(
 async def update_album(
         db: CurrentSessionTransaction,
         pk: Annotated[int, Path(description='专辑 ID')],
-        obj: UpdateAlbumParam,
+        obj: UpdateSongAlbumParam,
 ) -> ResponseModel:
-    count = await cloud_album_service.update_album(db=db, pk=pk, obj=obj)
+    count = await song_album_service.update_album(db=db, pk=pk, obj=obj)
     if count > 0:
         return response_base.success()
     return response_base.fail()
@@ -87,7 +87,7 @@ async def delete_album(
         db: CurrentSessionTransaction,
         pk: Annotated[int, Path(description='专辑 ID')],
 ) -> ResponseModel:
-    count = await cloud_album_service.delete_album(db=db, pk=pk)
+    count = await song_album_service.delete_album(db=db, pk=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()
@@ -98,7 +98,7 @@ async def get_song(
         db: CurrentSession,
         pk: Annotated[int, Path(description='歌曲 ID')],
 ) -> ResponseSchemaModel[GetSongDetail]:
-    data = await cloud_song_service.get_song(db=db, pk=pk)
+    data = await song_service.get_song(db=db, pk=pk)
     return response_base.success(data=data)
 
 
@@ -110,7 +110,7 @@ async def get_song_paginated(
         content_type: Annotated[ContentType | None, Query(description='内容类型：1儿歌 2故事 3哄睡')] = None,
         status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetSongDetail]]:
-    page_data = await cloud_song_service.get_song_list(
+    page_data = await song_service.get_song_list(
         db=db,
         title=title,
         album_id=album_id,
@@ -125,7 +125,7 @@ async def create_song(
         db: CurrentSessionTransaction,
         obj: CreateSongParam,
 ) -> ResponseSchemaModel[GetSongDetail]:
-    song = await cloud_song_service.create_song(db=db, obj=obj)
+    song = await song_service.create_song(db=db, obj=obj)
     return response_base.success(data=song)
 
 
@@ -135,7 +135,7 @@ async def update_song(
         pk: Annotated[int, Path(description='歌曲 ID')],
         obj: UpdateSongParam,
 ) -> ResponseModel:
-    count = await cloud_song_service.update_song(db=db, pk=pk, obj=obj)
+    count = await song_service.update_song(db=db, pk=pk, obj=obj)
     if count > 0:
         return response_base.success()
     return response_base.fail()
@@ -146,7 +146,7 @@ async def delete_song(
         db: CurrentSessionTransaction,
         pk: Annotated[int, Path(description='歌曲 ID')],
 ) -> ResponseModel:
-    count = await cloud_song_service.delete_song(db=db, pk=pk)
+    count = await song_service.delete_song(db=db, pk=pk)
     if count > 0:
         return response_base.success()
     return response_base.fail()

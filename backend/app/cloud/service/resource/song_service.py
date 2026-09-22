@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, Any
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.app.cloud.crud.resource.crud_album import cloud_album_dao
-from backend.app.cloud.crud.resource.crud_song import cloud_song_dao
-from backend.app.cloud.model import CloudAlbum, CloudSong
-from backend.app.cloud.schema.resource.album import ContentType
+from backend.app.cloud.crud.resource.crud_song import song_dao
+from backend.app.cloud.crud.resource.crud_song_album import song_album_dao
+from backend.app.cloud.model import Song, SongAlbum
+from backend.app.cloud.schema.resource.song_album import ContentType
 from backend.app.cloud.schema.resource.song import CreateSongParam, UpdateSongParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
@@ -25,12 +25,12 @@ if TYPE_CHECKING:
     from backend.app.cloud.schema.resource.ximalaya import XimalayaSearchParam
 
 
-class CloudSongService:
+class SongService:
     SEARCH_LIMIT = 50
 
     @staticmethod
-    async def get_song(*, db: AsyncSession, pk: int) -> CloudSong:
-        song = await cloud_song_dao.get(db, pk)
+    async def get_song(*, db: AsyncSession, pk: int) -> Song:
+        song = await song_dao.get(db, pk)
         if not song:
             raise errors.NotFoundError(msg='歌曲不存在')
         return song
@@ -44,7 +44,7 @@ class CloudSongService:
         content_type: ContentType | None = None,
         status: int | None = None,
     ) -> dict[str, Any]:
-        song_select = await cloud_song_dao.get_select(
+        song_select = await song_dao.get_select(
             title=title,
             album_id=album_id,
             content_type=content_type,
@@ -52,19 +52,19 @@ class CloudSongService:
         )
         return await paging_data(db, song_select)
 
-    async def create_song(self, *, db: AsyncSession, obj: CreateSongParam) -> CloudSong:
+    async def create_song(self, *, db: AsyncSession, obj: CreateSongParam) -> Song:
         payload = obj
         if obj.album_id is not None:
             payload = await self._normalize_song_with_album(db=db, obj=obj)
         elif obj.content_type is None:
             raise errors.RequestError(msg='内容类型不能为空')
 
-        song = await cloud_song_dao.create(db, payload)
+        song = await song_dao.create(db, payload)
         await self._sync_album_track_count(db=db, album_id=song.album_id)
         return song
 
     async def update_song(self, *, db: AsyncSession, pk: int, obj: UpdateSongParam) -> int:
-        song = await cloud_song_dao.get(db, pk)
+        song = await song_dao.get(db, pk)
         if not song:
             raise errors.NotFoundError(msg='歌曲不存在')
 
@@ -84,18 +84,18 @@ class CloudSongService:
             )
 
         old_album_id = song.album_id
-        count = await cloud_song_dao.update(db, pk, normalized_obj)
-        refreshed = await cloud_song_dao.get(db, pk)
+        count = await song_dao.update(db, pk, normalized_obj)
+        refreshed = await song_dao.get(db, pk)
         await self._sync_album_track_count(db=db, album_id=old_album_id)
         await self._sync_album_track_count(db=db, album_id=refreshed.album_id if refreshed else None)
         return count
 
     async def delete_song(self, *, db: AsyncSession, pk: int) -> int:
-        song = await cloud_song_dao.get(db, pk)
+        song = await song_dao.get(db, pk)
         if not song:
             raise errors.NotFoundError(msg='歌曲不存在')
 
-        count = await cloud_song_dao.delete(db, pk)
+        count = await song_dao.delete(db, pk)
         await self._sync_album_track_count(db=db, album_id=song.album_id)
         return count
 
@@ -138,11 +138,11 @@ class CloudSongService:
         search_field, keyword = self._resolve_search_keyword(obj)
         keyword_like = f'%{keyword}%'
 
-        song_name_match = CloudSong.title.like(keyword_like)
-        album_name_match = CloudAlbum.title.like(keyword_like)
+        song_name_match = Song.title.like(keyword_like)
+        album_name_match = SongAlbum.title.like(keyword_like)
         artist_match = sa.or_(
-            CloudSong.artist.like(keyword_like),
-            CloudAlbum.artist.like(keyword_like),
+            Song.artist.like(keyword_like),
+            SongAlbum.artist.like(keyword_like),
         )
 
         priority_order = sa.case(
@@ -154,31 +154,31 @@ class CloudSongService:
 
         stmt = (
             sa.select(
-                CloudSong.id.label('id'),
-                CloudSong.title.label('name'),
-                CloudSong.play_url.label('play_url'),
-                CloudSong.duration.label('duration'),
-                CloudSong.content_type.label('content_type'),
-                CloudSong.artist.label('song_artist'),
-                CloudAlbum.id.label('album_id'),
-                CloudAlbum.artist.label('album_artist'),
-                CloudAlbum.title.label('album'),
+                Song.id.label('id'),
+                Song.title.label('name'),
+                Song.play_url.label('play_url'),
+                Song.duration.label('duration'),
+                Song.content_type.label('content_type'),
+                Song.artist.label('song_artist'),
+                SongAlbum.id.label('album_id'),
+                SongAlbum.artist.label('album_artist'),
+                SongAlbum.title.label('album'),
             )
-            .select_from(CloudSong)
-            .outerjoin(CloudAlbum, CloudAlbum.id == CloudSong.album_id)
-            .where(CloudSong.status == 1)
+            .select_from(Song)
+            .outerjoin(SongAlbum, SongAlbum.id == Song.album_id)
+            .where(Song.status == 1)
         )
 
         if search_field == 'song_name':
-            stmt = stmt.where(song_name_match).order_by(CloudSong.id.desc())
+            stmt = stmt.where(song_name_match).order_by(Song.id.desc())
         elif search_field == 'album_name':
-            stmt = stmt.where(album_name_match).order_by(CloudSong.id.desc())
+            stmt = stmt.where(album_name_match).order_by(Song.id.desc())
         elif search_field == 'artist':
-            stmt = stmt.where(artist_match).order_by(CloudSong.id.desc())
+            stmt = stmt.where(artist_match).order_by(Song.id.desc())
         else:
             stmt = stmt.where(sa.or_(song_name_match, album_name_match, artist_match)).order_by(
                 priority_order.asc(),
-                CloudSong.id.desc(),
+                Song.id.desc(),
             )
 
         result = await db.execute(stmt.limit(self.SEARCH_LIMIT))
@@ -193,7 +193,7 @@ class CloudSongService:
         if obj.album_id is None:
             return obj
 
-        album = await cloud_album_dao.get(db, obj.album_id)
+        album = await song_album_dao.get(db, obj.album_id)
         if not album:
             raise errors.NotFoundError(msg='专辑不存在')
 
@@ -204,12 +204,12 @@ class CloudSongService:
         if album_id is None:
             return
 
-        album = await cloud_album_dao.get(db, album_id)
+        album = await song_album_dao.get(db, album_id)
         if not album:
             return
 
-        track_count = await cloud_song_dao.count_by_album_id(db, album_id)
-        await cloud_album_dao.update_track_count(db, album_id, track_count)
+        track_count = await song_dao.count_by_album_id(db, album_id)
+        await song_album_dao.update_track_count(db, album_id, track_count)
 
     @staticmethod
     def _validate_song_payload(payload: dict[str, Any]) -> None:
@@ -219,4 +219,4 @@ class CloudSongService:
             raise errors.RequestError(msg='内容类型不能为空')
 
 
-cloud_song_service: CloudSongService = CloudSongService()
+song_service: SongService = SongService()

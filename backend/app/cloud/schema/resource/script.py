@@ -1,22 +1,19 @@
 # -*- coding: UTF-8 -*-
-"""
-Cloud script schemas.
-"""
+"""剧本数据结构。"""
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from backend.common.schema import SchemaBase
 
-SCRIPT_CONTENT_TYPES_DESCRIPTION = '内容类型列表：1语言 2科学 3社会 4艺术 5健康'
+SCRIPT_CONTENT_TYPES_DESCRIPTION = '内容类型列表：1 语言，2 科学，3 社会，4 艺术，5 健康'
 
 
 def _normalize_content_types(value: list[int] | None) -> list[int] | None:
     if value is None:
         return None
-
     normalized = sorted(dict.fromkeys(int(content_type) for content_type in value))
     if not normalized:
         raise ValueError('内容类型列表不能为空')
@@ -25,48 +22,23 @@ def _normalize_content_types(value: list[int] | None) -> list[int] | None:
     return normalized
 
 
-def _normalize_toy_ids(value: list[int] | None) -> list[int] | None:
-    if value is None:
-        return None
-    return sorted(dict.fromkeys(int(toy_id) for toy_id in value))
-
-
 def _strip_required_text(value: Any) -> Any:
-    if isinstance(value, str):
-        return value.strip()
-    return value
+    return value.strip() if isinstance(value, str) else value
 
 
 def _strip_optional_text(value: Any) -> Any:
     if isinstance(value, str):
-        stripped = value.strip()
-        return stripped or None
+        return value.strip() or None
     return value
 
 
 def _normalize_favorite_flag(value: Any) -> Any:
-    if value is None:
-        return 0
-    return value
-
-
-def _validate_script_toy_ids(*, toy_ids: list[int], content: list['ScriptLine']) -> None:
-    toy_id_set = set(toy_ids)
-    content_toy_ids = {line.toy_id for line in content}
-
-    invalid_toy_ids = sorted(content_toy_ids - toy_id_set)
-    if invalid_toy_ids:
-        raise ValueError(
-            f'content contains toy_ids not present in toy_ids: {", ".join(str(toy_id) for toy_id in invalid_toy_ids)}')
-
-    missing_toy_ids = sorted(toy_id_set - content_toy_ids)
-    if missing_toy_ids:
-        raise ValueError(f'toy_ids missing from content: {", ".join(str(toy_id) for toy_id in missing_toy_ids)}')
+    return 0 if value is None else value
 
 
 class ScriptLine(SchemaBase):
-    toy_id: int = Field(gt=0, description='Toy ID')
-    text: str = Field(min_length=1, description='Line text')
+    toy_id: int = Field(gt=0, description='玩偶 ID')
+    text: str = Field(min_length=1, description='台词内容')
     start_at: str | None = Field(None, description='开始时间')
     end_at: str | None = Field(None, description='结束时间')
 
@@ -82,39 +54,31 @@ class ScriptLine(SchemaBase):
 
 
 class ScriptSchemaBase(SchemaBase):
-    title: str = Field(description='Title')
+    album_id: int = Field(gt=0, description='剧本专辑 ID')
+    title: str = Field(min_length=1, max_length=256, description='剧本标题')
     content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
-    toy_ids: list[int] = Field(min_length=1, description='Toy ID list')
-    content: list[ScriptLine] = Field(min_length=1, description='Script line content')
-    device_id: int = Field(default=0, ge=0, description='Device ID, 0 means platform')
-    favorite: int = Field(default=0, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
-    version: int = Field(default=1, ge=1, description='Version')
-    summary: str | None = Field(None, description='Summary')
-    cover_url: str | None = Field(None, description='Cover URL')
-    author: str | None = Field(None, description='Author')
+    content: list[ScriptLine] = Field(min_length=1, description='剧本台词内容')
+    device_id: int = Field(default=0, ge=0, description='设备 ID，0 表示平台')
+    favorite: int = Field(default=0, ge=0, le=1, description='是否收藏：0 否，1 是')
+    version: int = Field(default=1, ge=1, description='版本号')
+    summary: str | None = Field(None, max_length=1000, description='剧本摘要')
+    cover_url: str | None = Field(None, max_length=512, description='剧本封面地址')
+    author: str | None = Field(None, max_length=128, description='作者')
     play_url: str | None = Field(None, max_length=1000, description='播放地址')
-    status: int = Field(default=0, description='Status (0 draft, 1 enabled, 2 disabled)')
-    remark: str | None = Field(None, description='Remark')
+    duration: int = Field(default=0, ge=0, description='时长（秒）')
+    track_no: int = Field(default=0, ge=0, description='专辑内曲目序号')
+    status: int = Field(default=0, ge=0, le=2, description='状态：0 草稿，1 启用，2 禁用')
+    remark: str | None = Field(None, max_length=500, description='备注')
 
     @field_validator('content_types')
     @classmethod
     def normalize_content_types(cls, value: list[int] | None) -> list[int] | None:
         return _normalize_content_types(value)
 
-    @field_validator('toy_ids')
-    @classmethod
-    def normalize_toy_ids(cls, value: list[int]) -> list[int]:
-        return _normalize_toy_ids(value) or []
-
     @field_validator('favorite', mode='before')
     @classmethod
     def normalize_favorite(cls, value: Any) -> Any:
         return _normalize_favorite_flag(value)
-
-    @model_validator(mode='after')
-    def validate_toy_ids_content(self) -> 'ScriptSchemaBase':
-        _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
-        return self
 
 
 class CreateScriptParam(ScriptSchemaBase):
@@ -122,8 +86,8 @@ class CreateScriptParam(ScriptSchemaBase):
 
 
 class UpdateScriptFavoriteParam(SchemaBase):
-    device_id: int = Field(gt=0, description='Device ID')
-    favorite: int = Field(ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
+    device_id: int = Field(gt=0, description='设备 ID')
+    favorite: int = Field(ge=0, le=1, description='是否收藏：0 否，1 是')
 
     @field_validator('favorite', mode='before')
     @classmethod
@@ -132,45 +96,40 @@ class UpdateScriptFavoriteParam(SchemaBase):
 
 
 class UpdateScriptParam(SchemaBase):
-    device_id: int | None = Field(None, ge=0, description='Device ID, 0 means platform')
-    favorite: int | None = Field(None, ge=0, le=1, description='Favorite flag (0 no, 1 yes)')
-    title: str | None = Field(None, description='Title')
+    album_id: int | None = Field(None, gt=0, description='剧本专辑 ID')
+    device_id: int | None = Field(None, ge=0, description='设备 ID，0 表示平台')
+    favorite: int | None = Field(None, ge=0, le=1, description='是否收藏：0 否，1 是')
+    title: str | None = Field(None, min_length=1, max_length=256, description='剧本标题')
     content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
-    version: int | None = Field(None, ge=1, description='Version')
-    summary: str | None = Field(None, description='Summary')
-    cover_url: str | None = Field(None, description='Cover URL')
-    author: str | None = Field(None, description='Author')
+    version: int | None = Field(None, ge=1, description='版本号')
+    summary: str | None = Field(None, max_length=1000, description='剧本摘要')
+    cover_url: str | None = Field(None, max_length=512, description='剧本封面地址')
+    author: str | None = Field(None, max_length=128, description='作者')
     play_url: str | None = Field(None, max_length=1000, description='播放地址')
-    toy_ids: list[int] | None = Field(None, min_length=1, description='Toy ID list')
-    content: list[ScriptLine] | None = Field(None, min_length=1, description='Script line content')
-    status: int | None = Field(None, description='Status (0 draft, 1 enabled, 2 disabled)')
-    remark: str | None = Field(None, description='Remark')
+    duration: int | None = Field(None, ge=0, description='时长（秒）')
+    track_no: int | None = Field(None, ge=0, description='专辑内曲目序号')
+    content: list[ScriptLine] | None = Field(None, min_length=1, description='剧本台词内容')
+    status: int | None = Field(None, ge=0, le=2, description='状态：0 草稿，1 启用，2 禁用')
+    remark: str | None = Field(None, max_length=500, description='备注')
 
     @field_validator('content_types')
     @classmethod
     def normalize_content_types(cls, value: list[int] | None) -> list[int] | None:
         return _normalize_content_types(value)
 
-    @field_validator('toy_ids')
-    @classmethod
-    def normalize_toy_ids(cls, value: list[int] | None) -> list[int] | None:
-        return _normalize_toy_ids(value)
-
     @field_validator('favorite', mode='before')
     @classmethod
     def normalize_favorite(cls, value: Any) -> Any:
         return _normalize_favorite_flag(value)
 
-    @model_validator(mode='after')
-    def validate_toy_ids_content(self) -> 'UpdateScriptParam':
-        if self.toy_ids is not None and self.content is not None:
-            _validate_script_toy_ids(toy_ids=self.toy_ids, content=self.content)
-        return self
-
 
 class GetScriptDetail(ScriptSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    id: int = Field(description='Primary key ID')
-    created_time: datetime = Field(description='Created time')
-    updated_time: datetime | None = Field(None, description='Updated time')
+    # 兼容迁移前的历史剧本；创建剧本时仍要求填写专辑 ID。
+    album_id: int | None = Field(None, description='剧本专辑 ID')
+    duration: int | None = Field(None, description='时长（秒）')
+    track_no: int | None = Field(None, description='专辑内曲目序号')
+    id: int = Field(description='剧本 ID')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')

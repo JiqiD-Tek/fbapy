@@ -11,7 +11,7 @@ from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator
 
-from backend.app.cloud.schema.resource.album import ContentType
+from backend.app.cloud.schema.resource.song_album import ContentType
 from backend.common.schema import SchemaBase
 
 
@@ -46,7 +46,7 @@ class SongSchemaBase(SchemaBase):
     @field_validator('script_content', mode='before')
     @classmethod
     def normalize_script_content(cls, value: Any) -> Any:
-        """Keep legacy songs with a NULL JSON column compatible with the API contract."""
+        """兼容脚本内容为 NULL 的历史歌曲。"""
         return [] if value is None else value
 
 

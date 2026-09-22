@@ -38,9 +38,11 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
+from backend.app.cloud.schema.resource.script_album import CreateScriptAlbumParam
 from backend.app.cloud.service.toy_service import toy_service
-from backend.app.cloud.service.resource.song_service import cloud_song_service
-from backend.app.cloud.service.resource.script_service import cloud_script_service
+from backend.app.cloud.service.resource.song_service import song_service
+from backend.app.cloud.service.resource.script_album_service import script_album_service
+from backend.app.cloud.service.resource.script_service import script_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.providers.ali_oss import oss_client
@@ -71,7 +73,7 @@ from backend.app.cloud.service.resource.huoshan.models import HuoshanLongTextTTS
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-    from backend.app.cloud.model import CloudSong
+    from backend.app.cloud.model import Song
 
 STORY_AUDIO_FORMAT = 'mp3'
 STORY_TASK_STATUS_PENDING = 0
@@ -477,8 +479,8 @@ class HuoshanVoiceService:
         return f'cloud/huoshan/{date_path}/icl-{task_id}.{STORY_AUDIO_FORMAT}'
 
     @staticmethod
-    async def _get_bgm_song(db: AsyncSession, bgm_song_id: int) -> CloudSong:
-        song = await cloud_song_service.get_song(db=db, pk=bgm_song_id)
+    async def _get_bgm_song(db: AsyncSession, bgm_song_id: int) -> Song:
+        song = await song_service.get_song(db=db, pk=bgm_song_id)
         if not song.play_url:
             raise errors.RequestError(msg='Background music play URL is missing')
         return song
@@ -1028,14 +1030,23 @@ class HuoshanVoiceService:
             async with async_db_session() as db:
                 try:
                     content, play_url = await self._build_toy_story_script_content(result)
-                    script = await cloud_script_service.create_script(
+                    album = await script_album_service.create_album(
+                        db=db,
+                        obj=CreateScriptAlbumParam(
+                            title=result.text[:256],
+                            toy_ids=list(result.toy_ids),
+                            description=result.text,
+                            status=1,
+                        ),
+                    )
+                    script = await script_service.create_script(
                         db=db,
                         obj=CreateScriptParam(
-                            title=result.text,
+                            album_id=album.id,
+                            title=result.text[:256],
                             summary=result.text,
                             cover_url=None,
                             author=None,
-                            toy_ids=list(result.toy_ids),
                             content=content,
                             play_url=play_url,
                             device_id=result.device_id,
@@ -1044,13 +1055,13 @@ class HuoshanVoiceService:
                         ),
                     )
                     await db.commit()
-                    log.info(f'Huoshan toy story script auto saved: task_id={task_id}, script_id={script.id}')
+                    log.info(f'火山引擎玩偶故事剧本已自动保存：task_id={task_id}, script_id={script.id}')
                 except Exception:
                     with suppress(Exception):
                         await db.rollback()
                     raise
         except Exception as exc:
-            log.error(f'Huoshan toy story script auto save failed: task_id={task_id}, error={exc!r}')
+            log.error(f'火山引擎玩偶故事剧本自动保存失败：task_id={task_id}, error={exc!r}')
             return
 
     async def _finalize_story_synthesis(

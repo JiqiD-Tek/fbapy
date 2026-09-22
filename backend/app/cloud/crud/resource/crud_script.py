@@ -7,14 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import CloudScript
+from backend.app.cloud.model import Script, ScriptAlbum
 from backend.app.cloud.schema.resource.script import CreateScriptParam, UpdateScriptParam
 from backend.common.enums import DataBaseType
 from backend.core.conf import settings
 
 
-class CRUDCloudScript(CRUDPlus[CloudScript]):
-    async def get(self, db: AsyncSession, pk: int) -> CloudScript | None:
+class CRUDScript(CRUDPlus[Script]):
+    async def get(self, db: AsyncSession, pk: int) -> Script | None:
         return await self.select_model(db, pk)
 
     async def get_select(
@@ -24,6 +24,7 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
         status: int | None,
         device_id: int | None = None,
         favorite: int | None = None,
+        album_id: int | None = None,
         content_types: list[int] | None = None,
         toy_ids: list[int] | None = None,
         exact_toy_ids: list[int] | None = None,
@@ -40,19 +41,24 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
             filters['device_id'] = device_id
         if favorite is not None:
             filters['favorite'] = favorite
+        if album_id is not None:
+            filters['album_id'] = album_id
 
         stmt = await self.select_order('id', 'desc', **filters)
 
         if content_types:
             stmt = stmt.where(self._build_json_array_contains_condition(self.model.content_types, content_types))
         if toy_ids:
+            stmt = stmt.join(ScriptAlbum, ScriptAlbum.id == self.model.album_id)
             stmt = stmt.where(self._build_contains_toy_ids_condition(toy_ids))
         if exact_toy_ids:
+            if not toy_ids:
+                stmt = stmt.join(ScriptAlbum, ScriptAlbum.id == self.model.album_id)
             stmt = stmt.where(self._build_exact_toy_ids_condition(exact_toy_ids))
 
         return stmt
 
-    async def create(self, db: AsyncSession, obj: CreateScriptParam) -> CloudScript:
+    async def create(self, db: AsyncSession, obj: CreateScriptParam) -> Script:
         return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateScriptParam | dict) -> int:
@@ -61,8 +67,11 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
     async def delete(self, db: AsyncSession, pk: int) -> int:
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
+    async def count_by_album_id(self, db: AsyncSession, album_id: int) -> int:
+        return await self.count(db, album_id=album_id)
+
     def _build_contains_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
-        return self._build_json_array_contains_condition(self.model.toy_ids, toy_ids)
+        return self._build_json_array_contains_condition(ScriptAlbum.toy_ids, toy_ids)
 
     @staticmethod
     def _build_json_array_contains_condition(
@@ -76,15 +85,15 @@ class CRUDCloudScript(CRUDPlus[CloudScript]):
 
     def _build_exact_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
         if settings.DATABASE_TYPE == DataBaseType.postgresql:
-            toy_ids_expr = sa.cast(self.model.toy_ids, postgresql.JSONB)
+            toy_ids_expr = sa.cast(ScriptAlbum.toy_ids, postgresql.JSONB)
             return sa.and_(
                 toy_ids_expr.contains(toy_ids),
                 sa.func.jsonb_array_length(toy_ids_expr) == len(toy_ids),
             )
         return sa.and_(
-            sa.func.JSON_CONTAINS(self.model.toy_ids, json.dumps(toy_ids)) == 1,
-            sa.func.JSON_LENGTH(self.model.toy_ids) == len(toy_ids),
+            sa.func.JSON_CONTAINS(ScriptAlbum.toy_ids, json.dumps(toy_ids)) == 1,
+            sa.func.JSON_LENGTH(ScriptAlbum.toy_ids) == len(toy_ids),
         )
 
 
-cloud_script_dao: CRUDCloudScript = CRUDCloudScript(CloudScript)
+script_dao: CRUDScript = CRUDScript(Script)

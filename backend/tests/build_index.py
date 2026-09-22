@@ -20,7 +20,7 @@ from uuid import uuid4
 import httpx
 import sqlalchemy as sa
 from backend.common.log import log
-from backend.app.cloud.model import CloudAlbum, CloudSong
+from backend.app.cloud.model import Song, SongAlbum
 from backend.database.db import async_db_session
 
 """
@@ -53,27 +53,27 @@ def _get_resource_dir(resource_dir: str | Path | None = None) -> Path:
 async def fetch_resource_items() -> list[ResourceItem]:
     stmt = (
         sa.select(
-            CloudAlbum.content_type.label('content_type'),
-            CloudAlbum.id.label('album_id'),
-            CloudSong.id.label('song_id'),
-            CloudSong.track_no.label('track_no'),
-            CloudSong.play_url.label('play_url'),
+            SongAlbum.content_type.label('content_type'),
+            SongAlbum.id.label('album_id'),
+            Song.id.label('song_id'),
+            Song.track_no.label('track_no'),
+            Song.play_url.label('play_url'),
         )
-        .select_from(CloudAlbum)
-        .join(CloudSong, CloudSong.album_id == CloudAlbum.id)
+        .select_from(SongAlbum)
+        .join(Song, Song.album_id == SongAlbum.id)
         .where(
-            CloudAlbum.status == 1,
-            CloudSong.status == 1,
-            CloudSong.album_id.is_not(None),
-            CloudSong.play_url.is_not(None),
-            CloudSong.play_url != '',
-            CloudAlbum.content_type.in_(CONTENT_TYPES),
+            SongAlbum.status == 1,
+            Song.status == 1,
+            Song.album_id.is_not(None),
+            Song.play_url.is_not(None),
+            Song.play_url != '',
+            SongAlbum.content_type.in_(CONTENT_TYPES),
         )
         .order_by(
-            CloudAlbum.content_type.asc(),
-            CloudAlbum.id.asc(),
-            CloudSong.track_no.asc(),
-            CloudSong.id.asc(),
+            SongAlbum.content_type.asc(),
+            SongAlbum.id.asc(),
+            Song.track_no.asc(),
+            Song.id.asc(),
         )
     )
 

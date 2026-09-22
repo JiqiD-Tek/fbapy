@@ -16,7 +16,7 @@ from backend.app.cloud.schema.resource.ximalaya import (
     XimalayaSearchParam,
     XimalayaSearchAlbumsParam,
 )
-from backend.app.cloud.service.resource.song_service import cloud_song_service
+from backend.app.cloud.service.resource.song_service import song_service
 from backend.app.cloud.service.resource.ximalaya.service import ximalaya_service
 from backend.common.response.response_schema import ResponseModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
@@ -34,7 +34,7 @@ async def ximalaya_search(
         db: CurrentSession,
         obj: XimalayaSearchParam,
 ) -> ResponseModel:
-    data = await cloud_song_service.search_resources(db=db, obj=obj)
+    data = await song_service.search_resources(db=db, obj=obj)
     return response_base.success(data=data)
 
 

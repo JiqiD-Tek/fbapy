@@ -15,12 +15,13 @@ from backend.app.cloud.model.device import DeviceChat as DeviceChat
 from backend.app.cloud.model.m2m import device_toy as device_toy
 from backend.app.cloud.model.m2m import user_device as user_device
 
-from backend.app.cloud.model.resource.album import CloudAlbum as CloudAlbum
+from backend.app.cloud.model.resource.script import Script as Script
+from backend.app.cloud.model.resource.script_album import ScriptAlbum as ScriptAlbum
+from backend.app.cloud.model.resource.song import Song as Song
+from backend.app.cloud.model.resource.song_album import SongAlbum as SongAlbum
 from backend.app.cloud.model.toy import Toy as Toy
 from backend.app.cloud.model.toy import ToyNfc as ToyNfc
 from backend.app.cloud.model.toy import ToySeries as ToySeries
-from backend.app.cloud.model.resource.script import CloudScript as CloudScript
-from backend.app.cloud.model.resource.song import CloudSong as CloudSong
 from backend.app.cloud.model.feedback import Feedback as Feedback
 from backend.app.cloud.model.firmware import Firmware as Firmware
 from backend.app.cloud.model.firmware import FirmwareWhitelist as FirmwareWhitelist

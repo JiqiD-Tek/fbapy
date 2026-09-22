@@ -3,7 +3,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import JSON
 
-from backend.app.cloud.model.resource.song import CloudSong
+from backend.app.cloud.model.resource.song import Song
 from backend.app.cloud.schema.resource.song import CreateSongParam, GetSongDetail, UpdateSongParam
 from backend.common.pagination import PageData
 from backend.common.response.response_schema import ResponseSchemaModel
@@ -74,7 +74,7 @@ def test_song_normalizes_legacy_null_script_content() -> None:
 
 
 def test_song_detail_normalizes_legacy_null_script_content() -> None:
-    song = CloudSong(title='旧歌曲', content_type=1, script_content=None)
+    song = Song(title='旧歌曲', content_type=1, script_content=None)
     song.id = 1
 
     detail = GetSongDetail.model_validate(song)
@@ -158,10 +158,10 @@ def test_song_script_segment_requires_at_least_one_group() -> None:
         )
 
 
-def test_cloud_song_model_uses_json_script_content_column() -> None:
-    column = CloudSong.__table__.columns.script_content
-    first = CloudSong(title='第一首歌曲', content_type=1)
-    second = CloudSong(title='第二首歌曲', content_type=1)
+def test_song_model_uses_json_script_content_column() -> None:
+    column = Song.__table__.columns.script_content
+    first = Song(title='第一首歌曲', content_type=1)
+    second = Song(title='第二首歌曲', content_type=1)
 
     assert isinstance(column.type, JSON)
     assert column.nullable is True

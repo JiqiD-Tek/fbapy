@@ -4,12 +4,12 @@ from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import CloudSong
+from backend.app.cloud.model import Song
 from backend.app.cloud.schema.resource.song import CreateSongParam, UpdateSongParam
 
 
-class CRUDCloudSong(CRUDPlus[CloudSong]):
-    async def get(self, db: AsyncSession, pk: int) -> CloudSong | None:
+class CRUDSong(CRUDPlus[Song]):
+    async def get(self, db: AsyncSession, pk: int) -> Song | None:
         return await self.select_model(db, pk)
 
     async def get_select(
@@ -30,12 +30,12 @@ class CRUDCloudSong(CRUDPlus[CloudSong]):
         if status is not None:
             filters['status'] = status
 
-        return await self.select_order('track_no', **filters)
+        return await self.select_order('id', 'desc', **filters)
 
-    async def get_all(self, db: AsyncSession) -> Sequence[CloudSong]:
+    async def get_all(self, db: AsyncSession) -> Sequence[Song]:
         return await self.select_models(db)
 
-    async def create(self, db: AsyncSession, obj: CreateSongParam) -> CloudSong:
+    async def create(self, db: AsyncSession, obj: CreateSongParam) -> Song:
         return await self.create_model(db, obj, flush=True)
 
     async def update(self, db: AsyncSession, pk: int, obj: UpdateSongParam) -> int:
@@ -56,4 +56,4 @@ class CRUDCloudSong(CRUDPlus[CloudSong]):
         )
 
 
-cloud_song_dao: CRUDCloudSong = CRUDCloudSong(CloudSong)
+song_dao: CRUDSong = CRUDSong(Song)
