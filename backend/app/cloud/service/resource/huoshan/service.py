@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import re
 import uuid
 from contextlib import suppress
@@ -87,6 +88,112 @@ STORY_AUDIO_PARAMS = {
     'loudness_rate': 0,
     'enable_timestamp': False,
 }
+
+
+class ScriptAudioBuilder:
+    """玩偶剧本音频构建器，负责分段合成、时间轴和完整音频上传。"""
+
+    @staticmethod
+    def format_timestamp(seconds: float) -> str:
+        milliseconds = max(0, round(seconds * 1000))
+        hours, remainder = divmod(milliseconds, 3_600_000)
+        minutes, remainder = divmod(remainder, 60_000)
+        seconds_part, milliseconds_part = divmod(remainder, 1000)
+        return f'{hours:02d}:{minutes:02d}:{seconds_part:02d}.{milliseconds_part:03d}'
+
+    @staticmethod
+    def parse_timestamp(value: str | None) -> float:
+        if not value:
+            return 0.0
+        match = re.fullmatch(r'(\d+):(\d{2}):(\d{2})(?:\.(\d{1,3}))?', value.strip())
+        if not match:
+            return 0.0
+        hours, minutes, seconds = (int(match.group(index)) for index in (1, 2, 3))
+        milliseconds = int((match.group(4) or '').ljust(3, '0') or 0)
+        if minutes >= 60 or seconds >= 60:
+            return 0.0
+        return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000
+
+    @classmethod
+    def get_content_duration(cls, content: list[ScriptLine]) -> int:
+        """根据剧本内容最后一个结束时间计算总时长，单位为秒。"""
+        end_at = max((cls.parse_timestamp(line.end_at) for line in content), default=0.0)
+        return math.ceil(end_at) if end_at > 0 else 0
+
+    async def build(
+            self,
+            result: HuoshanToyStoryScriptResult,
+    ) -> tuple[list[ScriptLine], str]:
+        if not result.lines:
+            raise errors.GatewayError(msg=f'Toy story script has no lines, task_id={result.task_id}')
+
+        toy_map = {toy.toy_id: toy for toy in result.toys}
+        segment_paths: list[Path] = []
+        content: list[ScriptLine] = []
+        current_offset = 0.0
+
+        with TemporaryDirectory(prefix='huoshan_script_') as temp_dir:
+            temp_path = Path(temp_dir)
+            for index, line in enumerate(result.lines):
+                token = str(line.tts_token or '').strip()
+                if not token:
+                    raise errors.GatewayError(
+                        msg=(
+                            f'Toy story script line is missing tts_token, task_id={result.task_id}, '
+                            f'toy_id={line.toy_id}'
+                        )
+                    )
+                toy = toy_map.get(line.toy_id)
+                if toy is None:
+                    raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
+
+                if not line.tts_status:
+                    await tts_stream_service.query_and_wait(
+                        obj=HuoshanStreamTTSParam(
+                            text=line.text,
+                            speaker=toy.speaker,
+                            speech_rate=toy.speech_rate or 0,
+                            loudness_rate=toy.loudness_rate or 0,
+                        ),
+                        request_id=token,
+                    )
+
+                audio_data = await tts_stream_service.get_audio_bytes(request_id=token)
+                if not audio_data:
+                    raise errors.GatewayError(
+                        msg=f'Toy story script line returned empty audio, task_id={result.task_id}, line={index}'
+                    )
+
+                segment_path = temp_path / f'{index:04d}.mp3'
+                segment_path.write_bytes(audio_data)
+                segment_paths.append(segment_path)
+                duration = probe_audio_duration(segment_path)
+                if duration <= 0:
+                    raise errors.GatewayError(
+                        msg=f'Toy story script line audio duration is invalid, task_id={result.task_id}, line={index}'
+                    )
+
+                content.append(ScriptLine(
+                    toy_id=line.toy_id,
+                    text=line.text,
+                    start_at=self.format_timestamp(current_offset),
+                    end_at=self.format_timestamp(current_offset + duration),
+                ))
+                current_offset += duration
+
+            output_path = temp_path / 'complete.mp3'
+            await asyncio.to_thread(concatenate_audio_segments, segment_paths, output_path)
+            output_audio = output_path.read_bytes()
+
+        date_path = timezone.now().strftime('%Y%m%d')
+        oss_key = f'cloud/huoshan/script/{date_path}/{result.task_id}.mp3'
+        play_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
+        if not play_url:
+            raise errors.GatewayError(msg='Failed to upload complete toy story script audio')
+        return content, play_url
+
+
+script_audio_builder = ScriptAudioBuilder()
 
 
 class HuoshanVoiceService:
@@ -933,91 +1040,11 @@ class HuoshanVoiceService:
             )
             await tts_stream_service.query(obj=obj, request_id=request_id)
 
-    @staticmethod
-    def _format_script_timestamp(seconds: float) -> str:
-        milliseconds = max(0, round(seconds * 1000))
-        hours, remainder = divmod(milliseconds, 3_600_000)
-        minutes, remainder = divmod(remainder, 60_000)
-        seconds_part, milliseconds_part = divmod(remainder, 1000)
-        return f'{hours:02d}:{minutes:02d}:{seconds_part:02d}.{milliseconds_part:03d}'
-
     async def _build_toy_story_script_content(
             self,
             result: HuoshanToyStoryScriptResult,
     ) -> tuple[list[ScriptLine], str]:
-        if not result.lines:
-            raise errors.GatewayError(msg=f'Toy story script has no lines, task_id={result.task_id}')
-
-        toy_map = {toy.toy_id: toy for toy in result.toys}
-        segment_paths: list[Path] = []
-        content: list[ScriptLine] = []
-        current_offset = 0.0
-
-        with TemporaryDirectory(prefix='huoshan_script_') as temp_dir:
-            temp_path = Path(temp_dir)
-            for index, line in enumerate(result.lines):
-                token = str(line.tts_token or '').strip()
-                if not token:
-                    raise errors.GatewayError(
-                        msg=(
-                            f'Toy story script line is missing tts_token, task_id={result.task_id}, '
-                            f'toy_id={line.toy_id}'
-                        )
-                    )
-
-                toy = toy_map.get(line.toy_id)
-                if toy is None:
-                    raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
-
-                request_id = token
-                if not line.tts_status:
-                    await tts_stream_service.query_and_wait(
-                        obj=HuoshanStreamTTSParam(
-                            text=line.text,
-                            speaker=toy.speaker,
-                            speech_rate=toy.speech_rate or 0,
-                            loudness_rate=toy.loudness_rate or 0,
-                        ),
-                        request_id=request_id,
-                    )
-
-                audio_data = await tts_stream_service.get_audio_bytes(request_id=request_id)
-                if not audio_data:
-                    raise errors.GatewayError(
-                        msg=f'Toy story script line returned empty audio, task_id={result.task_id}, line={index}'
-                    )
-
-                segment_path = temp_path / f'{index:04d}.mp3'
-                segment_path.write_bytes(audio_data)
-                segment_paths.append(segment_path)
-
-                duration = probe_audio_duration(segment_path)
-                if duration <= 0:
-                    raise errors.GatewayError(
-                        msg=f'Toy story script line audio duration is invalid, task_id={result.task_id}, line={index}'
-                    )
-
-                content.append(
-                    ScriptLine(
-                        toy_id=line.toy_id,
-                        text=line.text,
-                        start_at=self._format_script_timestamp(current_offset),
-                        end_at=self._format_script_timestamp(current_offset + duration),
-                    )
-                )
-                current_offset += duration
-
-            output_path = temp_path / 'complete.mp3'
-            await asyncio.to_thread(concatenate_audio_segments, segment_paths, output_path)
-            output_audio = output_path.read_bytes()
-
-        date_path = timezone.now().strftime('%Y%m%d')
-        oss_key = f'cloud/huoshan/script/{date_path}/{result.task_id}.mp3'
-        play_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
-        if not play_url:
-            raise errors.GatewayError(msg='Failed to upload complete toy story script audio')
-
-        return content, play_url
+        return await script_audio_builder.build(result)
 
     async def _save_toy_story_script(
             self,
@@ -1049,6 +1076,7 @@ class HuoshanVoiceService:
                             author=None,
                             content=content,
                             play_url=play_url,
+                            duration=ScriptAudioBuilder.get_content_duration(content),
                             device_id=result.device_id,
                             status=0,
                             remark=None,
