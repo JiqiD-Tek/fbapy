@@ -23,6 +23,7 @@ router = APIRouter()
 @router.get('', summary='分页获取商品列表', dependencies=[DependsJwtAuth, DependsPagination])
 async def get_product_paginated(
         db: CurrentSession,
+        parent_id: Annotated[int | None, Query(description='父商品 ID', gt=0)] = None,
         ref_type: Annotated[ProductRefType | None, Query(description='关联对象类型：toy_series、toy')] = None,
         ref_id: Annotated[int | None, Query(description='关联对象 ID', gt=0)] = None,
         name: Annotated[str | None, Query(description='商品名称')] = None,
@@ -30,6 +31,7 @@ async def get_product_paginated(
 ) -> ResponseSchemaModel[PageData[GetProductDetail]]:
     page_data = await product_service.get_product_list(
         db=db,
+        parent_id=parent_id,
         ref_type=ref_type,
         ref_id=ref_id,
         name=name,

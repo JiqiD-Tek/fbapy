@@ -23,12 +23,15 @@ class CRUDProduct(CRUDPlus[Product]):
     async def get_select(
             self,
             *,
+            parent_id: int | None,
             ref_type: str | None,
             ref_id: int | None,
             name: str | None,
             status: int | None,
     ) -> Select:
         stmt = sa.select(self.model).where(self.model.deleted == 0)
+        if parent_id is not None:
+            stmt = stmt.where(self.model.parent_id == parent_id)
         if ref_type is not None:
             stmt = stmt.where(self.model.ref_type == ref_type)
         if ref_id is not None:
@@ -38,6 +41,14 @@ class CRUDProduct(CRUDPlus[Product]):
         if status is not None:
             stmt = stmt.where(self.model.status == status)
         return stmt.order_by(self.model.sort.asc(), self.model.id.desc())
+
+    async def has_children(self, db: AsyncSession, *, parent_id: int) -> bool:
+        stmt = sa.select(self.model.id).where(
+            self.model.deleted == 0,
+            self.model.parent_id == parent_id,
+        ).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def create(self, db: AsyncSession, obj: Any) -> Product:
         return await self.create_model(db, obj, flush=True)
