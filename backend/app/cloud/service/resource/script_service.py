@@ -47,9 +47,7 @@ class ScriptService:
             if not album:
                 raise errors.NotFoundError(msg='剧本专辑不存在')
             ScriptService._validate_content_toys(album.toy_ids, obj.content)
-        payload = obj.model_dump(mode='python')
-        payload['album_id'] = album_id
-        script = await script_dao.create(db, payload)
+        script = await script_dao.create(db, obj)
         await ScriptService._sync_album_count(db, album_id)
         return script
 

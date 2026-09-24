@@ -1,9 +1,9 @@
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -103,51 +103,17 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
         await db.flush()
         return record
 
-    async def get_daily_chat_counts(
+    async def get_contents_by_time_range(
             self,
             db: AsyncSession,
             *,
             baby_id: int,
             start_time: datetime,
             end_time: datetime,
-    ) -> dict[date, int]:
-        chat_date = func.date(self.model.created_time)
+            limit: int | None = None,
+    ) -> Sequence[tuple[datetime, dict[str, Any]]]:
         stmt = (
-            select(chat_date, func.count())
-            .where(
-                self.model.deleted == 0,
-                self.model.baby_id == baby_id,
-                self.model.created_time >= start_time,
-                self.model.created_time < end_time,
-            )
-            .group_by(chat_date)
-        )
-        result = await db.execute(stmt)
-
-        daily_counts: dict[date, int] = {}
-        for raw_chat_date, chat_count in result.all():
-            if isinstance(raw_chat_date, datetime):
-                chat_day = raw_chat_date.date()
-            elif isinstance(raw_chat_date, date):
-                chat_day = raw_chat_date
-            else:
-                chat_day = date.fromisoformat(str(raw_chat_date))
-
-            daily_counts[chat_day] = int(chat_count)
-
-        return daily_counts
-
-    async def get_by_time_range(
-            self,
-            db: AsyncSession,
-            *,
-            baby_id: int,
-            start_time: datetime,
-            end_time: datetime,
-            limit: int,
-    ) -> Sequence[DeviceChat]:
-        stmt = (
-            select(self.model)
+            select(self.model.created_time, self.model.content)
             .where(
                 self.model.deleted == 0,
                 self.model.baby_id == baby_id,
@@ -155,10 +121,11 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
                 self.model.created_time < end_time,
             )
             .order_by(self.model.created_time.desc(), self.model.id.desc())
-            .limit(limit)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await db.execute(stmt)
-        return result.scalars().all()
+        return result.tuples().all()
 
 
 device_dao: CRUDDevice = CRUDDevice(Device)

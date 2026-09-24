@@ -73,17 +73,17 @@ class CRUDScript(CRUDPlus[Script]):
     async def count_by_album_id(self, db: AsyncSession, album_id: int) -> int:
         return await self.count(db, album_id=album_id)
 
-    async def get_baby_generated_by_time_range(
+    async def get_generated_topics_by_time_range(
             self,
             db: AsyncSession,
             *,
             baby_id: int,
             start_time: datetime,
             end_time: datetime,
-            limit: int,
-    ) -> Sequence[Script]:
+            limit: int | None = None,
+    ) -> Sequence[tuple[datetime, str | None]]:
         stmt = (
-            sa.select(self.model)
+            sa.select(self.model.created_time, self.model.remark)
             .where(
                 self.model.deleted == 0,
                 self.model.baby_id == baby_id,
@@ -91,10 +91,11 @@ class CRUDScript(CRUDPlus[Script]):
                 self.model.created_time < end_time,
             )
             .order_by(self.model.created_time.desc(), self.model.id.desc())
-            .limit(limit)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
         result = await db.execute(stmt)
-        return result.scalars().all()
+        return result.tuples().all()
 
     def _build_contains_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
         return self._build_json_array_contains_condition(ScriptAlbum.toy_ids, toy_ids)

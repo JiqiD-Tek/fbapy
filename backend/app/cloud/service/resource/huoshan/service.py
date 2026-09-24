@@ -1070,13 +1070,13 @@ class HuoshanVoiceService:
                             title=result.text[:256],
                             summary=result.text,
                             cover_url=None,
-                            author=None,
+                            author="AI",
                             content=content,
                             play_url=play_url,
                             duration=ScriptAudioBuilder.get_content_duration(content),
                             baby_id=result.baby_id,
                             status=0,
-                            remark=None,
+                            remark=result.text,
                         ),
                     )
                     await db.commit()
