@@ -2,13 +2,21 @@
 """商城商品请求和响应模型。"""
 
 from datetime import datetime
-from typing import Annotated, Literal
+from enum import Enum
+from typing import Annotated
 
 from pydantic import ConfigDict, Field, field_validator
 
 from backend.common.schema import SchemaBase
 
-ProductRefType = Literal['toy_series', 'toy']
+
+class ProductRefType(str, Enum):
+    """商品关联对象类型。"""
+
+    toy_series = 'toy_series'
+    toy = 'toy'
+
+
 PositiveProductRefId = Annotated[int, Field(gt=0)]
 
 

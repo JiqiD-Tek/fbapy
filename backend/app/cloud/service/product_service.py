@@ -25,13 +25,13 @@ class ProductService:
 
     @staticmethod
     async def _get_ref(*, db: AsyncSession, ref_type: ProductRefType, ref_id: int):
-        if ref_type == 'toy':
+        if ref_type == ProductRefType.toy:
             ref = await toy_dao.get(db, ref_id)
             if ref is None:
                 raise errors.NotFoundError(msg='关联的玩偶不存在')
             return ref
 
-        if ref_type == 'toy_series':
+        if ref_type == ProductRefType.toy_series:
             ref = await toy_series_dao.get(db, ref_id)
             if ref is None:
                 raise errors.NotFoundError(msg='关联的玩偶系列不存在')
@@ -51,7 +51,7 @@ class ProductService:
     ) -> None:
         ref = await cls._get_ref(db=db, ref_type=ref_type, ref_id=ref_id)
 
-        if ref_type == 'toy_series':
+        if ref_type == ProductRefType.toy_series:
             if parent_id is not None:
                 raise errors.RequestError(msg='系列玩偶商品不能设置父商品')
             return
@@ -66,7 +66,7 @@ class ProductService:
             raise errors.NotFoundError(msg='父商品不存在')
         if parent.parent_id is not None:
             raise errors.RequestError(msg='商品只支持一层父子关系')
-        if parent.ref_type != 'toy_series':
+        if parent.ref_type != ProductRefType.toy_series:
             raise errors.RequestError(msg='父商品必须是系列玩偶商品')
         if ref.series_id != parent.ref_id:
             raise errors.RequestError(msg='玩偶不属于父商品关联的玩偶系列')

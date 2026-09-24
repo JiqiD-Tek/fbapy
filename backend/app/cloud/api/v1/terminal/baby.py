@@ -122,7 +122,6 @@ async def get_tsdb(
         end_time: Annotated[str | None, Query(description='TSDB 查询结束时间')] = None,
         category: Annotated[str | None, Query(description='TSDB 事件分类')] = None,
         service: Annotated[str | None, Query(description='TSDB 服务来源')] = None,
-        toy_id: Annotated[str | None, Query(description='玩偶 ID，查询包含该玩偶的事件')] = None,
         limit: Annotated[int, Query(description='TSDB 返回条数', ge=1, le=50000)] = 100,
 ) -> ResponseSchemaModel[TSDBUsageDetail]:
     data = await usage_service.query_tsdb(
@@ -133,7 +132,6 @@ async def get_tsdb(
         end_time=end_time,
         category=category,
         service=service,
-        toy_id=toy_id,
         limit=limit,
     )
     return response_base.success(data=data)

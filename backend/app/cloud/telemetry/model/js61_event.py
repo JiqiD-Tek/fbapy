@@ -14,7 +14,6 @@ class JS61EventTable(TSDBBase):
         TSDBField(name='category', definition='VARCHAR(32)', description='业务事件类别'),
         TSDBField(name='service', definition='VARCHAR(32)', description='来源服务名称'),
         TSDBField(name='topic', definition='VARCHAR(128)', description='原始消息主题'),
-        TSDBField(name='toy_ids', definition='NCHAR(256)', description='本次事件选择的玩偶 ID 索引字符串'),
         TSDBField(name='payload', definition='NCHAR(4096)', description='原始事件载荷'),
     )
     __tags__ = (

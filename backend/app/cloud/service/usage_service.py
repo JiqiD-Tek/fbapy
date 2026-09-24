@@ -149,7 +149,6 @@ class UsageService:
             end_time: datetime | str | None,
             category: str | None,
             service: str | None,
-            toy_id: str | None = None,
             limit: int = 100,
     ) -> TSDBUsageDetail:
         baby = await baby_service.get(db=db, user_id=user_id, pk=baby_id)
@@ -165,7 +164,6 @@ class UsageService:
                 end_time=end_time,
                 category=category,
                 service=service,
-                toy_id=toy_id,
                 limit=limit,
             )
             items = [TSDBEventDetail.model_validate(row) for row in rows]

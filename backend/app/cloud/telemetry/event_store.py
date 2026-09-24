@@ -171,28 +171,6 @@ class EventStore:
         return 'mqtt'
 
     @classmethod
-    def _resolve_toy_ids(cls, payload: object) -> list[str]:
-        if not isinstance(payload, dict):
-            return []
-
-        raw_toy_ids = payload.get('toy_ids')
-        if not isinstance(raw_toy_ids, list | tuple | set):
-            return []
-
-        normalized = sorted({
-            str(toy_id).strip()
-            for toy_id in raw_toy_ids
-            if toy_id is not None and str(toy_id).strip()
-        })
-        return normalized
-
-    @staticmethod
-    def _build_toy_ids_index(toy_ids: list[str]) -> str:
-        if not toy_ids:
-            return ''
-        return f",{','.join(toy_ids)},"
-
-    @classmethod
     def _normalize_time_filter(cls, value: datetime | str | None) -> datetime | None:
         if value is None:
             return None
@@ -232,7 +210,6 @@ class EventStore:
             end_time: datetime | None,
             category: str | None,
             service: str | None,
-            toy_id: str | None,
     ) -> list[str]:
         filters: list[str] = [f'{quote_identifier("baby_id")} = {quote_value(str(baby_id))}']
 
@@ -250,13 +227,6 @@ class EventStore:
                 continue
             filters.append(f'{quote_identifier(field_name)} = {quote_value(normalized_value)}')
 
-        normalized_toy_id = cls._normalize_text(toy_id)
-        if normalized_toy_id is not None:
-            filters.append(
-                f'{quote_identifier("toy_ids")} LIKE '
-                f'{quote_value(f"%,{normalized_toy_id},%")}'
-            )
-
         return filters
 
     @classmethod
@@ -272,7 +242,6 @@ class EventStore:
             route: MQTTEventRoute,
             payload: object,
             event_id: str,
-            toy_ids: list[str],
     ) -> dict[str, object]:
         return {
             'ts': int(message_ctx.timestamp * 1000),
@@ -281,7 +250,6 @@ class EventStore:
             'category': route.category,
             'service': cls._resolve_service_name(payload),
             'topic': message_ctx.topic,
-            'toy_ids': cls._build_toy_ids_index(toy_ids),
             'payload': cls._serialize_message_payload(message_ctx.topic, payload),
         }
 
@@ -415,7 +383,6 @@ class EventStore:
 
         model_key, table = resolved_table
         event_id = uuid.uuid4().hex
-        toy_ids = cls._resolve_toy_ids(payload)
         try:
             item = TSDBInsertItem(
                 table=table,
@@ -426,7 +393,6 @@ class EventStore:
                     route=route,
                     payload=payload,
                     event_id=event_id,
-                    toy_ids=toy_ids,
                 ),
             )
             await asyncio.wait_for(
@@ -452,7 +418,6 @@ class EventStore:
             end_time: datetime | str | None = None,
             category: str | None = None,
             service: str | None = None,
-            toy_id: str | None = None,
             limit: int = 10000,
     ) -> list[dict[str, object]]:
         """从数据模型对应的时序数据库子表查询设备事件。"""
@@ -474,7 +439,6 @@ class EventStore:
             end_time=range_end,
             category=category,
             service=service,
-            toy_id=toy_id,
         )
 
         sql = cls._build_query_sql(

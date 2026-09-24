@@ -23,7 +23,6 @@ class TSDBEventDetail(SchemaBase):
     category: str | None = Field(None, description='事件分类')
     service: str | None = Field(None, description='服务来源')
     topic: str | None = Field(None, description='MQTT 主题')
-    toy_ids: str | None = Field(None, description='本次事件选择的玩偶 ID 索引字符串')
     payload: str | None = Field(None, description='事件负载')
 
 
