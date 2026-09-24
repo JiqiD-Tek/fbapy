@@ -95,7 +95,7 @@ async def get_script_paginated(
     title: Annotated[str | None, Query(description='剧本标题')] = None,
     author: Annotated[str | None, Query(description='作者')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
-    device_id: Annotated[int | None, Query(description='设备 ID，0 表示平台')] = None,
+    baby_id: Annotated[int | None, Query(description='宝宝 ID')] = None,
     favorite: Annotated[int | None, Query(description='是否收藏：0 否，1 是')] = None,
     album_id: Annotated[int | None, Query(description='剧本专辑 ID')] = None,
     content_types: Annotated[
@@ -110,7 +110,7 @@ async def get_script_paginated(
         title=title,
         author=author,
         status=status,
-        device_id=device_id,
+        baby_id=baby_id,
         favorite=favorite,
         album_id=album_id,
         content_types=content_types,

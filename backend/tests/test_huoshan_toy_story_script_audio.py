@@ -29,7 +29,7 @@ def test_toy_story_script_save_content_uses_complete_audio_and_line_ranges(
             HuoshanToyStoryScriptLine(toy_id=1, text='first', tts_token='token-1'),
             HuoshanToyStoryScriptLine(toy_id=2, text='second', tts_token='token-2'),
         ],
-        device_id=1,
+        baby_id=1,
         is_completed=True,
         task_status=2,
     )

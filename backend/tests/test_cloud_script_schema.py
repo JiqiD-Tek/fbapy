@@ -19,10 +19,10 @@ def _build_script_payload() -> dict:
     }
 
 
-def test_create_script_param_defaults_device_id_and_favorite() -> None:
+def test_create_script_param_defaults_baby_id_and_favorite() -> None:
     obj = CreateScriptParam.model_validate(_build_script_payload())
 
-    assert obj.device_id == 0
+    assert obj.baby_id is None
     assert obj.favorite == 0
     assert obj.content_types == [2, 3]
     assert obj.album_id == 10
@@ -86,5 +86,7 @@ def test_script_model_has_resource_columns() -> None:
     assert play_url_column.comment == '播放地址'
     assert Script.__table__.columns.duration.comment == '时长（秒）'
     assert Script.__table__.columns.track_no.comment == '专辑内曲目序号'
+    assert Script.__table__.columns.baby_id.comment == '宝宝 ID，NULL 表示平台剧本'
+    assert 'device_id' not in Script.__table__.columns
     assert 'sort' not in Script.__table__.columns
     assert 'toy_ids' not in Script.__table__.columns

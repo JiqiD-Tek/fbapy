@@ -39,6 +39,7 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
+from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import song_service
 from backend.app.cloud.service.resource.script_service import script_service
@@ -680,8 +681,8 @@ class HuoshanVoiceService:
                 raise
 
             result_payload = payload.get('result') or {}
-            if isinstance(result_payload, dict) and payload.get('device_id') is not None:
-                result_payload = {**result_payload, 'device_id': payload.get('device_id')}
+            if isinstance(result_payload, dict) and payload.get('baby_id') is not None:
+                result_payload = {**result_payload, 'baby_id': payload.get('baby_id')}
             result = HuoshanToyStoryScriptResult.model_validate(result_payload)
 
         return cls._normalize_toy_story_script_result(result)
@@ -959,8 +960,15 @@ class HuoshanVoiceService:
             *,
             db: AsyncSession,
             obj: HuoshanToyStoryScriptParam,
-            device_id: int = 1,
+            device_did: str | None = None,
     ) -> HuoshanToyStoryScriptResult:
+        baby_id = None
+        if device_did is not None:
+            baby = await baby_service.get_by_device_did(db=db, did=device_did)
+            if baby is None:
+                raise errors.RequestError(msg='当前设备未绑定宝宝')
+            baby_id = int(baby.id)
+
         toys = await toy_service.get_toys_by_ids(db=db, toy_ids=obj.toy_ids)
         toy_infos: list[HuoshanToyStoryToyInfo] = []  # TODO: 旁白
         invalid_toys: list[str] = []
@@ -993,7 +1001,7 @@ class HuoshanVoiceService:
             model=DEFAULT_DOUBAO_LITE_MODEL,
             toys=toy_infos,
             lines=[],
-            device_id=device_id,
+            baby_id=baby_id,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
@@ -1001,8 +1009,8 @@ class HuoshanVoiceService:
         await self._save_toy_story_script_task_result(task_result)
         self._start_toy_story_script_processing(task_result.task_id)
         log.info(
-            f'Huoshan toy story script generation submitted: task_id={task_result.task_id}, '
-            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}, device_id={device_id}'
+            f'火山引擎玩偶故事剧本生成任务已提交：task_id={task_result.task_id}, '
+            f'toy_ids={task_result.toy_ids}, text={task_result.text!r}, baby_id={baby_id}'
         )
         return task_result
 
@@ -1066,7 +1074,7 @@ class HuoshanVoiceService:
                             content=content,
                             play_url=play_url,
                             duration=ScriptAudioBuilder.get_content_duration(content),
-                            device_id=result.device_id,
+                            baby_id=result.baby_id,
                             status=0,
                             remark=None,
                         ),

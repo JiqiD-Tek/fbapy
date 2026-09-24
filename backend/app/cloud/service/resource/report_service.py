@@ -18,6 +18,7 @@ from typing import Any, ClassVar, TypeVar
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_device import device_chat_dao
+from backend.app.cloud.crud.resource.crud_script import script_dao
 from backend.app.cloud.model import Baby
 from backend.app.cloud.schema.resource.report import (
     ActivityTrendPoint,
@@ -36,7 +37,6 @@ from backend.app.cloud.telemetry.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.providers.doubao import DEFAULT_DOUBAO_MINI_MODEL, doubao_provider
-from backend.common.providers.viking_memory import viking_memory_client
 from backend.common.schema import SchemaBase
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
@@ -150,6 +150,9 @@ class ReportService:
     REPORT_DAYS: ClassVar[int] = 14
     REPORT_COMPARE_DAYS: ClassVar[int] = 7
     REPORT_QUERY_LIMIT: ClassVar[int] = 20000
+    REPORT_CHAT_LIMIT: ClassVar[int] = 50
+    REPORT_STORY_LIMIT: ClassVar[int] = 20
+    REPORT_TEXT_LIMIT: ClassVar[int] = 500
     REPORT_ANALYSIS_SYSTEM_PROMPT: ClassVar[str] = (
         '你是儿童成长报告分析助手。'
         '你的任务是根据输入数据生成稳定、保守、可直接解析的 JSON 结果。'
@@ -224,7 +227,7 @@ class ReportService:
         try:
             payload = await redis_client.get(key)
         except Exception as exc:
-            log.warning('failed to read {} cache, baby_id={}, error={}', label, baby_id, exc)
+            log.warning('读取{}缓存失败，宝宝 ID={}，错误={}', label, baby_id, exc)
             return None
 
         if not payload:
@@ -233,7 +236,7 @@ class ReportService:
         try:
             return model_cls.model_validate_json(payload)
         except Exception as exc:
-            log.warning('failed to parse {} cache, baby_id={}, error={}', label, baby_id, exc)
+            log.warning('解析{}缓存失败，宝宝 ID={}，错误={}', label, baby_id, exc)
             return None
 
     @classmethod
@@ -252,7 +255,7 @@ class ReportService:
                 ex=cls._resolve_cache_ttl_seconds(),
             )
         except Exception as exc:
-            log.warning('failed to write {} cache, baby_id={}, error={}', label, baby_id, exc)
+            log.warning('写入{}缓存失败，宝宝 ID={}，错误={}', label, baby_id, exc)
         return value
 
     @staticmethod
@@ -331,15 +334,23 @@ class ReportService:
             baby_name: str,
             current_week_usage: dict[str, Any],
             previous_week_usage: dict[str, Any],
-            current_week_viking_report: str,
-            previous_week_viking_report: str,
+            current_week_chats: list[dict[str, Any]],
+            previous_week_chats: list[dict[str, Any]],
+            current_week_stories: list[dict[str, Any]],
+            previous_week_stories: list[dict[str, Any]],
     ) -> str:
         output_template = json.dumps(cls.REPORT_OUTPUT_TEMPLATE, ensure_ascii=False)
         current_week_usage_text = json.dumps(current_week_usage, ensure_ascii=False)
         previous_week_usage_text = json.dumps(previous_week_usage, ensure_ascii=False)
+        current_week_chats_text = json.dumps(current_week_chats, ensure_ascii=False)
+        previous_week_chats_text = json.dumps(previous_week_chats, ensure_ascii=False)
+        current_week_stories_text = json.dumps(current_week_stories, ensure_ascii=False)
+        previous_week_stories_text = json.dumps(previous_week_stories, ensure_ascii=False)
         return (
             f'输出 JSON 结构：{output_template}'
-            '请结合两周使用数据和两周画像摘要生成结果。'
+            '请结合两周使用统计、聊天记录和设备生成的故事生成结果。'
+            '聊天记录来自 device_chat，播放统计来自时序数据库，生成故事来自 script；'
+            '生成故事只代表生成行为，不能当作已播放记录。'
             '优先使用输入中的事实，证据不足时保持保守。'
             'summary 聚焦整体成长观察，interaction 聚焦互动表现，playback 聚焦收听偏好。'
             '每个 observations 写 1 到 2 条短句；每个 suggestion 只写 1 条建议。'
@@ -348,18 +359,61 @@ class ReportService:
             f'当前宝宝称呼：{baby_name}\n'
             f'以下是最近一周的使用统计数据：\n{current_week_usage_text}\n'
             f'以下是前一周的使用统计数据：\n{previous_week_usage_text}\n'
-            f'以下是最近一周的 Viking 画像与事件摘要：\n{current_week_viking_report}\n'
-            f'以下是前一周的 Viking 画像与事件摘要：\n{previous_week_viking_report}'
+            f'以下是最近一周的设备聊天记录：\n{current_week_chats_text}\n'
+            f'以下是前一周的设备聊天记录：\n{previous_week_chats_text}\n'
+            f'以下是最近一周由设备生成的故事：\n{current_week_stories_text}\n'
+            f'以下是前一周由设备生成的故事：\n{previous_week_stories_text}'
         )
 
-    async def _build_usage_report(self, *, baby: Baby, preview: UsageReportPreview) -> UsageReport:
+    async def _build_usage_report(
+            self,
+            *,
+            db: AsyncSession,
+            baby: Baby,
+            preview: UsageReportPreview,
+    ) -> UsageReport:
+        current_week_start = preview.start_time + timedelta(days=self.REPORT_COMPARE_DAYS)
+        previous_week_chats = await self._query_device_chats(
+            db=db,
+            baby_id=baby.id,
+            start_time=preview.start_time,
+            end_time=current_week_start,
+        )
+        current_week_chats = await self._query_device_chats(
+            db=db,
+            baby_id=baby.id,
+            start_time=current_week_start,
+            end_time=preview.end_time,
+        )
+        previous_week_stories = await self._query_generated_stories(
+            db=db,
+            baby_id=baby.id,
+            start_time=preview.start_time,
+            end_time=current_week_start,
+        )
+        current_week_stories = await self._query_generated_stories(
+            db=db,
+            baby_id=baby.id,
+            start_time=current_week_start,
+            end_time=preview.end_time,
+        )
+        has_source_records = any((
+            current_week_chats,
+            previous_week_chats,
+            current_week_stories,
+            previous_week_stories,
+        ))
         radar, metrics, insights = await self._build_by_llm(
             baby_id=baby.id,
             baby_name=baby.name or '宝贝',
             current_week_usage=self._section_to_llm_usage(preview.current_week),
             previous_week_usage=self._section_to_llm_usage(preview.previous_week),
+            current_week_chats=current_week_chats,
+            previous_week_chats=previous_week_chats,
+            current_week_stories=current_week_stories,
+            previous_week_stories=previous_week_stories,
             has_activity=self._section_has_activity(preview.current_week) or self._section_has_activity(
-                preview.previous_week),
+                preview.previous_week) or has_source_records,
         )
 
         return UsageReport(
@@ -402,47 +456,90 @@ class ReportService:
         )
 
     @classmethod
-    async def _get_viking_report(
+    def _limit_text(cls, value: Any) -> str:
+        text = str(value or '').strip()
+        return text[:cls.REPORT_TEXT_LIMIT]
+
+    @classmethod
+    def _format_chat_record(cls, record: Any) -> dict[str, Any]:
+        content = record.content if isinstance(record.content, dict) else {}
+        replies = content.get('replies')
+        normalized_replies = []
+        if isinstance(replies, list):
+            normalized_replies = [
+                {
+                    'toy_id': reply.get('toy_id'),
+                    'reply_message': cls._limit_text(reply.get('reply_message')),
+                }
+                for reply in replies
+                if isinstance(reply, dict)
+            ]
+
+        return {
+            'created_time': record.created_time.isoformat(),
+            'user_message': cls._limit_text(content.get('user_message')),
+            'replies': normalized_replies,
+        }
+
+    @classmethod
+    def _format_story_record(cls, record: Any) -> dict[str, Any]:
+        content = record.content if isinstance(record.content, list) else []
+        story_text = '\n'.join(
+            f"[{line.get('toy_id')}] {line.get('text')}"
+            for line in content
+            if isinstance(line, dict) and line.get('text')
+        )
+        return {
+            'created_time': record.created_time.isoformat(),
+            'title': cls._limit_text(record.title),
+            'summary': cls._limit_text(record.summary),
+            'content_types': record.content_types or [],
+            'content': cls._limit_text(story_text),
+        }
+
+    @classmethod
+    async def _query_device_chats(
             cls,
             *,
+            db: AsyncSession,
             baby_id: int,
-    ) -> tuple[str, str]:
-        _, _, dates = cls._resolve_report_window()
-        recent_dates, previous_dates = cls._split_report_dates(dates)
-        if not recent_dates or not previous_dates:
-            return '', ''
+            start_time: datetime,
+            end_time: datetime,
+    ) -> list[dict[str, Any]]:
+        try:
+            records = await device_chat_dao.get_by_time_range(
+                db,
+                baby_id=baby_id,
+                start_time=start_time,
+                end_time=end_time,
+                limit=cls.REPORT_CHAT_LIMIT,
+            )
+            return [cls._format_chat_record(record) for record in reversed(records)]
+        except Exception as exc:
+            log.warning('查询报告聊天记录失败，宝宝 ID={}，错误={}', baby_id, exc)
+            return []
 
-        recent_start_time = datetime.combine(recent_dates[0], time.min, tzinfo=timezone.tz_info)
-        recent_end_time = datetime.combine(recent_dates[-1] + timedelta(days=1), time.min, tzinfo=timezone.tz_info)
-        previous_start_time = datetime.combine(previous_dates[0], time.min, tzinfo=timezone.tz_info)
-        previous_end_time = datetime.combine(previous_dates[-1] + timedelta(days=1), time.min, tzinfo=timezone.tz_info)
-
-        recent_profile_text, recent_event_text, previous_profile_text, previous_event_text = await asyncio.gather(
-            viking_memory_client.query_profile_memories_text(
-                user_id=str(baby_id),
-                start_time=recent_start_time,
-                end_time=recent_end_time,
-            ),
-            viking_memory_client.query_event_memories_text(
-                user_id=str(baby_id),
-                start_time=recent_start_time,
-                end_time=recent_end_time,
-            ),
-            viking_memory_client.query_profile_memories_text(
-                user_id=str(baby_id),
-                start_time=previous_start_time,
-                end_time=previous_end_time,
-            ),
-            viking_memory_client.query_event_memories_text(
-                user_id=str(baby_id),
-                start_time=previous_start_time,
-                end_time=previous_end_time,
-            ),
-        )
-        return (
-            f"画像摘要：\n{recent_profile_text}\n\n事件摘要：\n{recent_event_text}",
-            f"画像摘要：\n{previous_profile_text}\n\n事件摘要：\n{previous_event_text}",
-        )
+    @classmethod
+    async def _query_generated_stories(
+            cls,
+            *,
+            db: AsyncSession,
+            baby_id: int,
+            start_time: datetime,
+            end_time: datetime,
+    ) -> list[dict[str, Any]]:
+        try:
+            records = await script_dao.get_baby_generated_by_time_range(
+                db,
+                baby_id=baby_id,
+                start_time=start_time,
+                end_time=end_time,
+                limit=cls.REPORT_STORY_LIMIT,
+            )
+            return [cls._format_story_record(record) for record in reversed(records)]
+        except Exception as exc:
+            log.warning('查询宝宝生成故事失败，宝宝 ID={}，错误={}', baby_id, exc)
+            return []
 
     @classmethod
     async def _generate_by_llm(
@@ -451,15 +548,19 @@ class ReportService:
             baby_name: str,
             current_week_usage: dict[str, Any],
             previous_week_usage: dict[str, Any],
-            current_week_viking_report: str,
-            previous_week_viking_report: str,
+            current_week_chats: list[dict[str, Any]],
+            previous_week_chats: list[dict[str, Any]],
+            current_week_stories: list[dict[str, Any]],
+            previous_week_stories: list[dict[str, Any]],
     ) -> str:
         prompt = cls._build_report_prompt(
             baby_name=baby_name,
             current_week_usage=current_week_usage,
             previous_week_usage=previous_week_usage,
-            current_week_viking_report=current_week_viking_report,
-            previous_week_viking_report=previous_week_viking_report,
+            current_week_chats=current_week_chats,
+            previous_week_chats=previous_week_chats,
+            current_week_stories=current_week_stories,
+            previous_week_stories=previous_week_stories,
         )
         return await doubao_provider.chat(
             [
@@ -484,7 +585,7 @@ class ReportService:
         try:
             payload = json.loads(content)
             if not isinstance(payload, dict):
-                raise ValueError('report analysis payload must be a JSON object')
+                raise ValueError('报告分析结果必须是 JSON 对象')
 
             radar_data = payload.get('radar')
             metrics_data = payload.get('metrics')
@@ -507,7 +608,7 @@ class ReportService:
             )
             return radar, metrics, insights
         except Exception as exc:
-            log.warning('failed to parse LLM report analysis, error={}', exc)
+            log.warning('解析大模型报告分析结果失败，错误={}', exc)
             return fallback_radar, fallback_metrics, fallback_insights
 
     @classmethod
@@ -518,16 +619,13 @@ class ReportService:
             baby_name: str,
             current_week_usage: dict[str, Any],
             previous_week_usage: dict[str, Any],
+            current_week_chats: list[dict[str, Any]],
+            previous_week_chats: list[dict[str, Any]],
+            current_week_stories: list[dict[str, Any]],
+            previous_week_stories: list[dict[str, Any]],
             has_activity: bool,
     ) -> tuple[list[ReportRadarPoint], list[ReportMetric], ReportInsights]:
-        try:
-            current_week_viking_report, previous_week_viking_report = await cls._get_viking_report(baby_id=baby_id)
-        except Exception as exc:
-            log.warning('failed to query Viking report for LLM analysis, baby_id={}, error={}', baby_id, exc)
-            current_week_viking_report = ''
-            previous_week_viking_report = ''
-
-        if not current_week_viking_report and not previous_week_viking_report and not has_activity:
+        if not has_activity:
             return cls._build_default_report_sections()
 
         try:
@@ -535,12 +633,14 @@ class ReportService:
                 baby_name=baby_name,
                 current_week_usage=current_week_usage,
                 previous_week_usage=previous_week_usage,
-                current_week_viking_report=current_week_viking_report,
-                previous_week_viking_report=previous_week_viking_report,
+                current_week_chats=current_week_chats,
+                previous_week_chats=previous_week_chats,
+                current_week_stories=current_week_stories,
+                previous_week_stories=previous_week_stories,
             )
             return cls._parse_llm_response(llm_content)
         except Exception as exc:
-            log.warning('failed to generate LLM report analysis, baby_id={}, error={}', baby_id, exc)
+            log.warning('生成大模型报告分析失败，宝宝 ID={}，错误={}', baby_id, exc)
             return cls._build_default_report_sections()
 
     @classmethod
@@ -578,7 +678,7 @@ class ReportService:
                 limit=cls.REPORT_QUERY_LIMIT,
             )
         except Exception as exc:
-            log.warning('failed to query TSDB usage rows, baby_id={}, error={}', baby_id, exc)
+            log.warning('查询时序数据库使用记录失败，宝宝 ID={}，错误={}', baby_id, exc)
             return []
 
     @staticmethod
@@ -597,7 +697,7 @@ class ReportService:
                 end_time=end_time,
             )
         except Exception as exc:
-            log.warning('failed to query device chat counts, baby_id={}, error={}', baby_id, exc)
+            log.warning('查询设备聊天次数失败，宝宝 ID={}，错误={}', baby_id, exc)
             return {}
 
     async def _get_or_build_usage_preview(self, *, db: AsyncSession, baby: Baby) -> UsageReportPreview:
@@ -605,7 +705,7 @@ class ReportService:
         cached_preview = await self._get_cached_model(
             key=cache_key,
             baby_id=baby.id,
-            label='usage preview',
+            label='使用预览',
             model_cls=UsageReportPreview,
         )
         if cached_preview is not None:
@@ -615,7 +715,7 @@ class ReportService:
             cached_preview = await self._get_cached_model(
                 key=cache_key,
                 baby_id=baby.id,
-                label='usage preview',
+                label='使用预览',
                 model_cls=UsageReportPreview,
             )
             if cached_preview is not None:
@@ -625,7 +725,7 @@ class ReportService:
             return await self._set_cached_model(
                 key=cache_key,
                 baby_id=baby.id,
-                label='usage preview',
+                label='使用预览',
                 value=preview,
             )
 
@@ -644,7 +744,7 @@ class ReportService:
         cached_report = await self._get_cached_model(
             key=cache_key,
             baby_id=baby_id,
-            label='usage report',
+            label='使用报告',
             model_cls=UsageReport,
         )
         if cached_report is not None:
@@ -654,18 +754,18 @@ class ReportService:
             cached_report = await self._get_cached_model(
                 key=cache_key,
                 baby_id=baby_id,
-                label='usage report',
+                label='使用报告',
                 model_cls=UsageReport,
             )
             if cached_report is not None:
                 return cached_report
 
             preview = await self._get_or_build_usage_preview(db=db, baby=baby)
-            report = await self._build_usage_report(baby=baby, preview=preview)
+            report = await self._build_usage_report(db=db, baby=baby, preview=preview)
             return await self._set_cached_model(
                 key=cache_key,
                 baby_id=baby_id,
-                label='usage report',
+                label='使用报告',
                 value=report,
             )
 

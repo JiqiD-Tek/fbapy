@@ -19,8 +19,12 @@ class Script(Base):
     id: Mapped[id_key] = mapped_column(init=False)
     album_id: Mapped[int | None] = mapped_column(
         sa.ForeignKey('u_script_album.id', ondelete='RESTRICT'),
-        nullable=True,
-        comment='剧本专辑 ID，NULL 表示不属于专辑',
+        nullable=True, comment='剧本专辑 ID，NULL 表示不属于专辑',
+    )
+    # 设备生成剧本时固定归属当前绑定的宝宝；平台剧本不属于宝宝。
+    baby_id: Mapped[int | None] = mapped_column(
+        sa.BigInteger, sa.ForeignKey('u_baby.id', ondelete='RESTRICT'),
+        nullable=True, index=True, comment='宝宝 ID，NULL 表示平台剧本',
     )
     title: Mapped[str] = mapped_column(sa.String(256), index=True, comment='剧本标题')
     content_types: Mapped[list[int] | None] = mapped_column(
@@ -34,8 +38,6 @@ class Script(Base):
     duration: Mapped[int] = mapped_column(default=0, comment='时长（秒）')
     track_no: Mapped[int] = mapped_column(default=0, comment='专辑内曲目序号')
 
-    # 由设备生成的剧本记录设备 ID，平台剧本使用 0。
-    device_id: Mapped[int] = mapped_column(default=0, index=True, comment='设备 ID，0 表示平台')
     favorite: Mapped[int] = mapped_column(
         sa.SmallInteger, default=0, server_default=sa.text('0'), nullable=False, comment='是否收藏：0 否，1 是',
     )

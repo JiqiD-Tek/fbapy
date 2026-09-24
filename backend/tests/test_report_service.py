@@ -45,3 +45,19 @@ def test_build_usage_preview_uses_device_chat_counts(monkeypatch):
     assert current_day.duration == 300
     assert current_day.play_count == 1
     assert preview.current_week.overview.chat_count == 3
+
+
+def test_build_report_prompt_uses_chats_and_generated_stories_without_viking() -> None:
+    prompt = ReportService._build_report_prompt(
+        baby_name='小雨',
+        current_week_usage={'overview': {'chat_count': 1, 'play_count': 2}},
+        previous_week_usage={'overview': {'chat_count': 0, 'play_count': 1}},
+        current_week_chats=[{'user_message': '今天想听恐龙故事'}],
+        previous_week_chats=[],
+        current_week_stories=[{'title': '勇敢的小恐龙'}],
+        previous_week_stories=[],
+    )
+
+    assert '今天想听恐龙故事' in prompt
+    assert '勇敢的小恐龙' in prompt
+    assert 'Viking' not in prompt

@@ -25,7 +25,6 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceStatus,
 )
 from backend.app.cloud.schema.user import DeviceAuthParam
-from backend.app.cloud.service.device_service import device_service
 from backend.app.cloud.service.resource.huoshan.config import list_public_voices
 from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
@@ -37,13 +36,6 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession
 
 router = APIRouter()
-
-
-async def _resolve_device_id(*, db: CurrentSession, auth_ctx: object) -> int:
-    if isinstance(auth_ctx, DeviceAuthParam):
-        device = await device_service.get_by_did(db=db, did=auth_ctx.did)
-        return int(device.id)
-    return 1
 
 
 @router.get(
@@ -85,8 +77,8 @@ async def submit_huoshan_toy_story_script(
         obj: HuoshanToyStoryScriptParam,
         auth_ctx: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
-    device_id = await _resolve_device_id(db=db, auth_ctx=auth_ctx)
-    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, device_id=device_id)
+    device_did = auth_ctx.did if isinstance(auth_ctx, DeviceAuthParam) else None
+    data = await huoshan_voice_service.submit_toy_story_script(db=db, obj=obj, device_did=device_did)
     return response_base.success(data=data)
 
 

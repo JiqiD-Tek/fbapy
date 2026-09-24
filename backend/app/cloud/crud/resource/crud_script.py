@@ -1,5 +1,8 @@
 import json
 
+from collections.abc import Sequence
+from datetime import datetime
+
 import sqlalchemy as sa
 from sqlalchemy import Select
 from sqlalchemy.dialects import postgresql
@@ -22,7 +25,7 @@ class CRUDScript(CRUDPlus[Script]):
         title: str | None,
         author: str | None,
         status: int | None,
-        device_id: int | None = None,
+        baby_id: int | None = None,
         favorite: int | None = None,
         album_id: int | None = None,
         content_types: list[int] | None = None,
@@ -37,8 +40,8 @@ class CRUDScript(CRUDPlus[Script]):
             filters['author__like'] = f'%{author}%'
         if status is not None:
             filters['status'] = status
-        if device_id is not None:
-            filters['device_id'] = device_id
+        if baby_id is not None:
+            filters['baby_id'] = baby_id
         if favorite is not None:
             filters['favorite'] = favorite
         if album_id is not None:
@@ -69,6 +72,29 @@ class CRUDScript(CRUDPlus[Script]):
 
     async def count_by_album_id(self, db: AsyncSession, album_id: int) -> int:
         return await self.count(db, album_id=album_id)
+
+    async def get_baby_generated_by_time_range(
+            self,
+            db: AsyncSession,
+            *,
+            baby_id: int,
+            start_time: datetime,
+            end_time: datetime,
+            limit: int,
+    ) -> Sequence[Script]:
+        stmt = (
+            sa.select(self.model)
+            .where(
+                self.model.deleted == 0,
+                self.model.baby_id == baby_id,
+                self.model.created_time >= start_time,
+                self.model.created_time < end_time,
+            )
+            .order_by(self.model.created_time.desc(), self.model.id.desc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
 
     def _build_contains_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
         return self._build_json_array_contains_condition(ScriptAlbum.toy_ids, toy_ids)

@@ -137,6 +137,29 @@ class CRUDDeviceChat(CRUDPlus[DeviceChat]):
 
         return daily_counts
 
+    async def get_by_time_range(
+            self,
+            db: AsyncSession,
+            *,
+            baby_id: int,
+            start_time: datetime,
+            end_time: datetime,
+            limit: int,
+    ) -> Sequence[DeviceChat]:
+        stmt = (
+            select(self.model)
+            .where(
+                self.model.deleted == 0,
+                self.model.baby_id == baby_id,
+                self.model.created_time >= start_time,
+                self.model.created_time < end_time,
+            )
+            .order_by(self.model.created_time.desc(), self.model.id.desc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
 
 device_dao: CRUDDevice = CRUDDevice(Device)
 device_chat_dao: CRUDDeviceChat = CRUDDeviceChat(DeviceChat)

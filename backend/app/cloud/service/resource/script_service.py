@@ -3,13 +3,12 @@
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.resource.crud_script import script_dao
 from backend.app.cloud.crud.resource.crud_script_album import script_album_dao
-from backend.app.cloud.model import Script
-from backend.app.cloud.model.m2m import user_device
+from backend.app.cloud.model import Baby, Script
 from backend.app.cloud.schema.resource.script import CreateScriptParam, UpdateScriptFavoriteParam, UpdateScriptParam
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
@@ -26,12 +25,12 @@ class ScriptService:
     @staticmethod
     async def get_script_list(
             *, db: AsyncSession, title: str | None = None, author: str | None = None,
-            status: int | None = None, device_id: int | None = None, favorite: int | None = None,
+            status: int | None = None, baby_id: int | None = None, favorite: int | None = None,
             album_id: int | None = None, content_types: list[int] | None = None,
             toy_ids: list[int] | None = None, exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         stmt = await script_dao.get_select(
-            title=title, author=author, status=status, device_id=device_id, favorite=favorite,
+            title=title, author=author, status=status, baby_id=baby_id, favorite=favorite,
             album_id=album_id, content_types=ScriptService._normalize_content_types(content_types),
             toy_ids=ScriptService._normalize_ids(toy_ids), exact_toy_ids=ScriptService._normalize_ids(exact_toy_ids),
         )
@@ -41,6 +40,7 @@ class ScriptService:
     async def create_script(*, db: AsyncSession, obj: CreateScriptParam) -> Script:
         if not obj.title.strip():
             raise errors.RequestError(msg='剧本标题不能为空')
+        await ScriptService._ensure_baby_exists(db=db, baby_id=obj.baby_id)
         album_id = obj.album_id
         if album_id is not None:
             album = await script_album_dao.get(db, album_id)
@@ -61,6 +61,8 @@ class ScriptService:
             raise errors.RequestError(msg='更新内容不能为空')
         if 'title' in payload and (payload['title'] is None or not payload['title'].strip()):
             raise errors.RequestError(msg='剧本标题不能为空')
+        if 'baby_id' in payload:
+            await ScriptService._ensure_baby_exists(db=db, baby_id=payload['baby_id'])
         target_album_id = payload.get('album_id', script.album_id)
         if 'album_id' in payload:
             payload['album_id'] = target_album_id
@@ -84,16 +86,17 @@ class ScriptService:
             *, db: AsyncSession, user_id: int, pk: int, obj: UpdateScriptFavoriteParam,
     ) -> int:
         result = await db.execute(
-            select(func.count()).select_from(user_device).where(
-                user_device.c.user_id == user_id,
-                user_device.c.device_id == obj.device_id,
-            )
+            select(Baby.id).where(
+                Baby.id == obj.baby_id,
+                Baby.user_id == user_id,
+                Baby.deleted == 0,
+            ).limit(1)
         )
-        if result.scalar_one() <= 0:
-            raise errors.RequestError(msg='设备不属于当前用户')
+        if result.scalar_one_or_none() is None:
+            raise errors.RequestError(msg='宝宝不存在或不属于当前用户')
         script = await ScriptService.get_script(db=db, pk=pk)
-        if int(script.device_id or 0) != obj.device_id:
-            raise errors.RequestError(msg='剧本不属于当前设备')
+        if script.baby_id != obj.baby_id:
+            raise errors.RequestError(msg='剧本不属于当前宝宝')
         return await script_dao.update(db, pk, {'favorite': obj.favorite}) or 1
 
     @staticmethod
@@ -109,6 +112,16 @@ class ScriptService:
         actual = {line.toy_id if hasattr(line, 'toy_id') else line['toy_id'] for line in content}
         if actual != expected:
             raise errors.RequestError(msg='剧本内容中的玩偶必须与专辑玩偶集合完全一致')
+
+    @staticmethod
+    async def _ensure_baby_exists(*, db: AsyncSession, baby_id: int | None) -> None:
+        if baby_id is None:
+            return
+        result = await db.execute(
+            select(Baby.id).where(Baby.id == baby_id, Baby.deleted == 0).limit(1)
+        )
+        if result.scalar_one_or_none() is None:
+            raise errors.NotFoundError(msg='宝宝不存在')
 
     @staticmethod
     async def _sync_album_count(db: AsyncSession, album_id: int | None) -> None:
