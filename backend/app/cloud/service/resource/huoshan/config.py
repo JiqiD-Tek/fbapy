@@ -125,7 +125,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         access_token=settings.JS61_BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
             {'id': 'S_RCrqyDOZ1', 'name': '旁大白'},
-            {'id': 'S_fz5jyDOZ1', 'name': '英文男成'},
+            {'id': 'S_fz5jyDOZ1', 'name': '群猴'},
             {'id': 'S_jz2iyDOZ1', 'name': '白龙马'},
             {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '西游记旁白'},

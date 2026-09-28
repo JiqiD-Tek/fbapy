@@ -24,11 +24,10 @@ class CRUDHomepage(CRUDPlus[Homepage]):
             config_type: HomepageType,
             content: list[Any],
     ) -> Homepage:
-        return await self.create_model(
-            db,
-            {'config_type': config_type.value, 'content': content},
-            flush=True,
-        )
+        config = Homepage(config_type=config_type.value, content=content)
+        db.add(config)
+        await db.flush()
+        return config
 
     async def update_config(self, db: AsyncSession, pk: int, content: list[Any]) -> int:
         return await self.update_model_by_column(db, {'content': content}, id=pk)

@@ -38,7 +38,7 @@ class HomepageService:
                 await homepage_dao.create_config(db, config_type, content)
             else:
                 await homepage_dao.update_config(db, config.id, content)
-        return HomepageDetail.model_validate(obj)
+        return HomepageDetail(**obj.model_dump())
 
 
 homepage_service: HomepageService = HomepageService()
