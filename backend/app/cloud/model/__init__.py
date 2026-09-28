@@ -27,3 +27,4 @@ from backend.app.cloud.model.feedback import Feedback as Feedback
 from backend.app.cloud.model.firmware import Firmware as Firmware
 from backend.app.cloud.model.firmware import FirmwareWhitelist as FirmwareWhitelist
 from backend.app.cloud.model.user import User as User
+from backend.app.cloud.model.homepage import Homepage as Homepage
