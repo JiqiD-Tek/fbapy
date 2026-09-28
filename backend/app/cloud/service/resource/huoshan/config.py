@@ -113,7 +113,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
             {'id': 'S_AKcK2x2X1', 'name': '珍居'},
             {'id': 'S_zKcK2x2X1', 'name': '凯叔'},
-            {'id': 'S_xKcK2x2X1', 'name': '海豹-卡卡1'},
+            {'id': 'S_xKcK2x2X1', 'name': '孙悟空'},
             {'id': 'S_FKcK2x2X1', 'name': '绵羊-绵绵1'},
             {'id': 'S_EKcK2x2X1', 'name': '狗-果果'},
             {'id': 'S_yKcK2x2X1', 'name': '企鹅-奇奇'},
@@ -134,7 +134,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_J6luyDOZ1', 'name': '狐狸-Pax'},
             {'id': 'S_r5toyDOZ1', 'name': '绵羊-绵绵'},
             {'id': 'S_7V2ryDOZ1', 'name': '海豹-卡卡'},
-            {'id': 'S_jBziyDOZ1', 'name': '海豹-卡卡2'},
+            {'id': 'S_jBziyDOZ1', 'name': '唐僧'},
         ]),
     ),
 )
