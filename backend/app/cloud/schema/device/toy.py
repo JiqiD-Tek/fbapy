@@ -83,12 +83,12 @@ class UpdateToySeriesParam(SchemaBase):
 class ToySeriesInfo(ToySeriesReadSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    id: int = Field(description='Toy series ID')
+    id: int = Field(description='玩偶系列 ID')
 
 
 class GetToySeriesDetail(ToySeriesInfo):
-    created_time: datetime = Field(description='Created time')
-    updated_time: datetime | None = Field(None, description='Updated time')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')
 
 
 class ToyNfcInfo(SchemaBase):
@@ -160,43 +160,53 @@ class UpdateToyNfcParam(SchemaBase):
 
 
 class ToyReadSchemaBase(SchemaBase):
-    series_id: int | None = Field(None, description='Toy series ID')
-    name: str | None = Field(None, description='Toy name')
-    system_prompt: str | None = Field(None, description='System prompt')
-    avatar_url: str | None = Field(None, description='Toy avatar URL')
-    summary: str | None = Field(None, description='Toy summary')
-    related_toy_ids: list[int] | None = Field(None, description='Related toy ID list')
-    voice_provider: str | None = Field(None, description='Voice provider')
-    voice_id: str | None = Field(None, description='Voice ID')
-    voice_type: int | None = Field(None, ge=1, description='Voice type')
-    voice_name: str | None = Field(None, description='Voice name')
-    voice_language: str | None = Field(None, description='Voice language, such as zh-CN or en-US')
-    speech_rate: int | None = Field(None, description='Speech rate')
-    loudness_rate: int | None = Field(None, description='Voice loudness rate')
-    intro_audio_url: str | None = Field(None, description='Toy introduction audio URL')
-    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
-    sort: int = Field(default=0, description='Sort value, lower comes first')
-    remark: str | None = Field(None, description='Remark')
+    series_id: int | None = Field(None, description='玩偶系列 ID')
+    name: str | None = Field(None, description='玩偶名称')
+    system_prompt: str | None = Field(None, description='系统提示词')
+    avatar_url: str | None = Field(None, description='玩偶头像地址')
+    summary: str | None = Field(None, description='玩偶简介')
+    related_toy_ids: list[int] | None = Field(None, description='关联玩偶 ID 列表')
+    voice_provider: str | None = Field(None, description='声音服务商')
+    voice_id: str | None = Field(None, description='声音 ID')
+    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    voice_name: str | None = Field(None, description='声音名称')
+    voice_language: str | None = Field(None, description='声音语言，例如 zh-CN、en-US、zh-TW')
+    speech_rate: int | None = Field(None, description='语速')
+    loudness_rate: int | None = Field(None, description='音量')
+    intro_audio_url: str | None = Field(None, description='玩偶介绍音频地址')
+    status: int = Field(default=1, description='状态：0 禁用，1 启用')
+    sort: int = Field(default=0, description='排序值，越小越靠前')
+    remark: str | None = Field(None, description='备注')
+
+
+class ToyRelatedInfo(ToyReadSchemaBase):
+    """关联玩偶详情，不继续展开更深层的关联玩偶。"""
+
+    model_config = ConfigDict(from_attributes=True, frozen=True)
+
+    id: int = Field(description='玩偶 ID')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')
 
 
 class CreateToyParam(SchemaBase):
-    series_id: int | None = Field(None, gt=0, description='Toy series ID')
-    name: str = Field(min_length=1, max_length=128, description='Toy name')
-    system_prompt: str = Field(min_length=1, description='System prompt')
-    avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
-    summary: str | None = Field(None, max_length=500, description='Toy summary')
-    related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
-    voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
-    voice_id: str | None = Field(None, max_length=128, description='Voice ID')
-    voice_type: int | None = Field(None, ge=1, description='Voice type')
-    voice_name: str | None = Field(None, max_length=128, description='Voice name')
-    voice_language: str | None = Field(None, max_length=32, description='Voice language, such as zh-CN or en-US')
-    speech_rate: int | None = Field(None, description='Speech rate')
-    loudness_rate: int | None = Field(None, description='Voice loudness rate')
-    intro_audio_url: str | None = Field(None, max_length=512, description='Toy introduction audio URL')
-    status: int = Field(default=1, description='Status: 0 disabled, 1 enabled')
-    sort: int = Field(default=0, description='Sort value, lower comes first')
-    remark: str | None = Field(None, max_length=500, description='Remark')
+    series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
+    name: str = Field(min_length=1, max_length=128, description='玩偶名称')
+    system_prompt: str = Field(min_length=1, description='系统提示词')
+    avatar_url: str | None = Field(None, max_length=512, description='玩偶头像地址')
+    summary: str | None = Field(None, max_length=500, description='玩偶简介')
+    related_toy_ids: list[PositiveToyId] | None = Field(None, description='关联玩偶 ID 列表')
+    voice_provider: str | None = Field(None, max_length=64, description='声音服务商')
+    voice_id: str | None = Field(None, max_length=128, description='声音 ID')
+    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    voice_name: str | None = Field(None, max_length=128, description='声音名称')
+    voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
+    speech_rate: int | None = Field(None, description='语速')
+    loudness_rate: int | None = Field(None, description='音量')
+    intro_audio_url: str | None = Field(None, max_length=512, description='玩偶介绍音频地址')
+    status: int = Field(default=1, description='状态：0 禁用，1 启用')
+    sort: int = Field(default=0, description='排序值，越小越靠前')
+    remark: str | None = Field(None, max_length=500, description='备注')
 
     @field_validator('name', 'system_prompt', mode='before')
     @classmethod
@@ -226,28 +236,28 @@ class CreateToyParam(SchemaBase):
     @model_validator(mode='after')
     def validate_voice_binding(self) -> 'CreateToyParam':
         if (self.voice_provider is None) != (self.voice_id is None):
-            raise ValueError('voice_provider and voice_id must both be empty or both have values')
+            raise ValueError('声音服务商和声音 ID 必须同时为空或同时填写')
         return self
 
 
 class UpdateToyParam(SchemaBase):
-    series_id: int | None = Field(None, gt=0, description='Toy series ID')
-    name: str | None = Field(None, min_length=1, max_length=128, description='Toy name')
-    system_prompt: str | None = Field(None, min_length=1, description='System prompt')
-    avatar_url: str | None = Field(None, max_length=512, description='Toy avatar URL')
-    summary: str | None = Field(None, max_length=500, description='Toy summary')
-    related_toy_ids: list[PositiveToyId] | None = Field(None, description='Related toy ID list')
-    voice_provider: str | None = Field(None, max_length=64, description='Voice provider')
-    voice_id: str | None = Field(None, max_length=128, description='Voice ID')
-    voice_type: int | None = Field(None, ge=1, description='Voice type')
-    voice_name: str | None = Field(None, max_length=128, description='Voice name')
-    voice_language: str | None = Field(None, max_length=32, description='Voice language, such as zh-CN or en-US')
-    speech_rate: int | None = Field(None, description='Speech rate')
-    loudness_rate: int | None = Field(None, description='Voice loudness rate')
-    intro_audio_url: str | None = Field(None, max_length=512, description='Toy introduction audio URL')
-    status: int | None = Field(None, description='Status: 0 disabled, 1 enabled')
-    sort: int | None = Field(None, description='Sort value, lower comes first')
-    remark: str | None = Field(None, max_length=500, description='Remark')
+    series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
+    name: str | None = Field(None, min_length=1, max_length=128, description='玩偶名称')
+    system_prompt: str | None = Field(None, min_length=1, description='系统提示词')
+    avatar_url: str | None = Field(None, max_length=512, description='玩偶头像地址')
+    summary: str | None = Field(None, max_length=500, description='玩偶简介')
+    related_toy_ids: list[PositiveToyId] | None = Field(None, description='关联玩偶 ID 列表')
+    voice_provider: str | None = Field(None, max_length=64, description='声音服务商')
+    voice_id: str | None = Field(None, max_length=128, description='声音 ID')
+    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    voice_name: str | None = Field(None, max_length=128, description='声音名称')
+    voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
+    speech_rate: int | None = Field(None, description='语速')
+    loudness_rate: int | None = Field(None, description='音量')
+    intro_audio_url: str | None = Field(None, max_length=512, description='玩偶介绍音频地址')
+    status: int | None = Field(None, description='状态：0 禁用，1 启用')
+    sort: int | None = Field(None, description='排序值，越小越靠前')
+    remark: str | None = Field(None, max_length=500, description='备注')
 
     @field_validator('name', 'system_prompt', mode='before')
     @classmethod
@@ -276,8 +286,8 @@ class UpdateToyParam(SchemaBase):
 
 
 class GenerateToySystemPromptParam(SchemaBase):
-    name: str = Field(min_length=1, max_length=128, description='Toy name')
-    summary: str | None = Field(None, max_length=500, description='Toy summary')
+    name: str = Field(min_length=1, max_length=128, description='玩偶名称')
+    summary: str | None = Field(None, max_length=500, description='玩偶简介')
 
     @field_validator('name', mode='before')
     @classmethod
@@ -291,12 +301,13 @@ class GenerateToySystemPromptParam(SchemaBase):
 
 
 class GenerateToySystemPromptResult(SchemaBase):
-    system_prompt: str = Field(description='Generated system prompt')
+    system_prompt: str = Field(description='生成的系统提示词')
 
 
 class GetToyDetail(ToyReadSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    id: int = Field(description='Toy ID')
-    created_time: datetime = Field(description='Created time')
-    updated_time: datetime | None = Field(None, description='Updated time')
+    id: int = Field(description='玩偶 ID')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')
+    related_toys: list[ToyRelatedInfo] = Field(default_factory=list, description='关联玩偶详情列表')

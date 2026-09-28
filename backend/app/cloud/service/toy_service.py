@@ -39,11 +39,11 @@ class ToyService:
     DEVICE_TOY_NFC_CACHE_TTL_SECONDS = 600
     TOY_SYSTEM_PROMPT_DEFAULT_SUMMARY = '你是一个适合儿童陪伴、自然亲切、容易让孩子信任的玩偶角色。'
     TOY_SYSTEM_PROMPT_POLISH_SYSTEM_PROMPT = (
-        '你是儿童玩偶 system prompt 优化助手。'
-        '你的任务是把用户提供的基础 system prompt 润色成一份更自然、更稳定、'
+        '你是儿童玩偶系统提示词优化助手。'
+        '你的任务是把用户提供的基础系统提示词润色成一份更自然、更稳定、'
         '更适合直接给大模型使用的中文系统提示词。'
         '必须保留玩偶名称、玩偶设定、儿童陪伴场景、任务目标、风格语气、受众和安全边界。'
-        '输出最终可直接使用的 system prompt 正文，不要解释，不要额外说明，不要代码块。'
+        '输出最终可直接使用的系统提示词正文，不要解释，不要额外说明，不要代码块。'
     )
 
     @staticmethod
@@ -71,13 +71,13 @@ class ToyService:
         try:
             return await toy_series_dao.create(db, obj)
         except IntegrityError:
-            raise errors.ServerError(msg='Failed to create toy series, please try again later') from None
+            raise errors.ServerError(msg='创建玩偶系列失败，请稍后重试') from None
 
     @staticmethod
     async def update_toy_series(*, db: AsyncSession, pk: int, obj: UpdateToySeriesParam) -> int:
         series = await toy_series_dao.get(db, pk)
         if not series:
-            raise errors.NotFoundError(msg='Toy series does not exist')
+            raise errors.NotFoundError(msg='玩偶系列不存在')
 
         payload = obj.model_dump(exclude_unset=True)
         if not payload:
@@ -86,19 +86,19 @@ class ToyService:
         try:
             return await toy_series_dao.update(db, pk, payload)
         except IntegrityError:
-            raise errors.ServerError(msg='Failed to update toy series, please try again later') from None
+            raise errors.ServerError(msg='更新玩偶系列失败，请稍后重试') from None
 
     @staticmethod
     async def delete_toy_series(*, db: AsyncSession, pk: int) -> int:
         series = await toy_series_dao.get(db, pk)
         if not series:
-            raise errors.NotFoundError(msg='Toy series does not exist')
+            raise errors.NotFoundError(msg='玩偶系列不存在')
 
         toy_result = await db.execute(
             sa.select(Toy.id).where(Toy.deleted == 0, Toy.series_id == pk).limit(1)
         )
         if toy_result.scalar_one_or_none() is not None:
-            raise errors.ConflictError(msg='Toy series is in use')
+            raise errors.ConflictError(msg='玩偶系列正在使用中，无法删除')
 
         return await toy_series_dao.delete(db, pk)
 
@@ -109,7 +109,7 @@ class ToyService:
 
         series = await toy_series_dao.get(db, series_id)
         if not series:
-            raise errors.NotFoundError(msg='Toy series does not exist')
+            raise errors.NotFoundError(msg='玩偶系列不存在')
 
     @staticmethod
     async def _ensure_related_toys_exist(
@@ -123,21 +123,32 @@ class ToyService:
 
         ordered_toy_ids = list(dict.fromkeys(toy_ids))
         if current_toy_id is not None and current_toy_id in ordered_toy_ids:
-            raise errors.RequestError(msg='related_toy_ids cannot include current toy')
+            raise errors.RequestError(msg='关联玩偶不能包含当前玩偶')
 
         toys = await toy_dao.get_by_ids(db, ids=ordered_toy_ids, enabled_only=False)
         toy_map = {int(toy.id): toy for toy in toys}
         missing_toy_ids = [toy_id for toy_id in ordered_toy_ids if toy_id not in toy_map]
         if missing_toy_ids:
             missing_text = ', '.join(str(toy_id) for toy_id in missing_toy_ids)
-            raise errors.NotFoundError(msg=f'Related toy does not exist: {missing_text}')
+            raise errors.NotFoundError(msg=f'关联玩偶不存在：{missing_text}')
 
     @staticmethod
     async def get_toy(*, db: AsyncSession, pk: int) -> Toy:
         toy = await toy_dao.get(db, pk)
         if not toy:
-            raise errors.NotFoundError(msg='Toy does not exist')
+            raise errors.NotFoundError(msg='玩偶不存在')
         return toy
+
+    @staticmethod
+    async def get_related_toys(*, db: AsyncSession, toy: Toy) -> list[Toy]:
+        """按玩偶保存的关联 ID 顺序获取关联玩偶，不递归加载更深层关系。"""
+        related_ids = [int(toy_id) for toy_id in (toy.related_toy_ids or [])]
+        if not related_ids:
+            return []
+
+        related_toys = await toy_dao.get_by_ids(db, ids=related_ids, enabled_only=False)
+        toy_map = {int(item.id): item for item in related_toys}
+        return [toy_map[toy_id] for toy_id in dict.fromkeys(related_ids) if toy_id in toy_map]
 
     @staticmethod
     async def get_toy_list(
@@ -173,7 +184,7 @@ class ToyService:
         missing_toy_ids = [toy_id for toy_id in ordered_toy_ids if toy_id not in toy_map]
         if missing_toy_ids:
             missing_text = ', '.join(str(toy_id) for toy_id in missing_toy_ids)
-            raise errors.NotFoundError(msg=f'Toy does not exist or is disabled: {missing_text}')
+            raise errors.NotFoundError(msg=f'玩偶不存在或已禁用：{missing_text}')
         return [toy_map[toy_id] for toy_id in ordered_toy_ids]
 
     @staticmethod
@@ -183,17 +194,17 @@ class ToyService:
         try:
             return await toy_dao.create(db, obj)
         except IntegrityError:
-            raise errors.ServerError(msg='Failed to create toy, please try again later') from None
+            raise errors.ServerError(msg='创建玩偶失败，请稍后重试') from None
 
     @staticmethod
     async def update_toy(*, db: AsyncSession, pk: int, obj: UpdateToyParam) -> int:
         toy = await toy_dao.get(db, pk)
         if not toy:
-            raise errors.NotFoundError(msg='Toy does not exist')
+            raise errors.NotFoundError(msg='玩偶不存在')
 
         payload = obj.model_dump(exclude_unset=True)
         if not payload:
-            raise errors.RequestError(msg='Update payload cannot be empty')
+            raise errors.RequestError(msg='更新内容不能为空')
 
         existing_bindings = await toy_nfc_dao.get_by_toy_id(db, toy_id=pk)
         existing_nfc_codes = [binding.nfc_code for binding in existing_bindings]
@@ -214,13 +225,13 @@ class ToyService:
                 )
             return count
         except IntegrityError:
-            raise errors.ServerError(msg='Failed to update toy, please try again later') from None
+            raise errors.ServerError(msg='更新玩偶失败，请稍后重试') from None
 
     @staticmethod
     async def delete_toy(*, db: AsyncSession, pk: int) -> int:
         toy = await toy_dao.get(db, pk)
         if not toy:
-            raise errors.NotFoundError(msg='Toy does not exist')
+            raise errors.NotFoundError(msg='玩偶不存在')
         bindings = await toy_nfc_dao.get_by_toy_id(db, toy_id=pk)
         if bindings:
             raise errors.ConflictError(msg='该玩偶仍绑定 NFC 编码，请先解除绑定')
@@ -324,31 +335,31 @@ class ToyService:
             [
                 f'你是{name}。{summary}',
                 '',
-                '[玩偶设定 Toy]',
+                '[玩偶设定]',
                 f'- 玩偶名称：{name}',
                 f'- 玩偶简介：{summary}',
                 '- 你的表达、情绪、关注点和常用说法，要稳定符合这个玩偶设定。',
                 '- 如果简介信息不够完整，就用温暖、可信、适合儿童陪伴的方式自然补全。',
                 '',
-                '[上下文 Context]',
+                '[上下文]',
                 '- 你服务于儿童陪伴和家庭共学场景。',
                 '- 用户有时是 5 到 9 岁的小朋友，有时是家长或老师替孩子提问。',
                 '- 回答默认适合语音播报，所以要自然、顺口、短句、好懂。',
                 '',
-                '[目标 Objective]',
+                '[目标]',
                 '- 稳定扮演好这个玩偶角色，让用户感受到鲜明但自然的人设。',
                 '- 支持知识讲解、互动聊天、讲故事、小游戏、简单写作和计划制定等常见任务。',
                 '',
-                '[风格 Style]',
+                '[风格]',
                 '- 默认用短句，生动、有画面感，有陪伴感。',
                 '- 先好懂，再有趣，最后再讲深一点。',
                 '- 不装懂，不卖弄，不故意把简单问题说复杂。',
                 '',
-                '[语气 Tone]',
+                '[语气]',
                 '- 开心时灵动俏皮，安抚时温柔轻轻的，解释知识时耐心清楚。',
                 '- 面对家长或老师时可以稍微更稳重，但不要失去亲切感。',
                 '',
-                '[响应 Response]',
+                '[响应]',
                 '- 默认先直接回答用户最关心的问题，再补一句例子或补充。',
                 '- 如果用户说“详细一点”“为什么”“再讲讲”，再进入下一层解释。',
                 '- 如果信息不足但不影响完成，就按合理默认值先完成，并说明你的假设。',
@@ -369,15 +380,15 @@ class ToyService:
             template_prompt: str,
     ) -> str:
         return (
-            '请基于以下玩偶信息和基础 system prompt，输出一版润色后的最终 system prompt。\n\n'
+            '请基于以下玩偶信息和基础系统提示词，输出一版润色后的最终系统提示词。\n\n'
             f'玩偶名称：{name}\n'
             f'玩偶简介：{summary}\n\n'
             '润色要求：\n'
             '1. 保留原有结构、目标和安全边界，不要遗漏关键约束。\n'
             '2. 语言更自然、更顺口、更适合语音播报。\n'
             '3. 玩偶感要更稳定，儿童陪伴感更强，但不要过度夸张。\n'
-            '4. 直接输出完整 system prompt 正文，不要解释，不要代码块。\n\n'
-            f'基础 system prompt：\n{template_prompt}'
+            '4. 直接输出完整系统提示词正文，不要解释，不要代码块。\n\n'
+            f'基础系统提示词：\n{template_prompt}'
         )
 
     @staticmethod
@@ -423,7 +434,7 @@ class ToyService:
                 temperature=0.3,
             )
         except Exception as exc:
-            log.warning(f'Generate toy system prompt polish failed, fallback to template: name={name!r}, exc={exc!r}')
+            log.warning('润色玩偶系统提示词失败，将使用默认模板：玩偶名称={}，错误={}', name, exc)
             return GenerateToySystemPromptResult(system_prompt=template_prompt)
 
         return GenerateToySystemPromptResult(
@@ -497,7 +508,7 @@ class ToyService:
                 voice_id = current_toy.voice_id
 
         if (voice_provider is None) != (voice_id is None):
-            raise errors.RequestError(msg='voice_provider and voice_id must both be empty or both have values')
+            raise errors.RequestError(msg='声音服务商和声音 ID 必须同时为空或同时填写')
 
 
 toy_service: ToyService = ToyService()

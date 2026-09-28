@@ -20,6 +20,7 @@ from backend.app.cloud.schema.device.toy import (
     GetToyDetail,
     GetToySeriesDetail,
     ToyNfcInfo,
+    ToyRelatedInfo,
     UpdateToyParam,
     UpdateToyNfcParam,
     UpdateToySeriesParam,
@@ -200,7 +201,11 @@ async def get_toy(
     pk: Annotated[int, Path(description='玩偶 ID')],
 ) -> ResponseSchemaModel[GetToyDetail]:
     toy = await toy_service.get_toy(db=db, pk=pk)
-    return response_base.success(data=GetToyDetail.model_validate(toy))
+    related_toys = await toy_service.get_related_toys(db=db, toy=toy)
+    data = GetToyDetail.model_validate(toy).model_copy(
+        update={'related_toys': [ToyRelatedInfo.model_validate(item) for item in related_toys]},
+    )
+    return response_base.success(data=data)
 
 
 @router.put('/{pk}', summary='更新玩偶', dependencies=[DependsJwtAuth])
