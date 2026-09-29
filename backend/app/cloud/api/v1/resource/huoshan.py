@@ -13,8 +13,6 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanPublicVoiceInfo,
     HuoshanStreamTTSParam,
     HuoshanStreamTTSResult,
-    HuoshanStoryGenerateParam,
-    HuoshanStoryGenerateResult,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
     HuoshanToyStoryScriptParam,
@@ -28,10 +26,10 @@ from backend.app.cloud.service.resource.huoshan.service import huoshan_voice_ser
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.log import log
-from backend.common.response.response_schema import ResponseSchemaModel, response_base, ResponseModel
+from backend.common.response.response_schema import ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
-from backend.database.db import CurrentSession
+from backend.database.db import CurrentSessionTransaction, CurrentSession
 
 router = APIRouter()
 
@@ -65,13 +63,14 @@ async def list_clone_huoshan_voice_statuses(
     return response_base.success(data=data)
 
 
+# 玩偶剧本
 @router.post(
     '/stories/script',
     summary='提交玩偶故事剧本生成任务',
     response_model_by_alias=False,
 )
 async def submit_huoshan_toy_story_script(
-        db: CurrentSession,
+        db: CurrentSessionTransaction,
         obj: HuoshanToyStoryScriptParam,
         auth_ctx: object = DependsDeviceOrJwtAuth,
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
@@ -93,6 +92,7 @@ async def get_huoshan_toy_story_script(
     return response_base.success(data=data)
 
 
+# TTS 合成
 @router.get(
     '/stories/script/tts',
     summary='获取玩偶故事剧本语音',
@@ -105,30 +105,6 @@ async def get_huoshan_toy_story_tts(
 ):
     await huoshan_voice_service.submit_tts_task(task_id=task_id, token=token)
     return await _generate_mp3_response(token)
-
-
-@router.post(
-    '/stories/generate',
-    summary='使用火山大模型按主题生成故事',
-    response_model_by_alias=False,
-)
-async def generate_huoshan_story(
-        obj: HuoshanStoryGenerateParam,
-) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
-    data = await huoshan_voice_service.submit_story_generation(obj)
-    return response_base.success(data=data)
-
-
-@router.get(
-    '/stories/generate/{task_id}',
-    summary='查询火山故事生成任务状态',
-    response_model_by_alias=False,
-)
-async def get_huoshan_story_generation(
-        task_id: str = Path(description='故事生成任务 ID'),
-) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
-    data = await huoshan_voice_service.get_story_generation(task_id=task_id)
-    return response_base.success(data=data)
 
 
 @router.post(

@@ -18,10 +18,6 @@ class HuoshanOpenAPIConfig:
     version: str
     timeout: float
 
-    @property
-    def base_url(self) -> str:
-        return f'https://{self.host}'
-
 
 @dataclass(frozen=True)
 class HuoshanLongTextTTSConfig:

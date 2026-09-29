@@ -23,57 +23,29 @@ def mix_audio_with_bgm(
         raise ValueError(f'语音文件不存在：{speech_path}')
     if bgm_volume < 0:
         raise ValueError('背景音乐音量不能小于 0')
-    if not _is_remote_media_source(background_url):
+    if urlparse(background_url).scheme not in {'http', 'https'}:
         raise ValueError(f'背景音乐地址无效：{background_url}')
 
     ffmpeg_path = _resolve_ffmpeg_executable()
     speech_duration = _probe_duration_seconds(ffmpeg_path, speech_path)
     fade_out_start = max(0.0, speech_duration - fade_out_seconds)
-
     output_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
-        ffmpeg_path,
-        '-y',
-        '-v',
-        'error',
-        '-i',
-        str(speech_path),
-        '-stream_loop',
-        '-1',
-        '-i',
-        background_url,
-        '-filter_complex',
-        (
-            '[1:a]volume={0:.3f},'
-            'afade=t=in:st=0:d={1:.3f},'
-            'afade=t=out:st={2:.3f}:d={3:.3f}[bg];'
-            '[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]'
-        ).format(
-            bgm_volume,
-            max(0.0, fade_in_seconds),
-            fade_out_start,
-            max(0.0, fade_out_seconds),
-        ),
-        '-map',
-        '[aout]',
-        '-c:a',
-        'libmp3lame',
-        '-b:a',
-        '128k',
-        str(output_path),
+        ffmpeg_path, '-y', '-v', 'error', '-i', str(speech_path),
+        '-stream_loop', '-1', '-i', background_url, '-filter_complex',
+        ('[1:a]volume={0:.3f},afade=t=in:st=0:d={1:.3f},'
+         'afade=t=out:st={2:.3f}:d={3:.3f}[bg];'
+         '[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[aout]').format(
+             bgm_volume, max(0.0, fade_in_seconds), fade_out_start, max(0.0, fade_out_seconds),
+         ),
+        '-map', '[aout]', '-c:a', 'libmp3lame', '-b:a', '128k', str(output_path),
     ]
-
     try:
         subprocess.run(command, check=True, capture_output=True)
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.decode('utf-8', errors='replace').strip()
         raise RuntimeError(f'背景音乐混音失败：{detail or output_path}') from exc
-
     return 'ffmpeg-amix'
-
-
-def _is_remote_media_source(source: str) -> bool:
-    return urlparse(source).scheme in {'http', 'https'}
 
 
 def _resolve_ffmpeg_executable() -> str:

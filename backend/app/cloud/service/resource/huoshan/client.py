@@ -13,7 +13,11 @@ from typing import Any
 import httpx
 
 from backend.app.cloud.service.resource.huoshan.exceptions import HuoshanOpenAPIError, HuoshanTTSError
-from backend.app.cloud.service.resource.huoshan.models import HUOSHAN_TTS_JSON_CONTENT_TYPE, HuoshanLongTextTTSConfig, HuoshanOpenAPIConfig
+from backend.app.cloud.service.resource.huoshan.models import (
+    HUOSHAN_TTS_JSON_CONTENT_TYPE,
+    HuoshanLongTextTTSConfig,
+    HuoshanOpenAPIConfig,
+)
 
 import volcenginesdkcore
 
@@ -134,6 +138,8 @@ class HuoshanOpenAPIClient:
 
 
 class HuoshanLongTextTTSClient:
+    """火山长文本语音合成客户端。"""
+
     SUCCESS_CODES = {0, 20000000}
 
     def __init__(self, config: HuoshanLongTextTTSConfig) -> None:
@@ -182,8 +188,7 @@ class HuoshanLongTextTTSClient:
                 code='DownloadError',
                 message=f'火山音频下载失败：{exc}',
             ) from exc
-        else:
-            return response.content
+        return response.content
 
     async def _request_json(self, *, url: str, body: dict[str, Any], resource_id: str) -> dict[str, Any]:
         headers = {
@@ -194,48 +199,28 @@ class HuoshanLongTextTTSClient:
             'X-Api-Resource-Id': resource_id,
             'X-Api-Request-Id': uuid.uuid4().hex,
         }
-
         try:
             response = await self._client.post(url, json=body, headers=headers)
             response.raise_for_status()
         except httpx.TimeoutException as exc:
-            request_url = str(getattr(exc.request, 'url', url)) if getattr(exc, 'request', None) is not None else url
             raise HuoshanTTSError(
                 status_code=504,
                 code=type(exc).__name__,
                 message=f'火山语音合成请求超时：{type(exc).__name__}：{exc}',
-                payload={
-                    'url': request_url,
-                    'resource_id': resource_id,
-                    'timeout_seconds': self._config.timeout,
-                    'error_type': type(exc).__name__,
-                    'error_repr': repr(exc),
-                },
             ) from exc
         except httpx.HTTPStatusError as exc:
-            parsed_payload = self._parse_json_safely(exc.response.text)
             raise HuoshanTTSError(
                 status_code=exc.response.status_code,
-                code=str(parsed_payload.get('code') or exc.response.status_code),
-                message=str(
-                    parsed_payload.get('message')
-                    or f'火山语音合成请求失败：HTTP {exc.response.status_code}'
-                ),
-                payload=parsed_payload or exc.response.text,
+                code=str(exc.response.status_code),
+                message=f'火山语音合成请求失败：HTTP {exc.response.status_code}',
+                payload=exc.response.text,
                 request_id=_get_huoshan_request_id(exc.response.headers),
             ) from exc
         except httpx.RequestError as exc:
-            request_url = str(getattr(exc.request, 'url', url)) if getattr(exc, 'request', None) is not None else url
             raise HuoshanTTSError(
                 status_code=502,
                 code='RequestError',
                 message=f'火山语音合成请求失败：{type(exc).__name__}：{exc}',
-                payload={
-                    'url': request_url,
-                    'resource_id': resource_id,
-                    'error_type': type(exc).__name__,
-                    'error_repr': repr(exc),
-                },
             ) from exc
 
         try:
@@ -266,17 +251,3 @@ class HuoshanLongTextTTSClient:
         if resource_id in ('seed-tts-1.0', 'seed-tts-2.0'):
             return 'volc.service_type.10029'
         return resource_id
-
-    @staticmethod
-    def _parse_json_safely(raw: str) -> dict[str, Any]:
-        if not raw:
-            return {}
-
-        try:
-            parsed = json.loads(raw)
-        except ValueError:
-            return {}
-
-        if isinstance(parsed, dict):
-            return parsed
-        return {}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -38,12 +39,18 @@ class CRUDBillAccount(CRUDPlus[BillAccount]):
         subject_type: str,
         subject_key: str,
         balance_token: int = 0,
+        weekly_token_quota: int | None = 0,
+        weekly_token_usage: int = 0,
+        weekly_reset_at: datetime | None = None,
         status: str = 'ACTIVE',
     ) -> BillAccount:
         account = self.model(
             subject_type=subject_type,
             subject_key=subject_key,
             balance_token=balance_token,
+            weekly_token_quota=weekly_token_quota,
+            weekly_token_usage=weekly_token_usage,
+            weekly_reset_at=weekly_reset_at,
             status=status,
         )
         db.add(account)
@@ -52,16 +59,16 @@ class CRUDBillAccount(CRUDPlus[BillAccount]):
 
 
 class CRUDBillTxn(CRUDPlus[BillTxn]):
-    async def get_by_session_sentence(
+    async def get_by_business(
         self,
         db: AsyncSession,
         *,
-        session_id: str,
-        sentence_id: str,
+        biz_type: str,
+        biz_id: str,
     ) -> BillTxn | None:
         stmt = (
             select(BillTxn)
-            .where(BillTxn.session_id == session_id, BillTxn.sentence_id == sentence_id)
+            .where(BillTxn.biz_type == biz_type, BillTxn.biz_id == biz_id)
             .limit(1)
         )
         result = await db.execute(stmt)

@@ -1,5 +1,5 @@
 ﻿# -*- coding: UTF-8 -*-
-"""火山声音、故事生成和故事合成业务服务。"""
+"""火山声音、玩偶剧本和故事合成业务服务。"""
 
 from __future__ import annotations
 
@@ -15,12 +15,9 @@ from tempfile import TemporaryDirectory
 from time import monotonic
 from typing import TYPE_CHECKING
 
-from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from backend.app.cloud.schema.resource.huoshan import (
-    HuoshanStoryGenerateParam,
-    HuoshanStoryGenerateResult,
     HuoshanStoryBgmInfo,
     HuoshanStorySynthesisParam,
     HuoshanStorySynthesisResult,
@@ -35,13 +32,14 @@ from backend.app.cloud.schema.resource.huoshan import (
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
 from backend.app.cloud.service.baby_service import baby_service
+from backend.app.cloud.service.billing_service import BILL_BIZ_STORY, billing_service
 from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import song_service
 from backend.app.cloud.service.resource.script_service import script_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
 from backend.common.providers.ali_oss import oss_client
-from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, create_async_doubao_client, doubao_provider
+from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, doubao_provider
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.core.conf import settings
@@ -191,10 +189,17 @@ script_audio_builder = ScriptAudioBuilder()
 
 
 class HuoshanVoiceService:
-    """火山声音、故事生成和故事合成服务。"""
+    """火山声音、玩偶剧本和故事合成服务。"""
+
+    # 大模型生成文本和 TTS 文本分别按字符计费。
+    TEXT_TOKEN_PRICE_PER_CHAR = 1
+    TTS_TOKEN_PRICE_PER_CHAR = 1
+
+    # Redis 任务缓存前缀。
     STORY_SYNTHESIS_TASK_CACHE_PREFIX = 'fba:huoshan:story:synthesis'
-    STORY_GENERATE_TASK_CACHE_PREFIX = 'fba:huoshan:story:generate'
     STORY_SCRIPT_TASK_CACHE_PREFIX = 'fba:huoshan:story:script'
+
+    # 玩偶故事剧本生成提示词和文本解析规则。
     TOY_STORY_SCRIPT_SYSTEM_PROMPT = (
         '你是儿童多玩偶对话故事编剧。'
         '你的任务不是写一组分别好听的台词，而是写一段真正发生交流的故事对话。'
@@ -228,10 +233,12 @@ class HuoshanVoiceService:
     TOY_STORY_SCRIPT_TEXT_PREFIX_RE = re.compile(r'^(?:[\(（][^()\n（）]{1,20}[\)）][\s:：,，、-]*)+')
     TOY_STORY_SCRIPT_QUOTE_CHARS = '"\'“”‘’'
 
+    # 运行中的异步任务只保存在当前进程内，结果统一写入 Redis。
     def __init__(self) -> None:
         self._story_synthesis_tasks: dict[str, asyncio.Task[HuoshanStorySynthesisResult]] = {}
-        self._story_generation_tasks: dict[str, asyncio.Task[HuoshanStoryGenerateResult]] = {}
         self._toy_story_script_tasks: dict[str, asyncio.Task[HuoshanToyStoryScriptResult]] = {}
+
+    # 声音配置与客户端
 
     @classmethod
     def _attach_voice_alias(cls, status: HuoshanVoiceStatus) -> HuoshanVoiceStatus:
@@ -267,6 +274,10 @@ class HuoshanVoiceService:
         )
 
     @classmethod
+    def _create_openapi_client(cls) -> HuoshanOpenAPIClient:
+        return HuoshanOpenAPIClient(cls._resolve_client_config())
+
+    @classmethod
     def _resolve_story_client_config(
             cls,
             speaker: str | None = None,
@@ -274,10 +285,14 @@ class HuoshanVoiceService:
             resource_id: str | None = None,
     ) -> HuoshanLongTextTTSConfig:
         project = get_voice_project_for_speaker(speaker)
-        resolved_resource_id = cls._normalize_text(resource_id) or CLONE_VOICE_RESOURCE_ID_V2
+        resolved_resource_id = (
+            cls._normalize_text(resource_id)
+            or settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
+            or CLONE_VOICE_RESOURCE_ID_V2
+        )
         query_resource_id = (
-                settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
-                or HuoshanLongTextTTSClient.infer_query_resource_id(resolved_resource_id)
+            settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
+            or HuoshanLongTextTTSClient.infer_query_resource_id(resolved_resource_id)
         )
         return HuoshanLongTextTTSConfig(
             app_id=project.app_id,
@@ -288,10 +303,6 @@ class HuoshanVoiceService:
             query_url=settings.BYTES_TTS_LONG_QUERY_URL,
             timeout=settings.BYTES_TTS_LONG_TIMEOUT_SECONDS,
         )
-
-    @classmethod
-    def _create_openapi_client(cls) -> HuoshanOpenAPIClient:
-        return HuoshanOpenAPIClient(cls._resolve_client_config())
 
     @classmethod
     def _create_story_client(
@@ -312,10 +323,8 @@ class HuoshanVoiceService:
         public_voice = get_public_voice(speaker)
         if public_voice is not None:
             return public_voice, None
-
         if voice_status is None:
             raise errors.NotFoundError(msg='克隆声音不存在')
-
         profile = get_voice_profile(voice_status.speaker_id or speaker)
         if profile is None:
             profile = VoiceProfile(
@@ -336,30 +345,7 @@ class HuoshanVoiceService:
                 return resource_id
         return CLONE_VOICE_RESOURCE_ID_V2
 
-    @staticmethod
-    def _story_generation_system_prompt() -> str:
-        return (
-            '你是儿童睡前故事写作助手，擅长创作适合 2 到 6 岁儿童收听的中文晚安故事。'
-            '你的文字要像温柔的大人坐在床边轻声讲述，细腻、安静、柔和，适合直接做 TTS 口播。'
-        )
-
-    @staticmethod
-    def _build_story_generation_prompt(topic: str) -> str:
-        normalized_topic = topic.strip()
-        return (
-            '请围绕以下主题创作一篇中文睡前故事，直接输出故事正文，不要输出标题、说明、Markdown、分点或额外前后缀。'
-            '写作要求：'
-            '1. 采用温柔、轻声、安抚式的讲述口吻，像月亮妈妈在床边讲故事。'
-            '2. 以第二人称或亲昵称呼和孩子说话，让孩子有被陪伴的感觉。'
-            '3. 从一个小而具体的生活意象展开想象，比如小被子、小枕头、小月亮、小雨声。'
-            '4. 多写触觉、温度、声音、气味、动作等细节，要有画面感和身体感。'
-            '5. 句子尽量短一点，段落尽量短一点，节奏轻柔，适合幼儿睡前聆听。'
-            '6. 可以适度使用重复、拟声和轻微停顿，让语言更有安抚感。'
-            '7. 不要出现激烈冲突、说教、知识讲解、成人化表达或过度复杂情节。'
-            '8. 结尾要自然收束到安静、放松、入睡的状态。'
-            '9. 长度控制在 700 到 1000 字。'
-            f'主题：{normalized_topic}'
-        )
+    # 故事提示词与剧本文本解析
 
     @classmethod
     def _build_toy_story_script_prompt(
@@ -535,6 +521,8 @@ class HuoshanVoiceService:
         normalized_lines = cls._normalize_toy_story_script_lines(list(result.lines), toy_ids=set(result.toy_ids))
         return result.model_copy(update={'lines': normalized_lines}, deep=True)
 
+    # 错误处理与故事合成参数
+
     @staticmethod
     def _build_error_data(exc: HuoshanAPIError) -> dict[str, object]:
         return {
@@ -557,6 +545,8 @@ class HuoshanVoiceService:
         if 400 <= status_code < 500:
             raise errors.RequestError(code=status_code, msg=exc.message, data=data) from exc
         raise errors.GatewayError(msg=exc.message, data=data) from exc
+
+    # Redis 任务缓存
 
     @staticmethod
     def _build_story_payload(obj: HuoshanStorySynthesisParam, *, uid: str) -> dict[str, object]:
@@ -592,10 +582,6 @@ class HuoshanVoiceService:
         return f'{cls.STORY_SYNTHESIS_TASK_CACHE_PREFIX}:{task_id}'
 
     @classmethod
-    def _story_generate_task_key(cls, task_id: str) -> str:
-        return f'{cls.STORY_GENERATE_TASK_CACHE_PREFIX}:{task_id}'
-
-    @classmethod
     def _toy_story_script_task_key(cls, task_id: str) -> str:
         return f'{cls.STORY_SCRIPT_TASK_CACHE_PREFIX}:{task_id}'
 
@@ -620,40 +606,19 @@ class HuoshanVoiceService:
             payload_raw = await redis_client.get(cls._story_synthesis_task_key(task_id))
         except Exception as exc:
             raise errors.GatewayError(msg='火山故事任务结果读取失败') from exc
-
         if not payload_raw:
             raise errors.NotFoundError(msg=f'火山故事任务不存在，task_id={task_id}')
         return HuoshanStorySynthesisResult.model_validate_json(payload_raw)
 
     @classmethod
-    async def _save_story_generate_task_result(cls, result: HuoshanStoryGenerateResult) -> None:
-        try:
-            await redis_client.set(
-                cls._story_generate_task_key(result.task_id),
-                result.model_dump_json(),
-                ex=cls._story_task_ttl_seconds(),
-            )
-        except Exception as exc:
-            raise errors.GatewayError(msg='火山故事生成任务结果保存失败') from exc
-
-    @classmethod
-    async def get_story_generation(cls, task_id: str) -> HuoshanStoryGenerateResult:
-        try:
-            payload_raw = await redis_client.get(cls._story_generate_task_key(task_id))
-        except Exception as exc:
-            raise errors.GatewayError(msg='火山故事生成任务结果读取失败') from exc
-
-        if not payload_raw:
-            raise errors.NotFoundError(msg=f'火山故事生成任务不存在，task_id={task_id}')
-        return HuoshanStoryGenerateResult.model_validate_json(payload_raw)
-
-    @classmethod
     async def _save_toy_story_script_task_result(cls, result: HuoshanToyStoryScriptResult) -> None:
         normalized_result = cls._normalize_toy_story_script_result(result)
         try:
+            payload = normalized_result.model_dump()
+            payload['billing_did'] = normalized_result.billing_did
             await redis_client.set(
                 cls._toy_story_script_task_key(normalized_result.task_id),
-                normalized_result.model_dump_json(),
+                json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
@@ -683,11 +648,12 @@ class HuoshanVoiceService:
 
         return cls._normalize_toy_story_script_result(result)
 
+    # 异步任务调度
+
     def _start_story_synthesis_processing(self, task_id: str) -> None:
         current_task = self._story_synthesis_tasks.get(task_id)
         if current_task is not None and not current_task.done():
             return
-
         task = asyncio.create_task(
             self._process_story_synthesis(task_id),
             name=f'huoshan-story-synthesis-{task_id}',
@@ -697,23 +663,6 @@ class HuoshanVoiceService:
         def _cleanup(done_task: asyncio.Task[HuoshanStorySynthesisResult]) -> None:
             if self._story_synthesis_tasks.get(task_id) is done_task:
                 self._story_synthesis_tasks.pop(task_id, None)
-
-        task.add_done_callback(_cleanup)
-
-    def _start_story_generation_processing(self, task_id: str) -> None:
-        current_task = self._story_generation_tasks.get(task_id)
-        if current_task is not None and not current_task.done():
-            return
-
-        task = asyncio.create_task(
-            self._process_story_generation(task_id),
-            name=f'huoshan-story-generate-{task_id}',
-        )
-        self._story_generation_tasks[task_id] = task
-
-        def _cleanup(done_task: asyncio.Task[HuoshanStoryGenerateResult]) -> None:
-            if self._story_generation_tasks.get(task_id) is done_task:
-                self._story_generation_tasks.pop(task_id, None)
 
         task.add_done_callback(_cleanup)
 
@@ -733,6 +682,8 @@ class HuoshanVoiceService:
                 self._toy_story_script_tasks.pop(task_id, None)
 
         task.add_done_callback(_cleanup)
+
+    # 声音状态与音频处理
 
     async def _get_voice_status(self, *, speaker: str) -> HuoshanVoiceStatus:
         project_name = get_voice_project_for_speaker(speaker).name
@@ -757,7 +708,6 @@ class HuoshanVoiceService:
         with TemporaryDirectory(prefix='huoshan_story_') as temp_dir:
             speech_path = Path(temp_dir) / f'speech.{STORY_AUDIO_FORMAT}'
             output_path = Path(temp_dir) / f'mixed.{STORY_AUDIO_FORMAT}'
-
             speech_path.write_bytes(speech_audio)
             await asyncio.to_thread(
                 mix_audio_with_bgm,
@@ -796,6 +746,30 @@ class HuoshanVoiceService:
 
         result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
+
+    # 故事文本计费
+
+    async def _charge_story_text(
+            self,
+            *,
+            task_id: str,
+            billing_did: str | None,
+            text: str,
+            biz_suffix: str,
+            price_per_char: int,
+    ) -> None:
+        if not billing_did or not text:
+            return
+        async with async_db_session.begin() as db:
+            await billing_service.debit(
+                db=db,
+                auth_did=billing_did,
+                biz_type=BILL_BIZ_STORY,
+                biz_id=f'{task_id}:{biz_suffix}',
+                amount_token=len(text) * price_per_char,
+            )
+
+    # 玩偶故事剧本生成
 
     async def _process_toy_story_script(
             self,
@@ -850,6 +824,13 @@ class HuoshanVoiceService:
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
             }, deep=True)
+            await self._charge_story_text(
+                task_id=result.task_id,
+                billing_did=result.billing_did,
+                text=''.join(line.text for line in result.lines),
+                biz_suffix='text',
+                price_per_char=self.TEXT_TOKEN_PRICE_PER_CHAR,
+            )
             await self._save_toy_story_script_task_result(result)
             asyncio.create_task(
                 self._save_toy_story_script(task_id=task_id),
@@ -876,80 +857,6 @@ class HuoshanVoiceService:
             }, deep=True)
             await self._save_toy_story_script_task_result(result)
             return result
-
-    async def _generate_story_content_once(
-            self,
-            *,
-            client: AsyncOpenAI,
-            model_name: str,
-            topic: str,
-    ) -> str:
-        response = await client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {
-                    'role': 'system',
-                    'content': self._story_generation_system_prompt(),
-                },
-                {
-                    'role': 'user',
-                    'content': self._build_story_generation_prompt(topic),
-                },
-            ],
-            temperature=0.8,
-        )
-
-        story_content = str((response.choices[0].message.content if response.choices else '') or '').strip()
-        if not story_content:
-            raise errors.GatewayError(msg='豆包故事生成未返回内容')
-        return story_content
-
-    async def _process_story_generation(self, task_id: str) -> HuoshanStoryGenerateResult:
-        result = await self.get_story_generation(task_id)
-        client: AsyncOpenAI | None = None
-
-        try:
-            client = create_async_doubao_client()
-            story_content = await self._generate_story_content_once(
-                client=client,
-                model_name=result.model,
-                topic=result.topic,
-            )
-            result = result.model_copy(update={
-                'story_content': story_content,
-                'is_completed': True,
-                'task_status': STORY_TASK_STATUS_COMPLETED,
-                'error_message': None,
-            }, deep=True)
-            await self._save_story_generate_task_result(result)
-            log.info(f'火山故事生成完成：task_id={task_id}，topic={result.topic!r}')
-            return result
-        except Exception as exc:
-            log.error(f'火山故事生成失败：task_id={task_id}，error={exc!r}')
-            result = result.model_copy(update={
-                'task_status': STORY_TASK_STATUS_FAILED,
-                'error_message': getattr(exc, 'msg', None) or str(exc),
-            }, deep=True)
-            await self._save_story_generate_task_result(result)
-            return result
-        finally:
-            if client is not None:
-                await client.close()
-
-    async def submit_story_generation(self, obj: HuoshanStoryGenerateParam) -> HuoshanStoryGenerateResult:
-        result = HuoshanStoryGenerateResult(
-            task_id=uuid.uuid4().hex,
-            topic=obj.topic.strip(),
-            model=DEFAULT_DOUBAO_LITE_MODEL,
-            story_content=None,
-            is_completed=False,
-            task_status=STORY_TASK_STATUS_PROCESSING,
-            error_message=None,
-        )
-        await self._save_story_generate_task_result(result)
-        self._start_story_generation_processing(result.task_id)
-        log.info(f'火山故事生成任务已提交：task_id={result.task_id}，topic={result.topic!r}')
-        return result
 
     async def submit_toy_story_script(
             self,
@@ -998,6 +905,7 @@ class HuoshanVoiceService:
             toys=toy_infos,
             lines=[],
             baby_id=baby_id,
+            billing_did=device_did,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
@@ -1029,6 +937,13 @@ class HuoshanVoiceService:
             if line.tts_status:
                 return
 
+            await self._charge_story_text(
+                task_id=result.task_id,
+                billing_did=result.billing_did,
+                text=line.text,
+                biz_suffix=f'tts:{request_id}',
+                price_per_char=self.TTS_TOKEN_PRICE_PER_CHAR,
+            )
             updated_lines = list(result.lines)
             updated_lines[index] = line.model_copy(update={'tts_status': True}, deep=True)
             result = result.model_copy(update={'lines': updated_lines}, deep=True)
@@ -1041,6 +956,8 @@ class HuoshanVoiceService:
                 loudness_rate=toy.loudness_rate or 0,
             )
             await tts_stream_service.query(obj=obj, request_id=request_id)
+
+    # 玩偶剧本音频与平台剧本保存
 
     async def _build_toy_story_script_content(
             self,
@@ -1094,10 +1011,7 @@ class HuoshanVoiceService:
         task_id = current_result.task_id
         source_audio_url = str(current_result.source_audio_url or '').strip()
         if not source_audio_url:
-            raise errors.GatewayError(
-                msg='火山故事合成成功但未返回音频地址',
-                data={'task_id': task_id},
-            )
+            raise errors.GatewayError(msg='火山故事合成成功但未返回音频地址', data={'task_id': task_id})
 
         speech_audio = await client.download_file(url=source_audio_url)
         output_audio = speech_audio
@@ -1107,16 +1021,11 @@ class HuoshanVoiceService:
                 bgm_play_url=current_result.bgm.play_url,
                 bgm_volume=current_result.bgm_volume,
             )
-
         oss_key = self._build_story_oss_key(task_id=task_id)
         download_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
         if not download_url:
-            raise errors.GatewayError(
-                msg='故事音频上传 OSS 失败',
-                data={'task_id': task_id, 'oss_key': oss_key},
-            )
-
-        result = current_result.model_copy(update={
+            raise errors.GatewayError(msg='故事音频上传 OSS 失败', data={'task_id': task_id, 'oss_key': oss_key})
+        return current_result.model_copy(update={
             'task_status': STORY_TASK_STATUS_COMPLETED,
             'is_completed': True,
             'oss_key': oss_key,
@@ -1125,58 +1034,38 @@ class HuoshanVoiceService:
             'error_message': None,
         }, deep=True)
 
-        log.info(
-            f'火山故事合成成功：task_id={task_id}，speaker={current_result.speaker}，'
-            f'bgm_song_id={current_result.bgm.song_id if current_result.bgm is not None else None}，oss_key={oss_key}'
-        )
-        return result
-
     async def _process_story_synthesis(self, task_id: str) -> HuoshanStorySynthesisResult:
         result = await self._get_story_synthesis_task_result(task_id)
         client = self._create_story_client(result.speaker, resource_id=result.resource_id)
         deadline = monotonic() + settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS
-
         try:
             while True:
                 query_response = await client.query(task_id=task_id)
                 query_data = dict(query_response.get('data') or {})
-                provider_task_status = int(query_data.get('task_status', 0))
-                local_task_status = STORY_TASK_STATUS_PROCESSING
-                if provider_task_status == 3:
-                    local_task_status = STORY_TASK_STATUS_FAILED
-                elif provider_task_status <= 0:
-                    local_task_status = STORY_TASK_STATUS_PENDING
-
+                provider_status = int(query_data.get('task_status', 0))
+                status = STORY_TASK_STATUS_PROCESSING
+                if provider_status == 3:
+                    status = STORY_TASK_STATUS_FAILED
+                elif provider_status <= 0:
+                    status = STORY_TASK_STATUS_PENDING
                 result = result.model_copy(update={
-                    'task_status': local_task_status,
+                    'task_status': status,
                     'source_audio_url': str(query_data.get('audio_url') or '').strip() or None,
                     'sentences': list(query_data.get('sentences') or []),
                     'error_message': None,
                 }, deep=True)
                 await self._save_story_synthesis_task_result(result)
-
-                if provider_task_status == 2:
-                    result = await self._finalize_story_synthesis(
-                        current_result=result,
-                        client=client,
-                    )
+                if provider_status == 2:
+                    result = await self._finalize_story_synthesis(current_result=result, client=client)
                     await self._save_story_synthesis_task_result(result)
                     return result
-
-                if provider_task_status == 3:
-                    log.error(
-                        '火山故事合成服务返回失败状态：'
-                        f'task_id={task_id}，submit_request_id={result.submit_request_id}，'
-                        f'speaker={result.speaker}，resource_id={result.resource_id}，'
-                        f'query_resource_id={client.query_resource_id}，query_response={query_response}'
-                    )
+                if provider_status == 3:
                     result = result.model_copy(update={
                         'task_status': STORY_TASK_STATUS_FAILED,
                         'error_message': '火山故事合成任务失败',
                     }, deep=True)
                     await self._save_story_synthesis_task_result(result)
                     return result
-
                 if monotonic() >= deadline:
                     result = result.model_copy(update={
                         'task_status': STORY_TASK_STATUS_FAILED,
@@ -1184,16 +1073,9 @@ class HuoshanVoiceService:
                     }, deep=True)
                     await self._save_story_synthesis_task_result(result)
                     return result
-
                 await asyncio.sleep(settings.BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS)
         except HuoshanTTSError as exc:
-            log.error(
-                '火山故事合成查询失败：'
-                f'task_id={task_id}，submit_request_id={result.submit_request_id}，'
-                f'speaker={result.speaker}，resource_id={result.resource_id}，'
-                f'query_resource_id={client.query_resource_id}，status_code={exc.status_code}，'
-                f'code={exc.code}，query_request_id={exc.request_id}，payload={exc.payload}，error={exc!r}'
-            )
+            log.error(f'火山故事合成查询失败：task_id={task_id}，error={exc!r}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': exc.message,
@@ -1221,59 +1103,41 @@ class HuoshanVoiceService:
         if obj.bgm_song_id is not None:
             bgm_song = await self._get_bgm_song(db, obj.bgm_song_id)
         public_voice = get_public_voice(obj.speaker)
-        voice_status: HuoshanVoiceStatus | None = None
-        if public_voice is None:
-            voice_status = await self._get_voice_status(speaker=obj.speaker)
-
+        voice_status = None if public_voice is not None else await self._get_voice_status(speaker=obj.speaker)
         voice_profile, resolved_voice_status = self._resolve_story_voice(
             speaker=obj.speaker,
             voice_status=voice_status,
         )
         resource_id = self._resolve_story_resource_id(voice_profile)
-        story_client_config = self._resolve_story_client_config(obj.speaker, resource_id=resource_id)
+        story_config = self._resolve_story_client_config(obj.speaker, resource_id=resource_id)
         client = self._create_story_client(obj.speaker, resource_id=resource_id)
-
         try:
             submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
         except HuoshanTTSError as exc:
-            log.error(
-                '火山故事合成提交失败：'
-                f'speaker={obj.speaker}，submit_resource_id={resource_id}，error={exc}'
-            )
             self._raise_api_error(exc)
             raise
         finally:
             await client.close()
-
         task_id = str((submit_response.get('data') or {}).get('task_id') or '').strip()
         submit_request_id = str(submit_response.get('_request_id') or '').strip() or None
-        log.info(
-            '火山故事合成提交响应：'
-            f'speaker={obj.speaker}，submit_resource_id={resource_id}，submit_request_id={submit_request_id}，'
-            f'response={submit_response}'
-        )
         if not task_id:
             raise errors.GatewayError(msg='火山故事合成未返回 task_id', data=submit_response)
-
         result = HuoshanStorySynthesisResult(
             task_id=task_id,
             submit_request_id=submit_request_id,
             speaker=voice_profile.id,
-            speaker_alias=(
-                    resolved_voice_status.speaker_alias or voice_profile.name) if resolved_voice_status else voice_profile.name,
+            speaker_alias=(resolved_voice_status.speaker_alias or voice_profile.name)
+            if resolved_voice_status else voice_profile.name,
             speaker_state=resolved_voice_status.state if resolved_voice_status else None,
-            resource_id=story_client_config.resource_id,
+            resource_id=story_config.resource_id,
             audio_format=STORY_AUDIO_FORMAT,
-            bgm=(
-                HuoshanStoryBgmInfo(
-                    song_id=bgm_song.id,
-                    title=bgm_song.title,
-                    play_url=str(bgm_song.play_url or '').strip(),
-                    artist=bgm_song.artist,
-                    duration=bgm_song.duration,
-                )
-                if bgm_song is not None else None
-            ),
+            bgm=(HuoshanStoryBgmInfo(
+                song_id=bgm_song.id,
+                title=bgm_song.title,
+                play_url=str(bgm_song.play_url or '').strip(),
+                artist=bgm_song.artist,
+                duration=bgm_song.duration,
+            ) if bgm_song is not None else None),
             bgm_volume=obj.bgm_volume if bgm_song is not None else 0,
             speech_rate=obj.speech_rate,
             loudness_rate=obj.loudness_rate,
@@ -1282,17 +1146,9 @@ class HuoshanVoiceService:
         )
         await self._save_story_synthesis_task_result(result)
         self._start_story_synthesis_processing(task_id)
-
-        log.info(
-            f'火山故事合成任务已提交：task_id={task_id}，submit_request_id={submit_request_id}，'
-            f'speaker={obj.speaker}，bgm_song_id={bgm_song.id if bgm_song is not None else None}，'
-            f'resource_id={story_client_config.resource_id}'
-        )
-
         return result
 
     async def get_story_synthesis(self, *, task_id: str) -> HuoshanStorySynthesisResult:
         return await self._get_story_synthesis_task_result(task_id)
-
 
 huoshan_voice_service = HuoshanVoiceService()

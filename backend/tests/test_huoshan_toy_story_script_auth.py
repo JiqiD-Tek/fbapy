@@ -113,6 +113,14 @@ def test_submit_service_fixes_bound_baby_on_task(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(huoshan_voice_service, '_save_toy_story_script_task_result', fake_save)
     monkeypatch.setattr(huoshan_voice_service, '_start_toy_story_script_processing', lambda task_id: None)
 
+    async def fake_debit(**kwargs):  # noqa: ANN003, ARG001
+        return None
+
+    monkeypatch.setattr(
+        'backend.app.cloud.service.resource.huoshan.service.billing_service.debit',
+        fake_debit,
+    )
+
     result = asyncio.run(
         huoshan_voice_service.submit_toy_story_script(
             db='db-session',

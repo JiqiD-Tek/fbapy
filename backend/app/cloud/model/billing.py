@@ -30,7 +30,18 @@ class BillAccount(Base):
     subject_type: Mapped[str] = mapped_column(sa.String(16), comment='主体类型，当前固定 DEVICE')
     subject_key: Mapped[str] = mapped_column(sa.String(64), comment='主体标识，当前为 device DID')
     balance_token: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='当前余额快照，单位 token')
-    status: Mapped[str] = mapped_column(sa.String(16), default='ACTIVE', comment='ACTIVE / BLOCKED')
+    weekly_token_quota: Mapped[int | None] = mapped_column(
+        sa.BigInteger, default=0, comment='周赠送 token 额度，NULL 表示不限制',
+    )
+    weekly_token_usage: Mapped[int] = mapped_column(
+        sa.BigInteger, default=0, comment='当前周已使用的赠送 token 数量',
+    )
+    weekly_reset_at: Mapped[datetime | None] = mapped_column(
+        TimeZone, default=None, comment='当前周额度周期的下一次重置时间',
+    )
+    status: Mapped[str] = mapped_column(
+        sa.String(16), default='ACTIVE', comment='账户状态：ACTIVE、BLOCKED，仅表示人工或风控状态',
+    )
 
 
 class BillTxn(DataClassBase):
@@ -39,12 +50,15 @@ class BillTxn(DataClassBase):
     __tablename__ = 'u_bill_txn'
     __table_args__ = (
         sa.UniqueConstraint('session_id', 'sentence_id', name='uk_txn_sentence'),
+        sa.UniqueConstraint('biz_type', 'biz_id', name='uk_txn_biz'),
         sa.Index('idx_account_created_time', 'account_id', 'created_time'),
         sa.Index('idx_session_created_time', 'session_id', 'created_time'),
         {'comment': '账务流水'},
     )
 
     id: Mapped[id_key] = mapped_column(init=False)
+    biz_type: Mapped[str] = mapped_column(sa.String(16), comment='业务类型：CHAT、STORY')
+    biz_id: Mapped[str] = mapped_column(sa.String(256), comment='业务幂等标识')
     account_id: Mapped[int] = mapped_column(sa.BigInteger, comment='所属计费账户 ID')
     session_id: Mapped[str] = mapped_column(sa.String(64), comment='来源连接级 session_id')
     sentence_id: Mapped[str] = mapped_column(sa.String(64), comment='来源轮次级 sentence_id')
@@ -54,8 +68,5 @@ class BillTxn(DataClassBase):
         sa.String(16), default='DEBIT', server_default='DEBIT', comment='变动类型，当前主路径固定为 DEBIT',
     )
     created_time: Mapped[datetime] = mapped_column(
-        TimeZone,
-        init=False,
-        default_factory=timezone.now,
-        comment='创建时间',
+        TimeZone, init=False, default_factory=timezone.now, comment='创建时间',
     )

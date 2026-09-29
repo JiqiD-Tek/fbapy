@@ -10,7 +10,6 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from backend.common.schema import SchemaBase
 
 HuoshanVoiceState = Literal['Unknown', 'Training', 'Success', 'Active', 'Expired', 'Reclaimed']
-HuoshanAudioFormat = Literal['mp3']
 
 
 class HuoshanSchemaBase(SchemaBase):
@@ -20,13 +19,6 @@ class HuoshanSchemaBase(SchemaBase):
 def _strip_required_text(value: Any) -> Any:
     if isinstance(value, str):
         return value.strip()
-    return value
-
-
-def _strip_optional_text(value: Any) -> Any:
-    if isinstance(value, str):
-        stripped = value.strip()
-        return stripped or None
     return value
 
 
@@ -75,10 +67,6 @@ class HuoshanStorySynthesisParam(HuoshanSchemaBase):
     bgm_volume: int = Field(50, ge=0, le=100, description='背景音乐音量')
 
 
-class HuoshanStoryGenerateParam(HuoshanSchemaBase):
-    topic: str = Field(min_length=1, max_length=200, description='故事主题')
-
-
 class HuoshanStreamTTSParam(HuoshanSchemaBase):
     text: str = Field(min_length=1, max_length=5000, description='语音合成文本内容')
     speaker: str = Field(min_length=1, description='说话人 ID')
@@ -122,17 +110,8 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='缓存的玩偶快照')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='生成的剧本台词列表')
     baby_id: int | None = Field(None, gt=0, description='任务归属的宝宝 ID，NULL 表示平台任务')
+    billing_did: str | None = Field(None, exclude=True, description='内部计费设备 DID')
     is_completed: bool = Field(description='故事剧本生成是否完成')
-    task_status: int = Field(description='任务状态')
-    error_message: str | None = Field(None, description='任务错误信息')
-
-
-class HuoshanStoryGenerateResult(HuoshanSchemaBase):
-    task_id: str = Field(description='故事生成任务 ID')
-    topic: str = Field(description='故事主题')
-    model: str = Field(description='模型名称')
-    story_content: str | None = Field(None, description='生成的故事内容')
-    is_completed: bool = Field(description='故事生成是否完成')
     task_status: int = Field(description='任务状态')
     error_message: str | None = Field(None, description='任务错误信息')
 
@@ -174,18 +153,18 @@ class HuoshanVoiceListResult(HuoshanSchemaBase):
     statuses: list[HuoshanVoiceStatus] = Field(default_factory=list, alias='Statuses', description='声音状态列表')
 
 
+class HuoshanPublicVoiceInfo(HuoshanSchemaBase):
+    speaker: str = Field(description='公共说话人 ID')
+    name: str = Field(description='公共说话人名称')
+    resource_id: str = Field(description='语音合成资源 ID')
+
+
 class HuoshanStoryBgmInfo(HuoshanSchemaBase):
     song_id: int = Field(description='背景音乐 ID')
     title: str = Field(description='背景音乐标题')
     play_url: str = Field(description='背景音乐播放地址')
     artist: str | None = Field(None, description='作者或演唱者')
     duration: int = Field(description='时长（秒）')
-
-
-class HuoshanPublicVoiceInfo(HuoshanSchemaBase):
-    speaker: str = Field(description='公共说话人 ID')
-    name: str = Field(description='公共说话人名称')
-    resource_id: str = Field(description='语音合成资源 ID')
 
 
 class HuoshanStorySynthesisResult(HuoshanSchemaBase):
@@ -195,7 +174,7 @@ class HuoshanStorySynthesisResult(HuoshanSchemaBase):
     speaker_alias: str | None = Field(None, description='说话人别名')
     speaker_state: HuoshanVoiceState | None = Field(None, description='说话人状态')
     resource_id: str = Field(description='资源 ID')
-    audio_format: HuoshanAudioFormat = Field(description='音频格式')
+    audio_format: Literal['mp3'] = Field(description='音频格式')
     bgm: HuoshanStoryBgmInfo | None = Field(None, description='背景音乐信息')
     bgm_volume: int = Field(description='背景音乐音量百分比')
     speech_rate: int = Field(0, description='语速')
