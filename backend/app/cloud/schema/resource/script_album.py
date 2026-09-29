@@ -59,6 +59,5 @@ class GetScriptAlbumDetail(ScriptAlbumSchemaBase):
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
     id: int = Field(description='剧本专辑 ID')
-    track_count: int = Field(description='剧本数量')
     created_time: datetime = Field(description='创建时间')
     updated_time: datetime | None = Field(None, description='更新时间')

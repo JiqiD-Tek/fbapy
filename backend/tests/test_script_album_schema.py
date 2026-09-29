@@ -42,10 +42,10 @@ def test_script_uses_album_and_track_fields_without_duplicate_toy_ids() -> None:
     assert 'sort' not in CreateScriptParam.model_fields
 
 
-def test_script_album_uses_description_and_track_count() -> None:
+def test_script_album_uses_description_without_redundant_track_count() -> None:
     assert 'description' in ScriptAlbum.__table__.columns
     assert 'summary' not in ScriptAlbum.__table__.columns
-    assert 'track_count' in ScriptAlbum.__table__.columns
+    assert 'track_count' not in ScriptAlbum.__table__.columns
     assert 'script_count' not in ScriptAlbum.__table__.columns
 
 

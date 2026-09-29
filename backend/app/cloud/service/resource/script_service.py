@@ -47,9 +47,7 @@ class ScriptService:
             if not album:
                 raise errors.NotFoundError(msg='剧本专辑不存在')
             ScriptService._validate_content_toys(album.toy_ids, obj.content)
-        script = await script_dao.create(db, obj)
-        await ScriptService._sync_album_count(db, album_id)
-        return script
+        return await script_dao.create(db, obj)
 
     @staticmethod
     async def update_script(*, db: AsyncSession, pk: int, obj: UpdateScriptParam) -> int:
@@ -72,12 +70,7 @@ class ScriptService:
             ScriptService._validate_content_toys(album.toy_ids, content)
         if 'content' in payload:
             payload['content'] = [line.model_dump(mode='python') for line in obj.content or []]
-        old_album_id = script.album_id
-        count = await script_dao.update(db, pk, payload)
-        if target_album_id != old_album_id:
-            await ScriptService._sync_album_count(db, old_album_id)
-            await ScriptService._sync_album_count(db, target_album_id)
-        return count
+        return await script_dao.update(db, pk, payload)
 
     @staticmethod
     async def update_script_favorite(
@@ -100,9 +93,7 @@ class ScriptService:
     @staticmethod
     async def delete_script(*, db: AsyncSession, pk: int) -> int:
         script = await ScriptService.get_script(db=db, pk=pk)
-        count = await script_dao.delete(db, pk)
-        await ScriptService._sync_album_count(db, script.album_id)
-        return count
+        return await script_dao.delete(db, pk)
 
     @staticmethod
     def _validate_content_toys(toy_ids: list[int], content: list[Any]) -> None:
@@ -120,13 +111,6 @@ class ScriptService:
         )
         if result.scalar_one_or_none() is None:
             raise errors.NotFoundError(msg='宝宝不存在')
-
-    @staticmethod
-    async def _sync_album_count(db: AsyncSession, album_id: int | None) -> None:
-        if not album_id or album_id <= 0:
-            return
-        count = await script_dao.count_by_album_id(db, album_id)
-        await script_album_dao.update_track_count(db, album_id, count)
 
     @staticmethod
     def _normalize_ids(value: list[int] | None) -> list[int] | None:

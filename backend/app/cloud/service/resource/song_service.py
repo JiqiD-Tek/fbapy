@@ -59,9 +59,7 @@ class SongService:
         elif obj.content_type is None:
             raise errors.RequestError(msg='内容类型不能为空')
 
-        song = await song_dao.create(db, payload)
-        await self._sync_album_track_count(db=db, album_id=song.album_id)
-        return song
+        return await song_dao.create(db, payload)
 
     async def update_song(self, *, db: AsyncSession, pk: int, obj: UpdateSongParam) -> int:
         song = await song_dao.get(db, pk)
@@ -83,21 +81,14 @@ class SongService:
                 obj=obj,
             )
 
-        old_album_id = song.album_id
-        count = await song_dao.update(db, pk, normalized_obj)
-        refreshed = await song_dao.get(db, pk)
-        await self._sync_album_track_count(db=db, album_id=old_album_id)
-        await self._sync_album_track_count(db=db, album_id=refreshed.album_id if refreshed else None)
-        return count
+        return await song_dao.update(db, pk, normalized_obj)
 
     async def delete_song(self, *, db: AsyncSession, pk: int) -> int:
         song = await song_dao.get(db, pk)
         if not song:
             raise errors.NotFoundError(msg='歌曲不存在')
 
-        count = await song_dao.delete(db, pk)
-        await self._sync_album_track_count(db=db, album_id=song.album_id)
-        return count
+        return await song_dao.delete(db, pk)
 
     @classmethod
     def _normalize_search_keyword(cls, value: str | None) -> str | None:
@@ -198,18 +189,6 @@ class SongService:
             raise errors.NotFoundError(msg='专辑不存在')
 
         return obj.model_copy(update={'content_type': album.content_type})
-
-    @staticmethod
-    async def _sync_album_track_count(*, db: AsyncSession, album_id: int | None) -> None:
-        if album_id is None:
-            return
-
-        album = await song_album_dao.get(db, album_id)
-        if not album:
-            return
-
-        track_count = await song_dao.count_by_album_id(db, album_id)
-        await song_album_dao.update_track_count(db, album_id, track_count)
 
     @staticmethod
     def _validate_song_payload(payload: dict[str, Any]) -> None:

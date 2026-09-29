@@ -38,8 +38,4 @@ class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
         result = await db.execute(select(Script.content).where(Script.album_id == album_id, Script.deleted == 0))
         return list(result.scalars().all())
 
-    async def update_track_count(self, db: AsyncSession, pk: int, track_count: int) -> int:
-        return await self.update_model_by_column(db, {'track_count': track_count}, id=pk)
-
-
 script_album_dao: CRUDScriptAlbum = CRUDScriptAlbum(ScriptAlbum)

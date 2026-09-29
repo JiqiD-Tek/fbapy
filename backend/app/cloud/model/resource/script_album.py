@@ -18,6 +18,5 @@ class ScriptAlbum(Base):
     description: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='专辑简介')
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='专辑封面地址')
     author: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='作者')
-    track_count: Mapped[int] = mapped_column(default=0, comment='剧本数量')
     status: Mapped[int] = mapped_column(default=1, index=True, comment='状态：0 禁用，1 启用')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')

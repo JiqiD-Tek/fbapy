@@ -39,9 +39,6 @@ class CRUDSongAlbum(CRUDPlus[SongAlbum]):
     async def update(self, db: AsyncSession, pk: int, obj: UpdateSongAlbumParam) -> int:
         return await self.update_model(db, pk, obj)
 
-    async def update_track_count(self, db: AsyncSession, pk: int, track_count: int) -> int:
-        return await self.update_model_by_column(db, {'track_count': track_count}, id=pk)
-
     async def delete(self, db: AsyncSession, pk: int) -> int:
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
 
