@@ -1,5 +1,6 @@
 __pycache__/
 .env
 static/media/
+static/ai_buddy/
 *.log
 celerybeat-schedule.*
