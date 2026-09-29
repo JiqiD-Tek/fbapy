@@ -1,10 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project : fbapy
-@File    : client.py
-@Author  : OpenAI
-@Date    : 2026/04/13
-"""
+"""火山开放接口和长文本语音合成客户端。"""
 
 from __future__ import annotations
 
@@ -46,7 +41,7 @@ class HuoshanOpenAPIClient:
 
     def __init__(self, config: HuoshanOpenAPIConfig) -> None:
         if volcenginesdkcore is None or SPEECHSAASPROD20250521Api is None:
-            raise RuntimeError('volcengine-python-sdk is required for Huoshan voice management APIs')
+            raise RuntimeError('火山声音管理接口需要安装 volcengine-python-sdk')
 
         configuration = volcenginesdkcore.Configuration()
         configuration.ak = config.access_key
@@ -106,7 +101,7 @@ class HuoshanOpenAPIClient:
                 parsed.get('Message')
                 or parsed.get('message')
                 or str(getattr(exc, 'reason', None) or exc)
-                or 'Volcengine OpenAPI request failed'
+                or '火山开放接口请求失败'
         )
         payload: Any = parsed or getattr(exc, 'body', None) or getattr(exc, 'reason', None)
 
@@ -178,14 +173,14 @@ class HuoshanLongTextTTSClient:
             raise HuoshanTTSError(
                 status_code=exc.response.status_code,
                 code='DownloadError',
-                message=f'Failed to download Huoshan audio: HTTP {exc.response.status_code}',
+                message=f'火山音频下载失败：HTTP {exc.response.status_code}',
                 payload=exc.response.text,
             ) from exc
         except httpx.RequestError as exc:
             raise HuoshanTTSError(
                 status_code=502,
                 code='DownloadError',
-                message=f'Failed to download Huoshan audio: {exc}',
+                message=f'火山音频下载失败：{exc}',
             ) from exc
         else:
             return response.content
@@ -208,7 +203,7 @@ class HuoshanLongTextTTSClient:
             raise HuoshanTTSError(
                 status_code=504,
                 code=type(exc).__name__,
-                message=f'Huoshan TTS request timed out: {type(exc).__name__}: {exc}',
+                message=f'火山语音合成请求超时：{type(exc).__name__}：{exc}',
                 payload={
                     'url': request_url,
                     'resource_id': resource_id,
@@ -224,7 +219,7 @@ class HuoshanLongTextTTSClient:
                 code=str(parsed_payload.get('code') or exc.response.status_code),
                 message=str(
                     parsed_payload.get('message')
-                    or f'Huoshan TTS request failed: HTTP {exc.response.status_code}'
+                    or f'火山语音合成请求失败：HTTP {exc.response.status_code}'
                 ),
                 payload=parsed_payload or exc.response.text,
                 request_id=_get_huoshan_request_id(exc.response.headers),
@@ -234,7 +229,7 @@ class HuoshanLongTextTTSClient:
             raise HuoshanTTSError(
                 status_code=502,
                 code='RequestError',
-                message=f'Huoshan TTS request failed: {type(exc).__name__}: {exc}',
+                message=f'火山语音合成请求失败：{type(exc).__name__}：{exc}',
                 payload={
                     'url': request_url,
                     'resource_id': resource_id,
@@ -249,7 +244,7 @@ class HuoshanLongTextTTSClient:
             raise HuoshanTTSError(
                 status_code=response.status_code,
                 code='InvalidResponse',
-                message='Huoshan TTS returned a non-JSON response',
+                message='火山语音合成返回了非 JSON 响应',
                 payload=response.text,
             ) from exc
         code = int((data or {}).get('code', -1))
@@ -261,7 +256,7 @@ class HuoshanLongTextTTSClient:
         raise HuoshanTTSError(
             status_code=response.status_code,
             code=str(code),
-            message=str((data or {}).get('message') or 'Huoshan TTS returned an error'),
+            message=str((data or {}).get('message') or '火山语音合成返回错误'),
             payload=data,
             request_id=_get_huoshan_request_id(response.headers),
         )

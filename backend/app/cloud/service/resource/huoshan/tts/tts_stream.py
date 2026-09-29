@@ -1,7 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-Simple Huoshan bidirectional TTS stream service.
-"""
+"""火山双向语音合成流服务。"""
 
 from __future__ import annotations
 
@@ -164,11 +162,11 @@ class TTSStreamService:
 
     def _start_task(self, *, obj: HuoshanStreamTTSParam, request_id: str) -> asyncio.Task[None]:
         if not request_id:
-            raise errors.RequestError(msg='request_id is required')
+            raise errors.RequestError(msg='request_id 不能为空')
 
         existing_task = self._tasks.get(request_id)
         if existing_task is not None and not existing_task.done():
-            raise errors.ConflictError(msg=f'TTS task is already running, request_id={request_id}')
+            raise errors.ConflictError(msg=f'语音合成任务正在运行，request_id={request_id}')
 
         task = asyncio.create_task(
             self._run_stream_task(request_id=request_id, obj=obj),
@@ -202,9 +200,9 @@ class TTSStreamService:
             speaker = self._normalize_text(obj.speaker)
             text = self._normalize_text(obj.text)
             if not speaker:
-                raise errors.RequestError(msg='speaker is required')
+                raise errors.RequestError(msg='speaker 不能为空')
             if not text:
-                raise errors.RequestError(msg='text is required')
+                raise errors.RequestError(msg='text 不能为空')
 
             stream_config = self._resolve_stream_config(speaker)
             ws_url = stream_config['ws_url']
@@ -215,7 +213,7 @@ class TTSStreamService:
             project = get_voice_project_for_speaker(speaker)
             if not project.app_id or not project.access_token:
                 raise errors.ServerError(
-                    msg=f'Huoshan TTS credentials are not configured for project={project.name}'
+                    msg=f'火山语音合成项目未配置访问凭证：project={project.name}'
                 )
 
             ws = await websockets.connect(
@@ -248,17 +246,17 @@ class TTSStreamService:
 
                 if response.header.message_type == ERROR_INFORMATION:
                     raise errors.GatewayError(
-                        msg=f'Huoshan stream TTS error: {self._decode_payload_text(response.payload)}'
+                        msg=f'火山语音合成流返回错误：{self._decode_payload_text(response.payload)}'
                     )
 
                 if event == EVENT_CONNECTION_FAILED:
                     raise errors.GatewayError(
-                        msg=response.optional.response_meta_json or 'Huoshan stream TTS connection failed'
+                        msg=response.optional.response_meta_json or '火山语音合成流连接失败'
                     )
 
                 if event == EVENT_SESSION_FAILED:
                     raise errors.GatewayError(
-                        msg=response.optional.response_meta_json or 'Huoshan stream TTS session failed'
+                        msg=response.optional.response_meta_json or '火山语音合成流会话失败'
                     )
 
                 if event == EVENT_SESSION_STARTED and not task_requested:
@@ -296,26 +294,26 @@ class TTSStreamService:
             with suppress(Exception):
                 await self._send_protocol_event(ws, event=EVENT_FINISH_CONNECTION)
         except Exception as exc:
-            log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
+            log.error(f'火山语音合成流任务失败：request_id={request_id}，error={exc}')
         finally:
             await tts_cache.finish_request(request_id=request_id)
             if ws is not None:
                 try:
                     await ws.close()
                 except Exception as exc:
-                    log.error(f'Huoshan stream TTS task failed: request_id={request_id}, error={exc}')
+                    log.error(f'火山语音合成流任务关闭失败：request_id={request_id}，error={exc}')
 
     @staticmethod
     async def upload_audio_to_oss(*, request_id: str) -> str:
         audio_data = await TTSStreamService.get_audio_bytes(request_id=request_id)
         if not audio_data:
-            raise errors.GatewayError(msg='TTS cache returned empty audio data')
+            raise errors.GatewayError(msg='语音合成缓存未返回音频数据')
 
         date_path = timezone.now().strftime('%Y%m%d')
         oss_key = f"cloud/huoshan/tts/{date_path}/{request_id}.mp3"
         download_url = await oss_client.upload_bytes(key=oss_key, data=audio_data)
         if not download_url:
-            raise errors.GatewayError(msg='Failed to upload TTS audio to OSS')
+            raise errors.GatewayError(msg='语音合成音频上传 OSS 失败')
 
         return download_url
 
@@ -327,7 +325,7 @@ class TTSStreamService:
                 async for chunk in stream:
                     chunks.append(chunk)
         except ValueError as exc:
-            raise errors.NotFoundError(msg=f'TTS task not found, request_id={request_id}') from exc
+            raise errors.NotFoundError(msg=f'语音合成任务不存在，request_id={request_id}') from exc
         return b''.join(chunks)
 
     @staticmethod
@@ -395,14 +393,14 @@ class TTSStreamService:
     @staticmethod
     def _require_bytes(res: bytes, offset: int, size: int, field_name: str) -> None:
         if len(res) < offset + size:
-            raise ValueError(f'parse {field_name} failed because response bytes are too short')
+            raise ValueError(f'解析 {field_name} 失败：响应字节长度不足')
 
     @classmethod
     def _read_response_text(cls, res: bytes, offset: int) -> tuple[str, int]:
         cls._require_bytes(res, offset, 4, 'content size')
         content_size = int.from_bytes(res[offset: offset + 4], 'big', signed=True)
         if content_size < 0:
-            raise ValueError('content_size cannot be negative')
+            raise ValueError('content_size 不能为负数')
         offset += 4
         cls._require_bytes(res, offset, content_size, 'content')
         content = res[offset: offset + content_size].decode('utf-8', errors='ignore')
@@ -413,7 +411,7 @@ class TTSStreamService:
         cls._require_bytes(res, offset, 4, 'payload size')
         payload_size = int.from_bytes(res[offset: offset + 4], 'big', signed=True)
         if payload_size < 0:
-            raise ValueError('payload_size cannot be negative')
+            raise ValueError('payload_size 不能为负数')
         offset += 4
         cls._require_bytes(res, offset, payload_size, 'payload')
         payload = res[offset: offset + payload_size]

@@ -1,10 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project : fbapy
-@File    : exceptions.py
-@Author  : OpenAI
-@Date    : 2026/04/13
-"""
+"""火山接口异常定义。"""
 
 from __future__ import annotations
 

@@ -1,10 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project : fbapy
-@File    : models.py
-@Author  : OpenAI
-@Date    : 2026/04/13
-"""
+"""火山客户端配置模型。"""
 
 from __future__ import annotations
 

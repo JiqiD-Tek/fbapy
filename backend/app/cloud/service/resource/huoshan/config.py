@@ -1,7 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-Huoshan voice catalog.
-"""
+"""火山声音目录与项目配置。"""
 
 from __future__ import annotations
 

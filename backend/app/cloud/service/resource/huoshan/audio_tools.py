@@ -1,10 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project : fbapy
-@File    : audio_tools.py
-@Author  : OpenAI
-@Date    : 2026/04/13
-"""
+"""火山故事音频处理工具。"""
 
 from __future__ import annotations
 
@@ -25,11 +20,11 @@ def mix_audio_with_bgm(
         fade_out_seconds: float = 4.0,
 ) -> str:
     if not speech_path.exists():
-        raise ValueError(f'speech audio does not exist: {speech_path}')
+        raise ValueError(f'语音文件不存在：{speech_path}')
     if bgm_volume < 0:
-        raise ValueError('bgm_volume cannot be less than 0')
+        raise ValueError('背景音乐音量不能小于 0')
     if not _is_remote_media_source(background_url):
-        raise ValueError(f'background audio URL is invalid: {background_url}')
+        raise ValueError(f'背景音乐地址无效：{background_url}')
 
     ffmpeg_path = _resolve_ffmpeg_executable()
     speech_duration = _probe_duration_seconds(ffmpeg_path, speech_path)
@@ -72,7 +67,7 @@ def mix_audio_with_bgm(
         subprocess.run(command, check=True, capture_output=True)
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.decode('utf-8', errors='replace').strip()
-        raise RuntimeError(f'background audio mixing failed: {detail or output_path}') from exc
+        raise RuntimeError(f'背景音乐混音失败：{detail or output_path}') from exc
 
     return 'ffmpeg-amix'
 
@@ -89,7 +84,7 @@ def _resolve_ffmpeg_executable() -> str:
     try:
         from imageio_ffmpeg import get_ffmpeg_exe
     except ImportError as exc:
-        raise RuntimeError('mixing background audio requires ffmpeg or imageio-ffmpeg') from exc
+        raise RuntimeError('背景音乐混音需要 ffmpeg 或 imageio-ffmpeg') from exc
 
     return get_ffmpeg_exe()
 
@@ -128,16 +123,16 @@ def _probe_duration_seconds(ffmpeg_path: str, path: Path) -> float:
 
 
 def probe_audio_duration(path: Path) -> float:
-    """Return an audio file duration in seconds."""
+    """获取音频文件时长，单位为秒。"""
     return _probe_duration_seconds(_resolve_ffmpeg_executable(), path)
 
 
 def concatenate_audio_segments(segment_paths: list[Path], output_path: Path) -> None:
-    """Concatenate MP3 segments into one MP3 file without re-encoding."""
+    """在不重新编码的情况下合并多个 MP3 音频片段。"""
     if not segment_paths:
-        raise ValueError('at least one audio segment is required')
+        raise ValueError('至少需要一个音频片段')
     if any(not path.exists() for path in segment_paths):
-        raise ValueError('all audio segments must exist')
+        raise ValueError('所有音频片段都必须存在')
 
     ffmpeg_path = _resolve_ffmpeg_executable()
     concat_file = output_path.with_suffix('.concat.txt')
@@ -170,6 +165,6 @@ def concatenate_audio_segments(segment_paths: list[Path], output_path: Path) -> 
         )
     except subprocess.CalledProcessError as exc:
         detail = exc.stderr.decode('utf-8', errors='replace').strip()
-        raise RuntimeError(f'audio concatenation failed: {detail or output_path}') from exc
+        raise RuntimeError(f'音频合并失败：{detail or output_path}') from exc
     finally:
         concat_file.unlink(missing_ok=True)

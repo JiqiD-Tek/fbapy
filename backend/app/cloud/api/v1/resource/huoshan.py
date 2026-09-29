@@ -1,7 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-Huoshan resource API.
-"""
+"""火山相关资源接口。"""
 
 from __future__ import annotations
 
@@ -40,7 +38,7 @@ router = APIRouter()
 
 @router.get(
     '/voices/public',
-    summary='List Huoshan public voices',
+    summary='获取火山公共声音列表',
     response_model_by_alias=False,
 )
 async def list_huoshan_public_voices() -> ResponseSchemaModel[list[HuoshanPublicVoiceInfo]]:
@@ -57,7 +55,7 @@ async def list_huoshan_public_voices() -> ResponseSchemaModel[list[HuoshanPublic
 
 @router.post(
     '/voices/clone',
-    summary='List Huoshan clone voices',
+    summary='获取火山克隆声音列表',
     response_model_by_alias=False,
 )
 async def list_clone_huoshan_voice_statuses(
@@ -69,7 +67,7 @@ async def list_clone_huoshan_voice_statuses(
 
 @router.post(
     '/stories/script',
-    summary='Submit toy-based story script generation task',
+    summary='提交玩偶故事剧本生成任务',
     response_model_by_alias=False,
 )
 async def submit_huoshan_toy_story_script(
@@ -84,12 +82,12 @@ async def submit_huoshan_toy_story_script(
 
 @router.get(
     '/stories/script',
-    summary='Query toy-based story script generation task status',
+    summary='查询玩偶故事剧本生成任务状态',
     response_model_by_alias=False,
     dependencies=[DependsJwtAuth],
 )
 async def get_huoshan_toy_story_script(
-        task_id: Annotated[str, Query(description='Story script generation task ID')],
+        task_id: Annotated[str, Query(description='故事剧本生成任务 ID')],
 ) -> ResponseSchemaModel[HuoshanToyStoryScriptResult]:
     data = await huoshan_voice_service.get_toy_story_script(task_id=task_id)
     return response_base.success(data=data)
@@ -97,13 +95,13 @@ async def get_huoshan_toy_story_script(
 
 @router.get(
     '/stories/script/tts',
-    summary='Query toy-based story script generation task tts',
+    summary='获取玩偶故事剧本语音',
     response_model_by_alias=False,
     dependencies=[DependsJwtAuth],
 )
 async def get_huoshan_toy_story_tts(
-        task_id: Annotated[str, Query(description='Story script generation task ID')],
-        token: Annotated[str, Query(description='TTS token, usually request_id')],
+        task_id: Annotated[str, Query(description='故事剧本生成任务 ID')],
+        token: Annotated[str, Query(description='语音合成令牌，通常为 request_id')],
 ):
     await huoshan_voice_service.submit_tts_task(task_id=task_id, token=token)
     return await _generate_mp3_response(token)
@@ -111,7 +109,7 @@ async def get_huoshan_toy_story_tts(
 
 @router.post(
     '/stories/generate',
-    summary='Generate a story by topic with Huoshan large model',
+    summary='使用火山大模型按主题生成故事',
     response_model_by_alias=False,
 )
 async def generate_huoshan_story(
@@ -123,11 +121,11 @@ async def generate_huoshan_story(
 
 @router.get(
     '/stories/generate/{task_id}',
-    summary='Query Huoshan story generation task status',
+    summary='查询火山故事生成任务状态',
     response_model_by_alias=False,
 )
 async def get_huoshan_story_generation(
-        task_id: str = Path(description='Story generation task ID'),
+        task_id: str = Path(description='故事生成任务 ID'),
 ) -> ResponseSchemaModel[HuoshanStoryGenerateResult]:
     data = await huoshan_voice_service.get_story_generation(task_id=task_id)
     return response_base.success(data=data)
@@ -135,7 +133,7 @@ async def get_huoshan_story_generation(
 
 @router.post(
     '/stories/synthesis',
-    summary='Submit Huoshan story synthesis task',
+    summary='提交火山故事合成任务',
     response_model_by_alias=False,
 )
 async def synthesize_huoshan_story(
@@ -148,11 +146,11 @@ async def synthesize_huoshan_story(
 
 @router.get(
     '/stories/synthesis/{task_id}',
-    summary='Query Huoshan story synthesis task status',
+    summary='查询火山故事合成任务状态',
     response_model_by_alias=False,
 )
 async def get_huoshan_story_synthesis(
-        task_id: str = Path(description='Huoshan task ID'),
+        task_id: str = Path(description='火山任务 ID'),
 ) -> ResponseSchemaModel[HuoshanStorySynthesisResult]:
     data = await huoshan_voice_service.get_story_synthesis(task_id=task_id)
     return response_base.success(data=data)
@@ -160,7 +158,7 @@ async def get_huoshan_story_synthesis(
 
 @router.post(
     '/tts/stream',
-    summary='Submit simple Huoshan bidirectional TTS stream task',
+    summary='提交火山双向语音合成流任务',
     response_model_by_alias=False,
 )
 async def submit_huoshan_stream_tts(
@@ -170,13 +168,13 @@ async def submit_huoshan_stream_tts(
     return response_base.success(data=data)
 
 
-@router.get('/tts', summary='Get TTS audio', description='Get TTS audio')
+@router.get('/tts', summary='获取语音合成音频', description='获取语音合成音频')
 async def tts(
-        token: Annotated[str, Query(description='TTS token, usually request_id')],
-        type: Annotated[str, Query(description='Audio format, mp3 or wav')] = 'mp3',
+        token: Annotated[str, Query(description='语音合成令牌，通常为 request_id')],
+        type: Annotated[str, Query(description='音频格式，支持 mp3 或 wav')] = 'mp3',
 ):
     if not token:
-        raise KeyError('Invalid TTS token')
+        raise KeyError('语音合成令牌不能为空')
 
     if type == 'mp3':
         return await _generate_mp3_response(token)
@@ -190,7 +188,7 @@ async def _generate_mp3_response(request_id: str) -> StreamingResponse:
                 async for chunk in stream:
                     yield chunk
         except Exception as exc:
-            log.error(f'Failed to stream MP3 audio: {exc}')
+            log.error(f'MP3 音频流输出失败：{exc}')
             raise
 
     return StreamingResponse(
@@ -239,7 +237,7 @@ async def _generate_wav_response(request_id: str) -> StreamingResponse:
                 async for chunk in stream:
                     yield chunk
         except Exception as exc:
-            log.error(f'Failed to stream WAV audio: {exc}')
+            log.error(f'WAV 音频流输出失败：{exc}')
             raise
 
     return StreamingResponse(

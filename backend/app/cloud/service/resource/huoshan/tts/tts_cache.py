@@ -1,10 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project : jiqid-py
-@File    : tts_cache.py
-@Author  : guhua@jiqid.com
-@Date    : 2025/06/25 14:42
-"""
+"""火山语音合成音频缓存。"""
 import asyncio
 import time
 import uuid

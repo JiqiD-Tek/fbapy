@@ -1,10 +1,5 @@
 ﻿# -*- coding: UTF-8 -*-
-"""
-@Project : fbapy
-@File    : service.py
-@Author  : OpenAI
-@Date    : 2026/04/13
-"""
+"""火山声音、故事生成和故事合成业务服务。"""
 
 from __future__ import annotations
 
@@ -124,7 +119,7 @@ class ScriptAudioBuilder:
             result: HuoshanToyStoryScriptResult,
     ) -> tuple[list[ScriptLine], str]:
         if not result.lines:
-            raise errors.GatewayError(msg=f'Toy story script has no lines, task_id={result.task_id}')
+            raise errors.GatewayError(msg=f'玩偶故事剧本没有台词，task_id={result.task_id}')
 
         toy_map = {toy.toy_id: toy for toy in result.toys}
         segment_paths: list[Path] = []
@@ -138,13 +133,13 @@ class ScriptAudioBuilder:
                 if not token:
                     raise errors.GatewayError(
                         msg=(
-                            f'Toy story script line is missing tts_token, task_id={result.task_id}, '
+                            f'玩偶故事剧本台词缺少 tts_token，task_id={result.task_id}，'
                             f'toy_id={line.toy_id}'
                         )
                     )
                 toy = toy_map.get(line.toy_id)
                 if toy is None:
-                    raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
+                    raise errors.GatewayError(msg=f'缺少玩偶信息，toy_id={line.toy_id}')
 
                 if not line.tts_status:
                     await tts_stream_service.query_and_wait(
@@ -160,7 +155,7 @@ class ScriptAudioBuilder:
                 audio_data = await tts_stream_service.get_audio_bytes(request_id=token)
                 if not audio_data:
                     raise errors.GatewayError(
-                        msg=f'Toy story script line returned empty audio, task_id={result.task_id}, line={index}'
+                        msg=f'玩偶故事剧本台词未返回音频，task_id={result.task_id}，line={index}'
                     )
 
                 segment_path = temp_path / f'{index:04d}.mp3'
@@ -169,7 +164,7 @@ class ScriptAudioBuilder:
                 duration = probe_audio_duration(segment_path)
                 if duration <= 0:
                     raise errors.GatewayError(
-                        msg=f'Toy story script line audio duration is invalid, task_id={result.task_id}, line={index}'
+                        msg=f'玩偶故事剧本台词音频时长无效，task_id={result.task_id}，line={index}'
                     )
 
                 content.append(ScriptLine(
@@ -188,7 +183,7 @@ class ScriptAudioBuilder:
         oss_key = f'cloud/huoshan/script/{date_path}/{result.task_id}.mp3'
         play_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
         if not play_url:
-            raise errors.GatewayError(msg='Failed to upload complete toy story script audio')
+            raise errors.GatewayError(msg='完整玩偶故事剧本音频上传失败')
         return content, play_url
 
 
@@ -196,6 +191,7 @@ script_audio_builder = ScriptAudioBuilder()
 
 
 class HuoshanVoiceService:
+    """火山声音、故事生成和故事合成服务。"""
     STORY_SYNTHESIS_TASK_CACHE_PREFIX = 'fba:huoshan:story:synthesis'
     STORY_GENERATE_TASK_CACHE_PREFIX = 'fba:huoshan:story:generate'
     STORY_SCRIPT_TASK_CACHE_PREFIX = 'fba:huoshan:story:script'
@@ -318,7 +314,7 @@ class HuoshanVoiceService:
             return public_voice, None
 
         if voice_status is None:
-            raise errors.NotFoundError(msg='Voice clone does not exist')
+            raise errors.NotFoundError(msg='克隆声音不存在')
 
         profile = get_voice_profile(voice_status.speaker_id or speaker)
         if profile is None:
@@ -441,7 +437,7 @@ class HuoshanVoiceService:
             start = current_match.start()
             prefix = normalized[cursor:start]
             if prefix.strip():
-                raise errors.GatewayError(msg=f'Story script generation returned invalid content: {prefix.strip()}')
+                raise errors.GatewayError(msg=f'故事剧本生成返回的内容无效：{prefix.strip()}')
 
             next_match = HuoshanVoiceService.TOY_STORY_SCRIPT_MARKER_RE.search(normalized, start + 1)
             next_marker_pos = next_match.start() if next_match is not None else -1
@@ -473,17 +469,17 @@ class HuoshanVoiceService:
 
         match = cls.TOY_STORY_SCRIPT_LINE_RE.match(normalized)
         if match is None:
-            raise errors.GatewayError(msg=f'Story script generation returned invalid line format: {normalized}')
+            raise errors.GatewayError(msg=f'故事剧本生成返回的台词格式无效：{normalized}')
 
         toy_id = int(match.group(1))
         if toy_id not in toy_ids:
-            raise errors.GatewayError(msg=f'Story script generation returned unexpected toy ID: {toy_id}')
+            raise errors.GatewayError(msg=f'故事剧本生成返回了未请求的玩偶 ID：{toy_id}')
 
         text = cls._sanitize_toy_story_script_text(match.group(2))
         if not text:
             if allow_empty_text:
                 return None
-            raise errors.GatewayError(msg=f'Story script generation returned empty line content: {normalized}')
+            raise errors.GatewayError(msg=f'故事剧本生成返回了空台词：{normalized}')
 
         return HuoshanToyStoryScriptLine(toy_id=toy_id, text=text)
 
@@ -552,7 +548,7 @@ class HuoshanVoiceService:
     def _raise_api_error(cls, exc: HuoshanAPIError) -> None:
         data = cls._build_error_data(exc)
         status_code = exc.status_code
-        log.error(f'Huoshan API error: {exc}; data={data}')
+        log.error(f'火山接口调用失败：{exc}；data={data}')
 
         if status_code == 404:
             raise errors.NotFoundError(msg=exc.message, data=data) from exc
@@ -588,7 +584,7 @@ class HuoshanVoiceService:
     async def _get_bgm_song(db: AsyncSession, bgm_song_id: int) -> Song:
         song = await song_service.get_song(db=db, pk=bgm_song_id)
         if not song.play_url:
-            raise errors.RequestError(msg='Background music play URL is missing')
+            raise errors.RequestError(msg='背景音乐播放地址为空')
         return song
 
     @classmethod
@@ -616,17 +612,17 @@ class HuoshanVoiceService:
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to save Huoshan story task result') from exc
+            raise errors.GatewayError(msg='火山故事任务结果保存失败') from exc
 
     @classmethod
     async def _get_story_synthesis_task_result(cls, task_id: str) -> HuoshanStorySynthesisResult:
         try:
             payload_raw = await redis_client.get(cls._story_synthesis_task_key(task_id))
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to load Huoshan story task result') from exc
+            raise errors.GatewayError(msg='火山故事任务结果读取失败') from exc
 
         if not payload_raw:
-            raise errors.NotFoundError(msg=f'Huoshan story task not found, task_id={task_id}')
+            raise errors.NotFoundError(msg=f'火山故事任务不存在，task_id={task_id}')
         return HuoshanStorySynthesisResult.model_validate_json(payload_raw)
 
     @classmethod
@@ -638,17 +634,17 @@ class HuoshanVoiceService:
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to save Huoshan story generation task result') from exc
+            raise errors.GatewayError(msg='火山故事生成任务结果保存失败') from exc
 
     @classmethod
     async def get_story_generation(cls, task_id: str) -> HuoshanStoryGenerateResult:
         try:
             payload_raw = await redis_client.get(cls._story_generate_task_key(task_id))
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to load Huoshan story generation task result') from exc
+            raise errors.GatewayError(msg='火山故事生成任务结果读取失败') from exc
 
         if not payload_raw:
-            raise errors.NotFoundError(msg=f'Huoshan story generation task not found, task_id={task_id}')
+            raise errors.NotFoundError(msg=f'火山故事生成任务不存在，task_id={task_id}')
         return HuoshanStoryGenerateResult.model_validate_json(payload_raw)
 
     @classmethod
@@ -661,17 +657,17 @@ class HuoshanVoiceService:
                 ex=cls._story_task_ttl_seconds(),
             )
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to save Huoshan toy story script task result') from exc
+            raise errors.GatewayError(msg='火山玩偶故事剧本任务结果保存失败') from exc
 
     @classmethod
     async def get_toy_story_script(cls, task_id: str) -> HuoshanToyStoryScriptResult:
         try:
             payload_raw = await redis_client.get(cls._toy_story_script_task_key(task_id))
         except Exception as exc:
-            raise errors.GatewayError(msg='Failed to load Huoshan toy story script task result') from exc
+            raise errors.GatewayError(msg='火山玩偶故事剧本任务结果读取失败') from exc
 
         if not payload_raw:
-            raise errors.NotFoundError(msg=f'Huoshan toy story script task not found, task_id={task_id}')
+            raise errors.NotFoundError(msg=f'火山玩偶故事剧本任务不存在，task_id={task_id}')
 
         try:
             result = HuoshanToyStoryScriptResult.model_validate_json(payload_raw)
@@ -746,9 +742,9 @@ class HuoshanVoiceService:
         for status in result.statuses:
             if status.speaker_id == speaker:
                 if status.state not in ('Success', 'Active'):
-                    raise errors.RequestError(msg=f'Voice clone is not available, current state={status.state}')
+                    raise errors.RequestError(msg=f'克隆声音当前不可用，状态={status.state}')
                 return self._attach_voice_alias(status)
-        raise errors.NotFoundError(msg='Voice clone does not exist')
+        raise errors.NotFoundError(msg='克隆声音不存在')
 
     @classmethod
     async def _mix_story_audio(
@@ -814,7 +810,7 @@ class HuoshanVoiceService:
         async def _process_line(_line: HuoshanToyStoryScriptLine) -> None:
             toy = toy_map.get(_line.toy_id)
             if toy is None:
-                raise errors.GatewayError(msg=f'Toy info is missing for toy_id={_line.toy_id}')
+                raise errors.GatewayError(msg=f'缺少玩偶信息，toy_id={_line.toy_id}')
             request_id = await tts_cache.create_new_request()
             lines.append(_line.model_copy(update={'tts_token': request_id}, deep=True))
 
@@ -860,20 +856,20 @@ class HuoshanVoiceService:
                 name=f'huoshan-story-script-save-{task_id}',
             )
             log.info(
-                f'Huoshan toy story script generation completed: task_id={task_id}, toy_ids={result.toy_ids}, '
+                f'火山玩偶故事剧本生成完成：task_id={task_id}，toy_ids={result.toy_ids}，'
                 f'text={result.text!r}'
             )
             return result
         except asyncio.CancelledError:
-            log.warning(f'Huoshan toy story script generation cancelled: task_id={task_id}')
+            log.warning(f'火山玩偶故事剧本生成任务已取消：task_id={task_id}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
-                'error_message': 'cancelled',
+                'error_message': '任务已取消',
             }, deep=True)
             await self._save_toy_story_script_task_result(result)
             raise
         except Exception as exc:
-            log.error(f'Huoshan toy story script generation failed: task_id={task_id}, error={exc!r}')
+            log.error(f'火山玩偶故事剧本生成失败：task_id={task_id}，error={exc!r}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),
@@ -905,7 +901,7 @@ class HuoshanVoiceService:
 
         story_content = str((response.choices[0].message.content if response.choices else '') or '').strip()
         if not story_content:
-            raise errors.GatewayError(msg='Doubao story generation returned empty content')
+            raise errors.GatewayError(msg='豆包故事生成未返回内容')
         return story_content
 
     async def _process_story_generation(self, task_id: str) -> HuoshanStoryGenerateResult:
@@ -926,10 +922,10 @@ class HuoshanVoiceService:
                 'error_message': None,
             }, deep=True)
             await self._save_story_generate_task_result(result)
-            log.info(f'Huoshan story generation completed: task_id={task_id}, topic={result.topic!r}')
+            log.info(f'火山故事生成完成：task_id={task_id}，topic={result.topic!r}')
             return result
         except Exception as exc:
-            log.error(f'Huoshan story generation failed: task_id={task_id}, error={exc!r}')
+            log.error(f'火山故事生成失败：task_id={task_id}，error={exc!r}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': getattr(exc, 'msg', None) or str(exc),
@@ -952,7 +948,7 @@ class HuoshanVoiceService:
         )
         await self._save_story_generate_task_result(result)
         self._start_story_generation_processing(result.task_id)
-        log.info(f'Huoshan story generation submitted: task_id={result.task_id}, topic={result.topic!r}')
+        log.info(f'火山故事生成任务已提交：task_id={result.task_id}，topic={result.topic!r}')
         return result
 
     async def submit_toy_story_script(
@@ -975,7 +971,7 @@ class HuoshanVoiceService:
         for toy in toys:
             speaker = str(toy.voice_id or '').strip()
             if not speaker:
-                invalid_toys.append(f'{int(toy.id)}:{str(toy.name or "").strip() or "Unnamed"}')
+                invalid_toys.append(f'{int(toy.id)}:{str(toy.name or "").strip() or "未命名"}')
                 continue
             toy_infos.append(
                 HuoshanToyStoryToyInfo(
@@ -991,7 +987,7 @@ class HuoshanVoiceService:
             )
 
         if invalid_toys:
-            raise errors.RequestError(msg=f'Toy voice_id is required for story playback: {", ".join(invalid_toys)}')
+            raise errors.RequestError(msg=f'玩偶必须配置 voice_id 才能播放故事：{", ".join(invalid_toys)}')
 
         task_result = HuoshanToyStoryScriptResult(
             task_id=uuid.uuid4().hex,
@@ -1021,14 +1017,14 @@ class HuoshanVoiceService:
             request_id = str(line.tts_token or '').strip()
             if not request_id:
                 raise errors.GatewayError(
-                    msg=f'Toy story script line is missing tts_token, task_id={result.task_id}, toy_id={line.toy_id}'
+                    msg=f'玩偶故事剧本台词缺少 tts_token，task_id={result.task_id}，toy_id={line.toy_id}'
                 )
             if request_id != token:
                 continue
 
             toy = toy_map.get(line.toy_id)
             if toy is None:
-                raise errors.GatewayError(msg=f'Toy info is missing for toy_id={line.toy_id}')
+                raise errors.GatewayError(msg=f'缺少玩偶信息，toy_id={line.toy_id}')
 
             if line.tts_status:
                 return
@@ -1099,7 +1095,7 @@ class HuoshanVoiceService:
         source_audio_url = str(current_result.source_audio_url or '').strip()
         if not source_audio_url:
             raise errors.GatewayError(
-                msg='Huoshan story synthesis succeeded but no audio URL was returned',
+                msg='火山故事合成成功但未返回音频地址',
                 data={'task_id': task_id},
             )
 
@@ -1116,7 +1112,7 @@ class HuoshanVoiceService:
         download_url = await oss_client.upload_bytes(key=oss_key, data=output_audio)
         if not download_url:
             raise errors.GatewayError(
-                msg='Failed to upload story audio to OSS',
+                msg='故事音频上传 OSS 失败',
                 data={'task_id': task_id, 'oss_key': oss_key},
             )
 
@@ -1130,8 +1126,8 @@ class HuoshanVoiceService:
         }, deep=True)
 
         log.info(
-            f'Huoshan story synthesized successfully: task_id={task_id}, speaker={current_result.speaker}, '
-            f'bgm_song_id={current_result.bgm.song_id if current_result.bgm is not None else None}, oss_key={oss_key}'
+            f'火山故事合成成功：task_id={task_id}，speaker={current_result.speaker}，'
+            f'bgm_song_id={current_result.bgm.song_id if current_result.bgm is not None else None}，oss_key={oss_key}'
         )
         return result
 
@@ -1169,14 +1165,14 @@ class HuoshanVoiceService:
 
                 if provider_task_status == 3:
                     log.error(
-                        'Huoshan story synthesis provider returned failed status: '
-                        f'task_id={task_id}, submit_request_id={result.submit_request_id}, '
-                        f'speaker={result.speaker}, resource_id={result.resource_id}, '
-                        f'query_resource_id={client.query_resource_id}, query_response={query_response}'
+                        '火山故事合成服务返回失败状态：'
+                        f'task_id={task_id}，submit_request_id={result.submit_request_id}，'
+                        f'speaker={result.speaker}，resource_id={result.resource_id}，'
+                        f'query_resource_id={client.query_resource_id}，query_response={query_response}'
                     )
                     result = result.model_copy(update={
                         'task_status': STORY_TASK_STATUS_FAILED,
-                        'error_message': 'Huoshan story synthesis task failed',
+                        'error_message': '火山故事合成任务失败',
                     }, deep=True)
                     await self._save_story_synthesis_task_result(result)
                     return result
@@ -1184,7 +1180,7 @@ class HuoshanVoiceService:
                 if monotonic() >= deadline:
                     result = result.model_copy(update={
                         'task_status': STORY_TASK_STATUS_FAILED,
-                        'error_message': f'Huoshan story synthesis task timed out, task_id={task_id}',
+                        'error_message': f'火山故事合成任务超时，task_id={task_id}',
                     }, deep=True)
                     await self._save_story_synthesis_task_result(result)
                     return result
@@ -1192,11 +1188,11 @@ class HuoshanVoiceService:
                 await asyncio.sleep(settings.BYTES_TTS_LONG_QUERY_INTERVAL_SECONDS)
         except HuoshanTTSError as exc:
             log.error(
-                'Huoshan story synthesis query failed: '
-                f'task_id={task_id}, submit_request_id={result.submit_request_id}, '
-                f'speaker={result.speaker}, resource_id={result.resource_id}, '
-                f'query_resource_id={client.query_resource_id}, status_code={exc.status_code}, '
-                f'code={exc.code}, query_request_id={exc.request_id}, payload={exc.payload}, error={exc!r}'
+                '火山故事合成查询失败：'
+                f'task_id={task_id}，submit_request_id={result.submit_request_id}，'
+                f'speaker={result.speaker}，resource_id={result.resource_id}，'
+                f'query_resource_id={client.query_resource_id}，status_code={exc.status_code}，'
+                f'code={exc.code}，query_request_id={exc.request_id}，payload={exc.payload}，error={exc!r}'
             )
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
@@ -1205,7 +1201,7 @@ class HuoshanVoiceService:
             await self._save_story_synthesis_task_result(result)
             return result
         except Exception as exc:
-            log.error(f'Huoshan story synthesis processing failed: task_id={task_id}, error={exc!r}')
+            log.error(f'火山故事合成处理失败：task_id={task_id}，error={exc!r}')
             result = result.model_copy(update={
                 'task_status': STORY_TASK_STATUS_FAILED,
                 'error_message': str(exc),
@@ -1241,8 +1237,8 @@ class HuoshanVoiceService:
             submit_response = await client.submit(payload=self._build_story_payload(obj, uid=uuid.uuid4().hex))
         except HuoshanTTSError as exc:
             log.error(
-                'Huoshan story synthesis submit failed: '
-                f'speaker={obj.speaker}, submit_resource_id={resource_id}, error={exc}'
+                '火山故事合成提交失败：'
+                f'speaker={obj.speaker}，submit_resource_id={resource_id}，error={exc}'
             )
             self._raise_api_error(exc)
             raise
@@ -1252,12 +1248,12 @@ class HuoshanVoiceService:
         task_id = str((submit_response.get('data') or {}).get('task_id') or '').strip()
         submit_request_id = str(submit_response.get('_request_id') or '').strip() or None
         log.info(
-            'Huoshan story synthesis submit response: '
-            f'speaker={obj.speaker}, submit_resource_id={resource_id}, submit_request_id={submit_request_id}, '
+            '火山故事合成提交响应：'
+            f'speaker={obj.speaker}，submit_resource_id={resource_id}，submit_request_id={submit_request_id}，'
             f'response={submit_response}'
         )
         if not task_id:
-            raise errors.GatewayError(msg='Huoshan story synthesis did not return task_id', data=submit_response)
+            raise errors.GatewayError(msg='火山故事合成未返回 task_id', data=submit_response)
 
         result = HuoshanStorySynthesisResult(
             task_id=task_id,
@@ -1288,8 +1284,8 @@ class HuoshanVoiceService:
         self._start_story_synthesis_processing(task_id)
 
         log.info(
-            f'Huoshan story synthesis submitted: task_id={task_id}, submit_request_id={submit_request_id}, '
-            f'speaker={obj.speaker}, bgm_song_id={bgm_song.id if bgm_song is not None else None}, '
+            f'火山故事合成任务已提交：task_id={task_id}，submit_request_id={submit_request_id}，'
+            f'speaker={obj.speaker}，bgm_song_id={bgm_song.id if bgm_song is not None else None}，'
             f'resource_id={story_client_config.resource_id}'
         )
 
