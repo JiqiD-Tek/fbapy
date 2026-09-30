@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta
 from decimal import Decimal, ROUND_CEILING
+from hashlib import sha256
 from typing import TYPE_CHECKING, ClassVar, cast
 from uuid import uuid4
 
@@ -40,15 +41,23 @@ LEGACY_USAGE_TYPE = 'legacy'
 
 
 class CreditCalculator:
-    """集中定义计费单价，并将各类用量换算为整数积分。"""
+    """统一管理人民币、原始用量与积分之间的换算。"""
 
-    # 1 积分 = 0.0000001 元，10 元 = 1 亿积分。
+    # 1 积分 = 0.0000001 元，10 元 = 100,000,000 积分。
     CREDITS_PER_YUAN = 10_000_000
 
-    # 模型和语音服务单价。
-    LLM_INPUT_CREDITS_PER_1K_TOKENS = 3
-    LLM_OUTPUT_CREDITS_PER_1K_TOKENS = 30
-    TTS_CREDITS_PER_CHAR = 3
+    # 1 积分 = 0.0000001 元
+    # TTS: 0.0003 元/字符 = 3000 积分/字符
+    TTS_CREDITS_PER_CHAR = 3000
+
+    # 假设 1 千 tokens ≈ 1500 字符（保守取 1.5）
+    # lite 输入: 0.0006 元/千tokens ÷ 1500 × 1000 = 0.0004 元/千字符
+    LLM_INPUT_CREDITS_PER_CHAR = 4  # 4 积分/字符
+
+    # lite 输出: 0.0036 元/千tokens ÷ 1500 × 1000 = 0.0024 元/千字符
+    LLM_OUTPUT_CREDITS_PER_CHAR = 24  # 24 积分/字符
+
+    # ASR: 4.5 元/小时 = 45,000,000 积分/小时
     ASR_CREDITS_PER_HOUR = 45_000_000
 
     @classmethod
@@ -66,30 +75,27 @@ class CreditCalculator:
             raise ValueError('积分不能为负数')
         return (Decimal(credits) / cls.CREDITS_PER_YUAN).quantize(Decimal('0.0000001'))
 
-    @staticmethod
-    def _per_thousand(units: int, credits_per_1k: int) -> int:
-        if units < 0:
-            raise ValueError('用量不能为负数')
-        if credits_per_1k < 0:
-            raise ValueError('单价不能为负数')
-        return (units * credits_per_1k + 999) // 1000
+    @classmethod
+    def llm_input(cls, characters: Decimal | int | float | str) -> int:
+        """按 llm 输入 字符 换算积分。"""
+        return cls._per_thousand(
+            cls._require_non_negative_integer(characters, '输入 字符 数'),
+            cls.LLM_INPUT_CREDITS_PER_CHAR,
+        )
 
     @classmethod
-    def llm_input(cls, tokens: int) -> int:
-        """按 llm 输入 tokens 换算积分。"""
-        return cls._per_thousand(tokens, cls.LLM_INPUT_CREDITS_PER_1K_TOKENS)
+    def llm_output(cls, characters: Decimal | int | float | str) -> int:
+        """按 llm 输出 字符 换算积分。"""
+        return cls._per_thousand(
+            cls._require_non_negative_integer(characters, '输出 字符 数'),
+            cls.LLM_OUTPUT_CREDITS_PER_CHAR,
+        )
 
     @classmethod
-    def llm_output(cls, tokens: int) -> int:
-        """按 llm 输出 tokens 换算积分。"""
-        return cls._per_thousand(tokens, cls.LLM_OUTPUT_CREDITS_PER_1K_TOKENS)
-
-    @classmethod
-    def tts(cls, characters: int) -> int:
+    def tts(cls, characters: Decimal | int | float | str) -> int:
         """按语音合成字符数换算积分。"""
-        if characters < 0:
-            raise ValueError('字符数不能为负数')
-        return characters * cls.TTS_CREDITS_PER_CHAR
+        count = cls._require_non_negative_integer(characters, 'TTS 字符数')
+        return count * cls.TTS_CREDITS_PER_CHAR
 
     @classmethod
     def asr(cls, seconds: Decimal | int | float | str) -> int:
@@ -103,20 +109,28 @@ class CreditCalculator:
     @classmethod
     def calculate(cls, *, usage_type: CreditUsageType, quantity: Decimal | int | float | str) -> int:
         """按原始用量类型统一换算积分。"""
+        if usage_type == CreditUsageType.LLM_INPUT_CHARACTERS:
+            return cls.llm_input(quantity)
+        if usage_type == CreditUsageType.LLM_OUTPUT_CHARACTERS:
+            return cls.llm_output(quantity)
+        if usage_type == CreditUsageType.TTS_CHARACTERS:
+            return cls.tts(quantity)
         if usage_type == CreditUsageType.ASR_SECONDS:
             return cls.asr(quantity)
-
-        value = Decimal(str(quantity))
-        if value < 0 or value != value.to_integral_value():
-            raise ValueError('当前用量类型必须使用非负整数')
-        count = int(value)
-        if usage_type == CreditUsageType.LLM_INPUT_TOKENS:
-            return cls.llm_input(count)
-        if usage_type == CreditUsageType.LLM_OUTPUT_TOKENS:
-            return cls.llm_output(count)
-        if usage_type == CreditUsageType.TTS_CHARACTERS:
-            return cls.tts(count)
         raise ValueError(f'不支持的计费用量类型：{usage_type}')
+
+    @staticmethod
+    def _require_non_negative_integer(value: Decimal | int | float | str, name: str) -> int:
+        """校验必须按整数计量的用量。"""
+        number = Decimal(str(value))
+        if number < 0 or number != number.to_integral_value():
+            raise ValueError(f'{name}必须为非负整数')
+        return int(number)
+
+    @staticmethod
+    def _per_thousand(units: int, credits_per_1k: int) -> int:
+        """按千单位计价，并向上取整到 1 积分。"""
+        return (units * credits_per_1k + 999) // 1000
 
 
 class BillingService:
@@ -194,7 +208,7 @@ class BillingService:
         if amount_credits <= 0:
             raise errors.RequestError(msg='计费积分必须大于 0')
 
-        session_id = session_id or f'{biz_type.lower()}:{biz_id}'
+        session_id = session_id or cls._build_session_id(biz_type=biz_type, biz_id=biz_id)
         sentence_id = sentence_id or 'submit'
         account = await cls.get_or_create_device_account(db=db, did=auth_did)
         now = timezone.now()
@@ -287,6 +301,13 @@ class BillingService:
         return account
 
     # 账户流水与幂等查询。
+
+    @staticmethod
+    def _build_session_id(*, biz_type: str, biz_id: str) -> str:
+        """生成长度稳定的来源会话标识，避免复用完整业务幂等标识导致超长。"""
+        prefix = biz_type.strip().lower() or 'billing'
+        digest = sha256(biz_id.encode('utf-8')).hexdigest()[:32]
+        return f'{prefix}:{digest}'[:64]
 
     @classmethod
     async def _load_debit_result(

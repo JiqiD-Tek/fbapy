@@ -21,8 +21,8 @@ BillAccountStatus = Literal['ACTIVE', 'BLOCKED']
 class CreditUsageType(str, Enum):
     """计费原始用量类型。"""
 
-    LLM_INPUT_TOKENS = 'llm_input_tokens'
-    LLM_OUTPUT_TOKENS = 'llm_output_tokens'
+    LLM_INPUT_CHARACTERS = 'llm_input_characters'
+    LLM_OUTPUT_CHARACTERS = 'llm_output_characters'
     TTS_CHARACTERS = 'tts_characters'
     ASR_SECONDS = 'asr_seconds'
 

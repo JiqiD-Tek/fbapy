@@ -758,6 +758,7 @@ class HuoshanVoiceService:
             quantity: int,
             usage_type: CreditUsageType,
     ) -> None:
+        log.info(f"charge_story [billing_did: {billing_did}, usage_type: {usage_type}, quantity={quantity}]")
         if not billing_did or quantity <= 0:
             return
         async with async_db_session.begin() as db:
@@ -832,7 +833,7 @@ class HuoshanVoiceService:
                 biz_suffix='text',
                 # 当前流式接口不返回 token 用量，中文故事暂按字符数估算输出 token。
                 quantity=len(generated_text),
-                usage_type=CreditUsageType.LLM_OUTPUT_TOKENS,
+                usage_type=CreditUsageType.LLM_OUTPUT_CHARACTERS,
             )
             await self._save_toy_story_script_task_result(result)
             asyncio.create_task(

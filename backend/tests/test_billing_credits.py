@@ -3,7 +3,23 @@ from decimal import Decimal
 import pytest
 
 from backend.app.cloud.schema.billing import CreditUsageType
-from backend.app.cloud.service.billing_service import CreditCalculator
+from backend.app.cloud.service.billing_service import BillingService, CreditCalculator
+
+
+def test_build_session_id_is_stable_and_fits_column() -> None:
+    biz_id = '2a367799a1ec42e08d8dfbe21569fe90:tts:tts_709972eb4a9f4876a201d4e0763b7aaa'
+
+    session_id = BillingService._build_session_id(
+        biz_type='STORY',
+        biz_id=biz_id,
+    )
+
+    assert session_id == BillingService._build_session_id(
+        biz_type='STORY',
+        biz_id=biz_id,
+    )
+    assert session_id.startswith('story:')
+    assert len(session_id) <= 64
 
 
 def test_yuan_and_credits_conversion() -> None:
@@ -30,11 +46,11 @@ def test_tts_and_asr_credits_conversion() -> None:
 
 def test_calculate_credits_from_raw_usage() -> None:
     assert CreditCalculator.calculate(
-        usage_type=CreditUsageType.LLM_INPUT_TOKENS,
+        usage_type=CreditUsageType.LLM_INPUT_CHARACTERS,
         quantity=1000,
     ) == 3
     assert CreditCalculator.calculate(
-        usage_type=CreditUsageType.LLM_OUTPUT_TOKENS,
+        usage_type=CreditUsageType.LLM_OUTPUT_CHARACTERS,
         quantity=1000,
     ) == 30
     assert CreditCalculator.calculate(
