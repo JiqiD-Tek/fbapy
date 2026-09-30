@@ -38,18 +38,18 @@ class CRUDBillAccount(CRUDPlus[BillAccount]):
         *,
         subject_type: str,
         subject_key: str,
-        balance_token: int = 0,
-        weekly_token_quota: int | None = 0,
-        weekly_token_usage: int = 0,
+        balance_credits: int,
+        weekly_credits_quota: int | None,
+        status: str,
+        weekly_credits_usage: int = 0,
         weekly_reset_at: datetime | None = None,
-        status: str = 'ACTIVE',
     ) -> BillAccount:
         account = self.model(
             subject_type=subject_type,
             subject_key=subject_key,
-            balance_token=balance_token,
-            weekly_token_quota=weekly_token_quota,
-            weekly_token_usage=weekly_token_usage,
+            balance_credits=balance_credits,
+            weekly_credits_quota=weekly_credits_quota,
+            weekly_credits_usage=weekly_credits_usage,
             weekly_reset_at=weekly_reset_at,
             status=status,
         )
@@ -65,10 +65,15 @@ class CRUDBillTxn(CRUDPlus[BillTxn]):
         *,
         biz_type: str,
         biz_id: str,
+        usage_type: str,
     ) -> BillTxn | None:
         stmt = (
             select(BillTxn)
-            .where(BillTxn.biz_type == biz_type, BillTxn.biz_id == biz_id)
+            .where(
+                BillTxn.biz_type == biz_type,
+                BillTxn.biz_id == biz_id,
+                BillTxn.usage_type == usage_type,
+            )
             .limit(1)
         )
         result = await db.execute(stmt)

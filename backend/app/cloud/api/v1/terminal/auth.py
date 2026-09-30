@@ -291,14 +291,12 @@ async def fba_token(
     ttl = 600
 
     baby = await baby_service.get_by_device_did(db=db, did=auth_ctx.did)
-    account = await billing_service.get_or_create_device_account(db=db, did=auth_ctx.did)
 
     now = timezone.now()
     expire_time = now + datetime.timedelta(seconds=ttl)
     payload = {
         'mac': auth_ctx.mac, 'did': auth_ctx.did, 'sn': auth_ctx.sn, 'model': auth_ctx.model,
         'baby_id': baby.id if baby is not None else 0,
-        'balance_token': account.balance_token,
         'iat': int(timezone.to_utc(now).timestamp()),
         'exp': int(timezone.to_utc(expire_time).timestamp()),
     }

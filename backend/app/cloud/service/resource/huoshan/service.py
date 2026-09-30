@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
+from backend.app.cloud.schema.billing import CreditUsageType
 from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStoryBgmInfo,
     HuoshanStorySynthesisParam,
@@ -32,7 +33,10 @@ from backend.app.cloud.schema.resource.huoshan import (
 )
 from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.billing_service import BILL_BIZ_STORY, billing_service
+from backend.app.cloud.service.billing_service import (
+    BILL_BIZ_STORY,
+    billing_service,
+)
 from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import song_service
 from backend.app.cloud.service.resource.script_service import script_service
@@ -190,10 +194,6 @@ script_audio_builder = ScriptAudioBuilder()
 
 class HuoshanVoiceService:
     """火山声音、玩偶剧本和故事合成服务。"""
-
-    # 大模型生成文本和 TTS 文本分别按字符计费。
-    TEXT_TOKEN_PRICE_PER_CHAR = 1
-    TTS_TOKEN_PRICE_PER_CHAR = 1
 
     # Redis 任务缓存前缀。
     STORY_SYNTHESIS_TASK_CACHE_PREFIX = 'fba:huoshan:story:synthesis'
@@ -749,16 +749,16 @@ class HuoshanVoiceService:
 
     # 故事文本计费
 
-    async def _charge_story_text(
+    async def _charge_story(
             self,
             *,
             task_id: str,
             billing_did: str | None,
-            text: str,
             biz_suffix: str,
-            price_per_char: int,
+            quantity: int,
+            usage_type: CreditUsageType,
     ) -> None:
-        if not billing_did or not text:
+        if not billing_did or quantity <= 0:
             return
         async with async_db_session.begin() as db:
             await billing_service.debit(
@@ -766,7 +766,8 @@ class HuoshanVoiceService:
                 auth_did=billing_did,
                 biz_type=BILL_BIZ_STORY,
                 biz_id=f'{task_id}:{biz_suffix}',
-                amount_token=len(text) * price_per_char,
+                quantity=quantity,
+                usage_type=usage_type,
             )
 
     # 玩偶故事剧本生成
@@ -824,12 +825,14 @@ class HuoshanVoiceService:
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
             }, deep=True)
-            await self._charge_story_text(
+            generated_text = ''.join(line.text for line in result.lines)
+            await self._charge_story(
                 task_id=result.task_id,
                 billing_did=result.billing_did,
-                text=''.join(line.text for line in result.lines),
                 biz_suffix='text',
-                price_per_char=self.TEXT_TOKEN_PRICE_PER_CHAR,
+                # 当前流式接口不返回 token 用量，中文故事暂按字符数估算输出 token。
+                quantity=len(generated_text),
+                usage_type=CreditUsageType.MINI_OUTPUT_TOKENS,
             )
             await self._save_toy_story_script_task_result(result)
             asyncio.create_task(
@@ -937,12 +940,12 @@ class HuoshanVoiceService:
             if line.tts_status:
                 return
 
-            await self._charge_story_text(
+            await self._charge_story(
                 task_id=result.task_id,
                 billing_did=result.billing_did,
-                text=line.text,
                 biz_suffix=f'tts:{request_id}',
-                price_per_char=self.TTS_TOKEN_PRICE_PER_CHAR,
+                quantity=len(line.text),
+                usage_type=CreditUsageType.TTS_CHARACTERS,
             )
             updated_lines = list(result.lines)
             updated_lines[index] = line.model_copy(update={'tts_status': True}, deep=True)

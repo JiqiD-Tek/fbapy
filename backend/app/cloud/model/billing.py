@@ -29,12 +29,12 @@ class BillAccount(Base):
     id: Mapped[id_key] = mapped_column(init=False)
     subject_type: Mapped[str] = mapped_column(sa.String(16), comment='主体类型，当前固定 DEVICE')
     subject_key: Mapped[str] = mapped_column(sa.String(64), comment='主体标识，当前为 device DID')
-    balance_token: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='当前余额快照，单位 token')
-    weekly_token_quota: Mapped[int | None] = mapped_column(
-        sa.BigInteger, default=0, comment='周赠送 token 额度，NULL 表示不限制',
+    balance_credits: Mapped[int] = mapped_column(sa.BigInteger, comment='当前充值积分余额')
+    weekly_credits_quota: Mapped[int | None] = mapped_column(
+        sa.BigInteger, comment='周赠送积分额度，NULL 表示不限制',
     )
-    weekly_token_usage: Mapped[int] = mapped_column(
-        sa.BigInteger, default=0, comment='当前周已使用的赠送 token 数量',
+    weekly_credits_usage: Mapped[int] = mapped_column(
+        sa.BigInteger, default=0, comment='当前周已使用的赠送积分数量',
     )
     weekly_reset_at: Mapped[datetime | None] = mapped_column(
         TimeZone, default=None, comment='当前周额度周期的下一次重置时间',
@@ -49,8 +49,7 @@ class BillTxn(DataClassBase):
 
     __tablename__ = 'u_bill_txn'
     __table_args__ = (
-        sa.UniqueConstraint('session_id', 'sentence_id', name='uk_txn_sentence'),
-        sa.UniqueConstraint('biz_type', 'biz_id', name='uk_txn_biz'),
+        sa.UniqueConstraint('biz_type', 'biz_id', 'usage_type', name='uk_txn_biz_usage'),
         sa.Index('idx_account_created_time', 'account_id', 'created_time'),
         sa.Index('idx_session_created_time', 'session_id', 'created_time'),
         {'comment': '账务流水'},
@@ -59,11 +58,12 @@ class BillTxn(DataClassBase):
     id: Mapped[id_key] = mapped_column(init=False)
     biz_type: Mapped[str] = mapped_column(sa.String(16), comment='业务类型：CHAT、STORY')
     biz_id: Mapped[str] = mapped_column(sa.String(256), comment='业务幂等标识')
+    usage_type: Mapped[str] = mapped_column(sa.String(32), comment='原始用量类型')
     account_id: Mapped[int] = mapped_column(sa.BigInteger, comment='所属计费账户 ID')
     session_id: Mapped[str] = mapped_column(sa.String(64), comment='来源连接级 session_id')
     sentence_id: Mapped[str] = mapped_column(sa.String(64), comment='来源轮次级 sentence_id')
-    amount_token: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动金额，统一为正数')
-    balance_token: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动后的余额快照')
+    amount_credits: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动积分，统一为正数')
+    balance_credits: Mapped[int] = mapped_column(sa.BigInteger, comment='本次变动后的充值积分余额快照')
     change_type: Mapped[str] = mapped_column(
         sa.String(16), default='DEBIT', server_default='DEBIT', comment='变动类型，当前主路径固定为 DEBIT',
     )

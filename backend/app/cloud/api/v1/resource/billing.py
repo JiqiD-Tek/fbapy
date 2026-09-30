@@ -53,7 +53,8 @@ async def debit_billing(
         auth_did=auth_ctx.did,
         biz_type=BILL_BIZ_CHAT,
         biz_id=f'{obj.session_id}:{obj.sentence_id}',
-        amount_token=obj.amount_token,
+        quantity=obj.quantity,
+        usage_type=obj.usage_type,
         session_id=obj.session_id,
         sentence_id=obj.sentence_id,
     )
