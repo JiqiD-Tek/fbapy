@@ -832,7 +832,7 @@ class HuoshanVoiceService:
                 biz_suffix='text',
                 # 当前流式接口不返回 token 用量，中文故事暂按字符数估算输出 token。
                 quantity=len(generated_text),
-                usage_type=CreditUsageType.MINI_OUTPUT_TOKENS,
+                usage_type=CreditUsageType.LLM_OUTPUT_TOKENS,
             )
             await self._save_toy_story_script_task_result(result)
             asyncio.create_task(

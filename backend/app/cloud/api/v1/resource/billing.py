@@ -33,8 +33,8 @@ async def get_billing_account(
     return response_base.success(data=data)
 
 
-@router.post('/session', summary='创建计费会话并获取额度')
-async def open_billing_session(
+@router.post('/open_session', summary='创建计费会话并获取额度')
+async def open_session(
         db: CurrentSessionTransaction,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[BillingSessionResult]:
