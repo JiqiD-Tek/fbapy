@@ -21,7 +21,7 @@ from backend.app.cloud.schema.device.device import (
     UpdateDeviceParam, UpdateFirmwareParam,
 )
 from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
-from backend.app.cloud.schema.device.device_chat import GetDeviceChatDetail
+from backend.app.cloud.schema.device.device_chat import CreateDeviceChatParam, GetDeviceChatDetail
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
@@ -52,6 +52,16 @@ async def request_device(
         timeout=obj.timeout,
     )
     return response_base.success(data=data)
+
+
+@router.post('/turn/chat', summary='保存设备聊天记录')
+async def create_device_turn_chat(
+        db: CurrentSessionTransaction,
+        obj: CreateDeviceChatParam,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseModel:
+    await device_service.create_chat(db=db, did=auth_ctx.did, obj=obj)
+    return response_base.success()
 
 
 @router.get('/bind/state', summary='设备绑定关系', dependencies=[DependsDeviceAuth])

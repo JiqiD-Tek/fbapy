@@ -6,12 +6,24 @@ from typing import Any
 
 import pytest
 
+from fastapi import FastAPI
 from pydantic import ValidationError
 from sqlalchemy import JSON
 
+from backend.app.cloud.api.router import v1
 from backend.app.cloud.model import DeviceChat
 from backend.app.cloud.schema.device.device_chat import CreateDeviceChatParam
 from backend.app.cloud.service.device_service import device_service
+
+
+def test_device_chat_upload_route_is_under_terminal_device() -> None:
+    app = FastAPI()
+    app.include_router(v1)
+    paths = app.openapi()['paths']
+
+    assert '/api/v1/terminal/device/turn/chat' in paths
+    assert 'post' in paths['/api/v1/terminal/device/turn/chat']
+    assert '/api/v1/resource/xiaozhi/turn/chat' not in paths
 
 
 def _build_chat_payload() -> dict:
