@@ -136,10 +136,10 @@ class ReportService:
 
     # 缓存与时间窗口
     @classmethod
-    def _resolve_report_window(cls) -> tuple[datetime, datetime]:
+    def _resolve_report_window(cls, days=REPORT_DAYS) -> tuple[datetime, datetime]:
         today = timezone.now().date()
         end_time = datetime.combine(today, time.min, tzinfo=timezone.tz_info)
-        start_date = today - timedelta(days=cls.REPORT_DAYS)
+        start_date = today - timedelta(days=days)
         start_time = datetime.combine(start_date, time.min, tzinfo=timezone.tz_info)
         return start_time, end_time
 
@@ -201,28 +201,16 @@ class ReportService:
     def _build_report_feedback() -> ReportFeedback:
         return ReportFeedback(
             overview=ReportFeedbackSection(
-                notes=[
-                    '这一阶段的使用记录还比较有限，孩子在整体成长表现上的变化还需要放在更连续的陪伴中慢慢观察。',
-                ],
-                advice=[
-                    '先保持稳定、放松的陪伴节奏，在聊天、共读和游戏中多关注孩子愿意回应的内容。',
-                ],
+                notes=['这一阶段的使用记录还比较有限，孩子在整体成长表现上的变化还需要放在更连续的陪伴中慢慢观察。', ],
+                advice=['先保持稳定、放松的陪伴节奏，在聊天、共读和游戏中多关注孩子愿意回应的内容。', ],
             ),
             interaction=ReportFeedbackSection(
-                notes=[
-                    '从目前有限的互动记录来看，孩子在表达、回应和持续参与上的表现，还需要更多日常互动来继续观察。',
-                ],
-                advice=[
-                    '多采用开放式提问和轮流回应的方式，鼓励孩子多说一点、多回应一点。',
-                ],
+                notes=['从目前有限的互动记录来看，孩子在表达、回应和持续参与上的表现，还需要更多日常互动来继续观察。', ],
+                advice=['多采用开放式提问和轮流回应的方式，鼓励孩子多说一点、多回应一点。', ],
             ),
             playback=ReportFeedbackSection(
-                notes=[
-                    '现阶段可参考的收听记录还不多，孩子对内容类型和收听方式的偏好仍可以在后续陪伴中慢慢看见。',
-                ],
-                advice=[
-                    '提供不同主题和节奏的内容，顺着孩子愿意重复收听的内容继续延展。',
-                ],
+                notes=['现阶段可参考的收听记录还不多，孩子对内容类型和收听方式的偏好仍可以在后续陪伴中慢慢看见。', ],
+                advice=['提供不同主题和节奏的内容，顺着孩子愿意重复收听的内容继续延展。', ],
             ),
         )
 
@@ -308,8 +296,8 @@ class ReportService:
 
 【数据来源与事实边界】
 - 使用统计来自时序数据库。
-- 用户聊天内容来自 device_chat.content.user_message，每条包含 time 和 content。
-- 故事创作主题来自 script.remark，每条包含 time 和 topic。
+- 用户聊天内容每条包含 time 和 content。
+- 故事创作主题每条包含 time 和 topic。
 - 故事创作主题只表示用户发起过创作请求，不表示故事已经播放或听完。
 - 只能使用输入中的事实，不要根据玩偶 ID、主题或单条消息臆测用户的年龄、性格、家庭情况或发展结论。
 - 数据为空、样本较少或前后差异不足时，使用保守表述和保守评分。
@@ -348,25 +336,18 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
         start_time, end_time = self._resolve_report_window()
         current_week_start = start_time + timedelta(days=self.REPORT_COMPARE_DAYS)
         previous_data, current_data = await asyncio.gather(
-            self._query_window_data(
-                db=db,
-                baby_id=baby.id,
-                start_time=start_time,
-                end_time=current_week_start,
-            ),
-            self._query_window_data(
-                db=db,
-                baby_id=baby.id,
-                start_time=current_week_start,
-                end_time=end_time,
-            ),
+            self._query_window_data(db=db, baby_id=baby.id, start_time=start_time, end_time=current_week_start),
+            self._query_window_data(db=db, baby_id=baby.id, start_time=current_week_start, end_time=end_time),
         )
         previous_week_user_messages = previous_data['user_messages']
         current_week_user_messages = current_data['user_messages']
+
         previous_week_story_topics = previous_data['story_topics']
         current_week_story_topics = current_data['story_topics']
+
         current_week_usage = self._build_llm_usage(current_data['daily_stats'], current_data['toy_counts'])
         previous_week_usage = self._build_llm_usage(previous_data['daily_stats'], previous_data['toy_counts'])
+
         has_source_records = any((
             current_week_user_messages,
             previous_week_user_messages,
@@ -480,15 +461,9 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             end_time: datetime,
     ) -> ReportWindowData:
         rows, chat_records, generated_scripts = await asyncio.gather(
-            cls._query_usage_rows(
-                baby_id=baby_id, start_time=start_time, end_time=end_time,
-            ),
-            cls._query_chat_records(
-                db=db, baby_id=baby_id, start_time=start_time, end_time=end_time,
-            ),
-            cls._query_generated_scripts(
-                db=db, baby_id=baby_id, start_time=start_time, end_time=end_time,
-            ),
+            cls._query_usage_rows(baby_id=baby_id, start_time=start_time, end_time=end_time),
+            cls._query_chat_records(db=db, baby_id=baby_id, start_time=start_time, end_time=end_time),
+            cls._query_generated_scripts(db=db, baby_id=baby_id, start_time=start_time, end_time=end_time),
         )
         daily_stats = cls._aggregate_daily_usage(rows, start_time.date(), end_time.date())
         for created_time, _, toy_ids in chat_records:
@@ -521,11 +496,7 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
     ) -> list[tuple[datetime, str | None, list[int]]]:
         try:
             records = await device_chat_dao.get_contents_by_time_range(
-                db,
-                baby_id=baby_id,
-                start_time=start_time,
-                end_time=end_time,
-                limit=None,
+                db, baby_id=baby_id, start_time=start_time, end_time=end_time, limit=None,
             )
             chat_records: list[tuple[datetime, str | None, list[int]]] = []
             for created_time, raw_content in records:
@@ -587,11 +558,7 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
     ) -> list[tuple[datetime, str | None]]:
         try:
             records = await script_dao.get_generated_topics_by_time_range(
-                db,
-                baby_id=baby_id,
-                start_time=start_time,
-                end_time=end_time,
-                limit=None,
+                db, baby_id=baby_id, start_time=start_time, end_time=end_time, limit=None,
             )
             return list(records)
         except Exception as exc:
