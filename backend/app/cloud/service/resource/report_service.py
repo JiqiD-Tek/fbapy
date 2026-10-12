@@ -32,6 +32,7 @@ from backend.app.cloud.telemetry.event_store import EventStore
 from backend.common.exception import errors
 from backend.common.log import log
 from backend.common.providers.doubao import DEFAULT_DOUBAO_MINI_MODEL, doubao_provider
+from backend.common.providers.viking_memory import viking_memory_client
 from backend.common.schema import SchemaBase
 from backend.database.redis import redis_client
 from backend.utils.timezone import timezone
@@ -47,6 +48,7 @@ class ReportService:
     REPORT_DAYS: ClassVar[int] = 14
     REPORT_COMPARE_DAYS: ClassVar[int] = 7
     REPORT_QUERY_LIMIT: ClassVar[int] = 20000
+    REPORT_PROFILE_LIMIT: ClassVar[int] = 20
     # 以下限制仅控制大模型输入，不影响业务统计。
     REPORT_INPUT_LIMIT: ClassVar[int] = 100
     REPORT_TEXT_LIMIT: ClassVar[int] = 500
@@ -280,6 +282,8 @@ class ReportService:
             previous_week_user_messages: list[dict[str, str]],
             current_week_story_topics: list[dict[str, str]],
             previous_week_story_topics: list[dict[str, str]],
+            current_week_profile_memories: str = '',
+            previous_week_profile_memories: str = '',
     ) -> str:
         def encode(value: Any) -> str:
             return json.dumps(value, ensure_ascii=False, separators=(',', ':'))
@@ -293,11 +297,13 @@ class ReportService:
 1. 对比本周与上周的变化，判断趋势时优先依据使用统计数据。
 2. feedback.overview 分析整体成长表现，feedback.interaction 分析用户与 AI 的互动表现，feedback.playback 分析内容播放偏好。
 3. 用户聊天内容用于了解用户主动表达和兴趣；AI 故事创作主题用于了解用户提出过的创作方向。
+4. 宝宝画像记忆用于补充了解兴趣、偏好和成长表现，但不能替代对应时间段内的实际使用统计。
 
 【数据来源与事实边界】
 - 使用统计来自时序数据库。
 - 用户聊天内容每条包含 time 和 content。
 - 故事创作主题每条包含 time 和 topic。
+- 宝宝画像记忆已按照本周和上周的时间范围分别查询。
 - 故事创作主题只表示用户发起过创作请求，不表示故事已经播放或听完。
 - 只能使用输入中的事实，不要根据玩偶 ID、主题或单条消息臆测用户的年龄、性格、家庭情况或发展结论。
 - 数据为空、样本较少或前后差异不足时，使用保守表述和保守评分。
@@ -319,11 +325,13 @@ class ReportService:
 使用统计：{encode(current_week_usage)}
 用户聊天内容：{encode(current_week_user_messages)}
 AI 故事创作主题：{encode(current_week_story_topics)}
+宝宝画像记忆：{current_week_profile_memories or '暂无相关记录'}
 
 【上周数据】
 使用统计：{encode(previous_week_usage)}
 用户聊天内容：{encode(previous_week_user_messages)}
 AI 故事创作主题：{encode(previous_week_story_topics)}
+宝宝画像记忆：{previous_week_profile_memories or '暂无相关记录'}
 '''
 
     # 报告构建主流程
@@ -345,6 +353,9 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
         previous_week_story_topics = previous_data['story_topics']
         current_week_story_topics = current_data['story_topics']
 
+        previous_week_profile_memories = previous_data['profile_memories']
+        current_week_profile_memories = current_data['profile_memories']
+
         current_week_usage = self._build_llm_usage(current_data['daily_stats'], current_data['toy_counts'])
         previous_week_usage = self._build_llm_usage(previous_data['daily_stats'], previous_data['toy_counts'])
 
@@ -353,6 +364,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             previous_week_user_messages,
             current_week_story_topics,
             previous_week_story_topics,
+            current_week_profile_memories,
+            previous_week_profile_memories,
         ))
         current_week_radar, previous_week_radar, feedback = await self._build_by_llm(
             baby_id=baby.id,
@@ -363,6 +376,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             previous_week_user_messages=previous_week_user_messages,
             current_week_story_topics=current_week_story_topics,
             previous_week_story_topics=previous_week_story_topics,
+            current_week_profile_memories=current_week_profile_memories,
+            previous_week_profile_memories=previous_week_profile_memories,
             has_activity=self._has_activity(current_data['daily_stats']) or self._has_activity(
                 previous_data['daily_stats'],
             ) or has_source_records,
@@ -460,10 +475,14 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             start_time: datetime,
             end_time: datetime,
     ) -> ReportWindowData:
-        rows, chat_records, generated_scripts = await asyncio.gather(
+        rows, chat_records, generated_scripts, profile_memories = await asyncio.gather(
             cls._query_usage_rows(baby_id=baby_id, start_time=start_time, end_time=end_time),
             cls._query_chat_records(db=db, baby_id=baby_id, start_time=start_time, end_time=end_time),
             cls._query_generated_scripts(db=db, baby_id=baby_id, start_time=start_time, end_time=end_time),
+            cls._query_profile_memories(
+                baby_id=baby_id, query=None, limit=cls.REPORT_PROFILE_LIMIT,
+                assistant_id=None, start_time=start_time, end_time=end_time,
+            ),
         )
         daily_stats = cls._aggregate_daily_usage(rows, start_time.date(), end_time.date())
         for created_time, _, toy_ids in chat_records:
@@ -483,7 +502,33 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             'user_messages': cls._format_user_messages(chat_records),
             'toy_counts': cls._count_toys(chat_records),
             'story_topics': cls._format_story_topics(generated_scripts),
+            'profile_memories': profile_memories,
         }
+
+    @classmethod
+    async def _query_profile_memories(
+            cls,
+            *,
+            baby_id: int,
+            query: str | None,
+            limit: int,
+            assistant_id: str | None,
+            start_time: datetime,
+            end_time: datetime,
+    ) -> str:
+        try:
+            raw = await viking_memory_client.query_profile_memories(
+                user_id=str(baby_id),
+                query=query,
+                limit=limit,
+                assistant_id=assistant_id,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            return cls._limit_text(viking_memory_client.format_profile_memories(raw))
+        except Exception as exc:
+            log.warning('查询宝宝画像记忆失败，宝宝 ID={}，错误={}', baby_id, exc)
+            return ''
 
     @classmethod
     async def _query_chat_records(
@@ -594,6 +639,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             current_week_story_topics: list[dict[str, str]],
             previous_week_story_topics: list[dict[str, str]],
             has_activity: bool,
+            current_week_profile_memories: str = '',
+            previous_week_profile_memories: str = '',
     ) -> tuple[list[ReportRadarDimension], list[ReportRadarDimension], ReportFeedback]:
         if not has_activity:
             return cls._build_default_report_sections()
@@ -607,6 +654,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
                 previous_week_user_messages=previous_week_user_messages,
                 current_week_story_topics=current_week_story_topics,
                 previous_week_story_topics=previous_week_story_topics,
+                current_week_profile_memories=current_week_profile_memories,
+                previous_week_profile_memories=previous_week_profile_memories,
             )
             return cls._parse_llm_response(llm_content)
         except Exception as exc:
@@ -624,6 +673,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             previous_week_user_messages: list[dict[str, str]],
             current_week_story_topics: list[dict[str, str]],
             previous_week_story_topics: list[dict[str, str]],
+            current_week_profile_memories: str = '',
+            previous_week_profile_memories: str = '',
     ) -> str:
         prompt = cls._build_report_prompt(
             baby_name=baby_name,
@@ -633,6 +684,8 @@ AI 故事创作主题：{encode(previous_week_story_topics)}
             previous_week_user_messages=previous_week_user_messages,
             current_week_story_topics=current_week_story_topics,
             previous_week_story_topics=previous_week_story_topics,
+            current_week_profile_memories=current_week_profile_memories,
+            previous_week_profile_memories=previous_week_profile_memories,
         )
         return await doubao_provider.chat(
             [
