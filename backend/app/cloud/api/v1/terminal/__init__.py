@@ -16,7 +16,6 @@ from backend.app.cloud.api.v1.terminal.toy import router as toy_router
 from backend.app.cloud.api.v1.terminal.product import router as product_router
 from backend.app.cloud.api.v1.terminal.feedback import router as feedback_router
 from backend.app.cloud.api.v1.terminal.firmware import router as firmware_router
-from backend.app.cloud.api.v1.terminal.led import router as led_router
 from backend.app.cloud.api.v1.terminal.user import router as user_router
 from backend.app.cloud.api.v1.terminal.home import router as home_router
 
@@ -30,6 +29,5 @@ router.include_router(device_router, prefix='/device', tags=['设备管理'])
 router.include_router(toy_router, prefix='/toys', tags=['玩偶'])
 router.include_router(product_router, prefix='/products', tags=['商品'])
 router.include_router(firmware_router, prefix='/firmware', tags=['固件管理'])
-router.include_router(led_router, prefix='/led', tags=['灯效'])
 router.include_router(user_router, prefix='/user', tags=['用户管理'])
 router.include_router(home_router, prefix='/home', tags=['首页'])
