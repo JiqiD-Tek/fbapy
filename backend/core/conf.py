@@ -23,12 +23,12 @@ class Settings(BaseSettings):
 
     @classmethod
     def settings_customise_sources(
-            cls,
-            settings_cls: type[BaseSettings],
-            init_settings: PydanticBaseSettingsSource,
-            env_settings: PydanticBaseSettingsSource,
-            dotenv_settings: PydanticBaseSettingsSource,
-            file_secret_settings: PydanticBaseSettingsSource,
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         """自定义配置源优先级"""
         return env_settings, dotenv_settings, PluginSettingsSource(settings_cls)
@@ -189,10 +189,7 @@ class Settings(BaseSettings):
     WS_NO_AUTH_MARKER: str = 'internal'
 
     # CORS
-    CORS_ALLOWED_ORIGINS: list[str] = [  # 末尾不带斜杠
-        'http://127.0.0.1',
-        'http://localhost:5173',
-    ]
+    CORS_ALLOWED_ORIGINS: list[str] = ['*']  # 末尾不带斜杠
     CORS_EXPOSE_HEADERS: list[str] = [
         'X-Request-ID',
     ]
@@ -265,6 +262,7 @@ class Settings(BaseSettings):
         'old_password',
         'new_password',
         'confirm_password',
+        'secret',
     ]
     OPERA_LOG_QUEUE_MAXSIZE: int = 100000
     OPERA_LOG_QUEUE_BATCH_CONSUME_SIZE: int = 100
