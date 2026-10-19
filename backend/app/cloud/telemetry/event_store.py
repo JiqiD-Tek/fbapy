@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
-import cachebox
-
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.device.topic import MQTTEventRoute, parse_mqtt_topic
 from backend.app.cloud.telemetry.model.js61_event import JS61EventTable
@@ -43,7 +41,7 @@ class EventStore:
     }
 
     # 缓存 DID 对应的宝宝 ID，并使用 DID 级锁避免缓存未命中时重复查询数据库。
-    BABY_ID_CACHE: ClassVar[cachebox.TTLCache] = cachebox.TTLCache(maxsize=10000, global_ttl=600)
+    BABY_ID_CACHE: ClassVar[dict] = {}
     DID_LOCKS: ClassVar[dict[str, asyncio.Lock]] = {}
     # 保护 DID 锁字典，避免并发创建同一个 DID 的多把锁。
     DID_LOCKS_GUARD: ClassVar[asyncio.Lock] = asyncio.Lock()

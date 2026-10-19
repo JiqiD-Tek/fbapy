@@ -13,7 +13,6 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pyrate_limiter import Duration, Rate
 from starlette.background import BackgroundTasks
 
 from backend.app.cloud.schema.captcha import GetCaptchaDetail
@@ -57,7 +56,7 @@ from backend.core.conf import settings
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 from backend.database.redis import redis_client
 from backend.plugin.email.utils.send import send_email
-from backend.utils.limiter import RateLimiter
+from backend.common.limiter import rate_limit
 from backend.utils.timezone import timezone
 
 router = APIRouter()
@@ -223,7 +222,7 @@ async def mqtt_login(
 
 
 @router.post('/credentials', summary='生成设备三元组',
-             dependencies=[DependsSuperUser, Depends(RateLimiter(Rate(5, Duration.MINUTE)))])
+             dependencies=[DependsSuperUser, Depends(rate_limit('5/minute'))])
 def generate_device_credentials(
         obj: DeviceCredentialsParam,
 ) -> ResponseSchemaModel[DeviceCredentialsDetail]:
