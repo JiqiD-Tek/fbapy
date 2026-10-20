@@ -10,4 +10,3 @@ class GetCaptchaDetail(SchemaBase):
     expire_seconds: int = Field(description='过期秒数')
     uuid: str = Field(description='图片唯一标识')
     image: str = Field(description='图片内容')
-    now: datetime = Field(description='刷新令牌过期时间')
