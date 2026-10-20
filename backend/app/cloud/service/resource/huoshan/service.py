@@ -587,7 +587,7 @@ class HuoshanVoiceService:
 
     @staticmethod
     def _story_task_ttl_seconds() -> int:
-        return max(int(settings.CACHE_REDIS_TTL), int(settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS))
+        return int(settings.BYTES_TTS_LONG_QUERY_TIMEOUT_SECONDS)
 
     @classmethod
     async def _save_story_synthesis_task_result(cls, result: HuoshanStorySynthesisResult) -> None:
