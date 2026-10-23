@@ -14,11 +14,31 @@ from backend.app.cloud.schema.app import CreateAppParam, GetAppDetail, UpdateApp
 from backend.app.cloud.service.app_service import app_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
-from backend.common.security.auth import DependsDeviceOrJwtAuth
+from backend.common.security.auth import DependsDeviceAuth, DependsDeviceOrJwtAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+@router.get(
+    '/upgrade',
+    summary='获取可升级应用版本',
+    dependencies=[DependsDeviceAuth],
+)
+async def get_upgrade_app(
+    db: CurrentSession,
+    package_name: Annotated[str, Query(description='应用包名')],
+    version_code: Annotated[int, Query(ge=0, description='当前应用版本代码')],
+    market_code: Annotated[str | None, Query(description='市场区域编码')] = None,
+) -> ResponseSchemaModel[GetAppDetail | None]:
+    data = await app_service.get_upgrade(
+        db=db,
+        package_name=package_name,
+        market_code=market_code,
+        version_code=version_code,
+    )
+    return response_base.success(data=data)
 
 
 @router.get(

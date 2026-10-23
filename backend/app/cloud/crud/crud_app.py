@@ -1,6 +1,6 @@
 ﻿from collections.abc import Sequence
 
-from sqlalchemy import Select
+from sqlalchemy import Select, case, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
@@ -33,6 +33,35 @@ class CRUDApp(CRUDPlus[App]):
 
     async def get_by_name(self, db: AsyncSession, name: str) -> App | None:
         return await self.select_model_by_column(db, name=name)
+
+    async def get_upgrade_app(
+        self,
+        db: AsyncSession,
+        *,
+        package_name: str,
+        market_code: str | None,
+        version_code: int,
+    ) -> App | None:
+        """Return the highest enabled version newer than the client version."""
+        stmt = select(App).where(
+            App.package_name == package_name,
+            App.status == 1,
+            App.version_code > version_code,
+        )
+        if market_code is None:
+            stmt = stmt.where(App.market_code.is_(None))
+            stmt = stmt.order_by(App.version_code.desc(), App.id.desc())
+        else:
+            # A regional release wins over the global release at the same version.
+            stmt = stmt.where(or_(App.market_code == market_code, App.market_code.is_(None)))
+            stmt = stmt.order_by(
+                App.version_code.desc(),
+                case((App.market_code == market_code, 0), else_=1),
+                App.id.desc(),
+            )
+        stmt = stmt.limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_all(self, db: AsyncSession) -> Sequence[App]:
         return await self.select_models(db)

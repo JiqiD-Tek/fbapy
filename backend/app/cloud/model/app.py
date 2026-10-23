@@ -24,10 +24,11 @@ class App(Base):
     size: Mapped[int] = mapped_column(comment='应用包大小')
     md5: Mapped[str] = mapped_column(sa.String(32), comment='应用包MD5')
     version: Mapped[str] = mapped_column(sa.String(64), comment='应用版本')
+    version_code: Mapped[int] = mapped_column(default=0, index=True, comment='应用版本代码')
 
     icon: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='应用图标')
     description: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='应用描述')
     download_url: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='应用下载地址')
-    market_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='市场区域编码：global cn tw')
+    market_code: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='市场区域编码：None=全球，cn/tw=区域')
     status: Mapped[int] = mapped_column(default=0, comment='状态(0禁用 1启用)')
     remark: Mapped[str | None] = mapped_column(sa.Text, default=None, comment='备注')

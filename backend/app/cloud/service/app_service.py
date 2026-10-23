@@ -38,6 +38,29 @@ class AppService:
         return await app_dao.get_all(db)
 
     @staticmethod
+    async def get_upgrade(
+        *,
+        db: AsyncSession,
+        package_name: str,
+        market_code: str | None,
+        version_code: int,
+    ) -> App | None:
+        """Get the next enabled application version for a client."""
+        package_name = package_name.strip()
+        if not package_name:
+            raise errors.RequestError(msg='应用包名不能为空')
+        if version_code < 0:
+            raise errors.RequestError(msg='当前应用版本代码不正确')
+        if market_code is not None:
+            market_code = AppService._normalize_market_code(market_code)
+        return await app_dao.get_upgrade_app(
+            db,
+            package_name=package_name,
+            market_code=market_code,
+            version_code=version_code,
+        )
+
+    @staticmethod
     async def get_list(
         *,
         db: AsyncSession,
@@ -58,13 +81,22 @@ class AppService:
     @staticmethod
     async def create(*, db: AsyncSession, obj: CreateAppParam) -> App:
         """创建应用"""
+        if obj.market_code is not None:
+            obj = obj.model_copy(update={'market_code': AppService._normalize_market_code(obj.market_code)})
         return await app_dao.create(db, obj)
 
     @staticmethod
     async def update(*, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         """更新应用"""
         await AppService.get(db=db, pk=pk)
+        if obj.market_code is not None:
+            obj = obj.model_copy(update={'market_code': AppService._normalize_market_code(obj.market_code)})
         return await app_dao.update(db, pk, obj)
+
+    @staticmethod
+    def _normalize_market_code(market_code: str) -> str | None:
+        normalized = market_code.strip().lower()
+        return None if normalized in {'', 'global'} else normalized
 
     @staticmethod
     async def delete(*, db: AsyncSession, pk: int) -> int:

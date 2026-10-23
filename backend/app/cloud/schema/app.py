@@ -21,11 +21,12 @@ class AppSchemaBase(SchemaBase):
     size: int | None = Field(None, description='大小')
     md5: str | None = Field(None, description='MD5')
     version: str | None = Field(None, description='版本')
+    version_code: int = Field(default=0, ge=0, description='版本代码')
 
     icon: str | None = Field(None, description='图标')
     description: str | None = Field(None, description='描述')
     download_url: str | None = Field(None, description='下载地址')
-    market_code: str | None = Field(None, description='市场区域编码：global cn tw')
+    market_code: str | None = Field(None, description='市场区域编码：不传表示全球，支持 cn/tw')
     status: int | None = Field(default=0, description='状态(0禁用 1启用)')
     remark: str | None = Field(None, description='备注')
 
@@ -40,6 +41,7 @@ class UpdateAppParam(AppSchemaBase):
     # 可选字段，更新时可以不传
     name: str | None = Field(None, description='应用名称')
     package_name: str | None = Field(None, description='包名')
+    version_code: int | None = Field(None, ge=0, description='版本代码')
 
 
 class DeleteAppParam(SchemaBase):
