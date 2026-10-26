@@ -45,7 +45,7 @@ dependencies = [
   "psycopg[binary]==3.2.10",
   "pwdlib>=0.3.1",
   "py-ip2region>=3.0.6",
-  "pydantic>=2.14.1",
+  "pydantic>=2.13.5",
   "pydantic-settings>=2.16.1",
   "pymysql>=1.2.3",
   "python-jose>=3.5.0",
@@ -77,7 +77,7 @@ dependencies = [
   "volcengine>=1.0.0",
   "volcengine-python-sdk>=5.0.23",
   "vikingdb-python-sdk>=0.1.18",
-  "taospy>=2.8.9",
+  "taospy>=2.8.10",
 ]
 dynamic = ["version"]
 
