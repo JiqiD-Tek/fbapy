@@ -19,17 +19,22 @@ class CRUDApp(CRUDPlus[App]):
         market_code: str | None,
         status: int | None,
     ) -> Select:
+        # ``None`` means no market filter; an empty query value means the
+        # default/global release stored as SQL NULL.
         filters = {
             key: value
             for key, value in {
                 'name': name,
                 'package_name': package_name,
-                'market_code': market_code,
+                'market_code': market_code if market_code not in (None, '') else None,
                 'status': status,
             }.items()
             if value is not None
         }
-        return await self.select_order('id', 'desc', **filters)
+        stmt = await self.select_order('id', 'desc', **filters)
+        if market_code == '':
+            stmt = stmt.where(App.market_code.is_(None))
+        return stmt
 
     async def get_by_name(self, db: AsyncSession, name: str) -> App | None:
         return await self.select_model_by_column(db, name=name)

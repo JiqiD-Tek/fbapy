@@ -62,7 +62,10 @@ async def get_app_paginated(
     db: CurrentSession,
     name: Annotated[str | None, Query(description='应用名称')] = None,
     package_name: Annotated[str | None, Query(description='包名')] = None,
-    market_code: Annotated[str | None, Query(description='市场区域编码')] = None,
+    market_code: Annotated[
+        str | None,
+        Query(description='市场区域编码；不传查询全部，传空值查询通用版本（数据库 NULL）'),
+    ] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
 ) -> ResponseSchemaModel[PageData[GetAppDetail]]:
     page_data = await app_service.get_list(

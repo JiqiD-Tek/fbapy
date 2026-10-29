@@ -69,11 +69,21 @@ class AppService:
         market_code: str | None = None,
         status: int | None = None,
     ) -> dict[str, Any]:
-        """获取应用列表（支持分页和查询条件）"""
+        """获取应用列表。
+
+        不传 ``market_code`` 查询全部市场；传空值查询通用版本
+        （数据库中的 ``market_code IS NULL``）；传入编码查询指定市场。
+        """
+        if market_code is None:
+            normalized_market_code = None
+        else:
+            normalized_market_code = AppService._normalize_market_code(market_code)
+            if normalized_market_code is None:
+                normalized_market_code = ''
         app_select = await app_dao.get_select(
             name=name,
             package_name=package_name,
-            market_code=market_code,
+            market_code=normalized_market_code,
             status=status,
         )
         return await paging_data(db, app_select)
@@ -89,14 +99,17 @@ class AppService:
     async def update(*, db: AsyncSession, pk: int, obj: UpdateAppParam) -> int:
         """更新应用"""
         await AppService.get(db=db, pk=pk)
-        if obj.market_code is not None:
-            obj = obj.model_copy(update={'market_code': AppService._normalize_market_code(obj.market_code)})
+        if 'market_code' in obj.model_fields_set:
+            normalized_market_code = (
+                AppService._normalize_market_code(obj.market_code) if obj.market_code is not None else None
+            )
+            obj = obj.model_copy(update={'market_code': normalized_market_code})
         return await app_dao.update(db, pk, obj)
 
     @staticmethod
     def _normalize_market_code(market_code: str) -> str | None:
         normalized = market_code.strip().lower()
-        return None if normalized in {'', 'global'} else normalized
+        return normalized or None
 
     @staticmethod
     async def delete(*, db: AsyncSession, pk: int) -> int:
