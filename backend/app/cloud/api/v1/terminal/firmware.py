@@ -29,18 +29,34 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
 
-
-@router.get('/upgrade', summary='获取可升级固件版本')
-async def get_upgrade_firmware(
+@router.get(
+    '/upgrade/unchecked',
+    summary='获取可升级固件版本（不校验请求参数）',
+)
+async def get_upgrade_firmware_unchecked(
     db: CurrentSession,
-    version_code: Annotated[int, Query(description='当前固件版本代码')],
-    did: Annotated[str , Cookie(description='设备did')],
-    model: Annotated[str , Cookie(description='设备型号')],
+    version_code: Annotated[int, Query(description='当前固件版本代码')] ,
+    did: Annotated[str , Cookie(description='设备did')] ,
+    model: Annotated[str, Cookie(description='设备型号')] ,
 ) -> ResponseSchemaModel[GetFirmwareDetail | None]:
     data = await firmware_service.get_upgrade(
         db=db,
         device_did=did,
         device_model=model,
+        version_code=version_code,
+    )
+    return response_base.success(data=data)
+
+@router.get('/upgrade', summary='获取可升级固件版本')
+async def get_upgrade_firmware(
+    db: CurrentSession,
+    version_code: Annotated[int, Query(description='当前固件版本代码')],
+    auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[GetFirmwareDetail | None]:
+    data = await firmware_service.get_upgrade(
+        db=db,
+        device_did=auth_ctx.did,
+        device_model=auth_ctx.model,
         version_code=version_code,
     )
     return response_base.success(data=data)
