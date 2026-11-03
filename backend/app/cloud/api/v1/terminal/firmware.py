@@ -8,7 +8,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Path, Query, Cookie
 
 from backend.app.cloud.schema.firmware import (
     BatchSetFirmwareWhitelistParam,
@@ -34,12 +34,13 @@ router = APIRouter()
 async def get_upgrade_firmware(
     db: CurrentSession,
     version_code: Annotated[int, Query(description='当前固件版本代码')],
-    auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+    did: Annotated[str , Cookie(description='设备did')],
+    model: Annotated[str , Cookie(description='设备型号')],
 ) -> ResponseSchemaModel[GetFirmwareDetail | None]:
     data = await firmware_service.get_upgrade(
         db=db,
-        device_did=auth_ctx.did,
-        device_model=auth_ctx.model,
+        device_did=did,
+        device_model=model,
         version_code=version_code,
     )
     return response_base.success(data=data)
