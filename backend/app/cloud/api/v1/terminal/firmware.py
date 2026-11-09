@@ -35,9 +35,9 @@ router = APIRouter()
 )
 async def get_upgrade_firmware_unchecked(
     db: CurrentSession,
-    version_code: Annotated[int, Query(description='当前固件版本代码')] ,
-    did: Annotated[str , Cookie(description='设备did')] ,
-    model: Annotated[str, Cookie(description='设备型号')] ,
+    version_code: Annotated[int, Query(description='当前固件版本代码')],
+    did: Annotated[str , Cookie(description='设备did')],
+    model: Annotated[str, Cookie(description='设备型号')],
 ) -> ResponseSchemaModel[GetFirmwareDetail | None]:
     data = await firmware_service.get_upgrade(
         db=db,
