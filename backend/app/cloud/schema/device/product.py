@@ -34,6 +34,7 @@ class ProductReadSchemaBase(SchemaBase):
     ref_id: int = Field(gt=0, description='关联对象 ID')
     parent_id: int | None = Field(None, gt=0, description='父商品 ID，NULL 表示顶级商品')
     name: str = Field(description='商品名称')
+    color: str | None = Field(None, description='商品主题颜色')
     cover_url: str | None = Field(None, description='商品封面地址')
     summary: str | None = Field(None, description='商品简介')
     detail: str | None = Field(None, description='商品详情')
@@ -48,6 +49,7 @@ class CreateProductParam(ProductReadSchemaBase):
     """创建商品参数。"""
 
     name: str = Field(min_length=1, max_length=128, description='商品名称')
+    color: str | None = Field(None, max_length=32, description='商品主题颜色')
     cover_url: str | None = Field(None, max_length=512, description='商品封面地址')
     summary: str | None = Field(None, max_length=500, description='商品简介')
     purchase_url: str | None = Field(None, max_length=512, description='外部购买地址')
@@ -58,7 +60,7 @@ class CreateProductParam(ProductReadSchemaBase):
     def strip_name(cls, value: object) -> object:
         return str(value).strip() if value is not None else value
 
-    @field_validator('cover_url', 'summary', 'detail', 'purchase_url', 'remark', mode='before')
+    @field_validator('color', 'cover_url', 'summary', 'detail', 'purchase_url', 'remark', mode='before')
     @classmethod
     def strip_optional_text(cls, value: object) -> object:
         return _strip_text(value)
@@ -71,6 +73,7 @@ class UpdateProductParam(SchemaBase):
     ref_id: PositiveProductRefId | None = Field(None, description='关联对象 ID')
     parent_id: PositiveProductRefId | None = Field(None, description='父商品 ID，NULL 表示解除父子关系')
     name: str | None = Field(None, min_length=1, max_length=128, description='商品名称')
+    color: str | None = Field(None, max_length=32, description='商品主题颜色')
     cover_url: str | None = Field(None, max_length=512, description='商品封面地址')
     summary: str | None = Field(None, max_length=500, description='商品简介')
     detail: str | None = Field(None, description='商品详情')
@@ -85,7 +88,7 @@ class UpdateProductParam(SchemaBase):
     def strip_name(cls, value: object) -> object:
         return str(value).strip() if value is not None else value
 
-    @field_validator('cover_url', 'summary', 'detail', 'purchase_url', 'remark', mode='before')
+    @field_validator('color', 'cover_url', 'summary', 'detail', 'purchase_url', 'remark', mode='before')
     @classmethod
     def strip_optional_text(cls, value: object) -> object:
         return _strip_text(value)

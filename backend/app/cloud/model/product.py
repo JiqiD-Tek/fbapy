@@ -32,6 +32,7 @@ class Product(Base):
         sa.BigInteger, sa.ForeignKey('u_product.id', ondelete='RESTRICT'),
         default=None, index=True, comment='父商品 ID，NULL 表示顶级商品',
     )
+    color: Mapped[str | None] = mapped_column(sa.String(32), default=None, comment='商品主题颜色')
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='商品封面地址')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='商品简介')
     detail: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='商品详情')
