@@ -70,6 +70,7 @@ class HuoshanStorySynthesisParam(HuoshanSchemaBase):
 class HuoshanStreamTTSParam(HuoshanSchemaBase):
     text: str = Field(min_length=1, max_length=5000, description='语音合成文本内容')
     speaker: str = Field(min_length=1, description='说话人 ID')
+    resource_id: str | None = Field(None, max_length=32, description='语音合成资源 ID')
     speech_rate: int = Field(0, description='语速')
     loudness_rate: int = Field(0, description='音量')
 
@@ -96,6 +97,7 @@ class HuoshanToyStoryToyInfo(HuoshanSchemaBase):
     summary: str = Field('', description='玩偶简介')
     system_prompt: str = Field('', description='玩偶系统提示词')
     speaker: str = Field('', description='语音合成说话人 ID')
+    resource_id: str | None = Field(None, description='语音合成资源 ID')
     voice_name: str = Field('', description='语音合成声音名称')
     speech_rate: int | None = Field(0, description='语速')
     loudness_rate: int | None = Field(0, description='音量')

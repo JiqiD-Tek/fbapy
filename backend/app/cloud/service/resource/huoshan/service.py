@@ -148,6 +148,7 @@ class ScriptAudioBuilder:
                         obj=HuoshanStreamTTSParam(
                             text=line.text,
                             speaker=toy.speaker,
+                            resource_id=toy.resource_id,
                             speech_rate=toy.speech_rate or 0,
                             loudness_rate=toy.loudness_rate or 0,
                         ),
@@ -891,6 +892,7 @@ class HuoshanVoiceService:
                     summary=str(toy.summary or '').strip(),
                     system_prompt=str(toy.system_prompt or '').strip(),
                     speaker=speaker,
+                    resource_id=str(toy.resource_id or '').strip() or None,
                     voice_name=str(toy.voice_name or get_voice_name(speaker) or '').strip(),
                     speech_rate=toy.speech_rate,
                     loudness_rate=toy.loudness_rate,
@@ -956,6 +958,7 @@ class HuoshanVoiceService:
             obj = HuoshanStreamTTSParam(
                 text=line.text,
                 speaker=toy.speaker,
+                resource_id=toy.resource_id,
                 speech_rate=toy.speech_rate or 0,
                 loudness_rate=toy.loudness_rate or 0,
             )

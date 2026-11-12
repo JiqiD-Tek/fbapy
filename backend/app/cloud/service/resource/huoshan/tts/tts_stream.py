@@ -126,7 +126,12 @@ class TTSStreamService:
         return str(value or '').strip()
 
     @classmethod
-    def _resolve_stream_config(cls, speaker: str | None = None) -> dict[str, Any]:
+    def _resolve_stream_config(
+            cls,
+            speaker: str | None = None,
+            *,
+            resource_id: str | None = None,
+    ) -> dict[str, Any]:
         configured_resource_id = cls._normalize_text(settings.BYTES_TTS_STREAM_RESOURCE_ID)
         voice_profile = get_voice_profile(speaker)
         return {
@@ -135,7 +140,8 @@ class TTSStreamService:
                     or 'wss://openspeech.bytedance.com/api/v3/tts/bidirection'
             ),
             'resource_id': (
-                    cls._normalize_text(voice_profile.resource_id if voice_profile else None)
+                    cls._normalize_text(resource_id)
+                    or cls._normalize_text(voice_profile.resource_id if voice_profile else None)
                     or configured_resource_id
                     or PUBLIC_VOICE_RESOURCE_ID_V2
             ),
@@ -204,7 +210,7 @@ class TTSStreamService:
             if not text:
                 raise errors.RequestError(msg='text 不能为空')
 
-            stream_config = self._resolve_stream_config(speaker)
+            stream_config = self._resolve_stream_config(speaker, resource_id=obj.resource_id)
             ws_url = stream_config['ws_url']
             resource_id = stream_config['resource_id']
             audio_format = stream_config['audio_format']

@@ -57,10 +57,8 @@ class Toy(Base):
     system_prompt: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='系统提示词')
 
     voice_provider: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='声音服务商')
+    resource_id: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='火山语音合成资源 ID')
     voice_id: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='声音 ID')
-    voice_type: Mapped[int | None] = mapped_column(
-        sa.SmallInteger, default=None, comment='声音类型：1 公共声音，2 克隆声音，3 自定义声音',
-    )
     voice_name: Mapped[str | None] = mapped_column(sa.String(128), default=None, comment='声音名称')
     voice_language: Mapped[str | None] = mapped_column(
         sa.String(32), default=None, comment='声音语言，例如 zh-CN、en-US、zh-TW',

@@ -7,7 +7,7 @@
 """
 
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -15,6 +15,10 @@ from backend.common.schema import SchemaBase
 
 PositiveToyId = Annotated[int, Field(gt=0)]
 NfcCode = Annotated[str, Field(min_length=1, max_length=64)]
+ToyTTSResourceId = Literal['seed-tts-2.0', 'seed-icl-2.0']
+TOY_TTS_RESOURCE_ID_DESCRIPTION = (
+    '火山语音合成资源 ID：seed-tts-2.0（预置音色）或 seed-icl-2.0（复刻音色）'
+)
 
 
 def _strip_required_text(value: Any) -> Any:
@@ -168,7 +172,7 @@ class ToyReadSchemaBase(SchemaBase):
     related_toy_ids: list[int] | None = Field(None, description='关联玩偶 ID 列表')
     voice_provider: str | None = Field(None, description='声音服务商')
     voice_id: str | None = Field(None, description='声音 ID')
-    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    resource_id: ToyTTSResourceId | None = Field(None, description=TOY_TTS_RESOURCE_ID_DESCRIPTION)
     voice_name: str | None = Field(None, description='声音名称')
     voice_language: str | None = Field(None, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
@@ -198,7 +202,7 @@ class CreateToyParam(SchemaBase):
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='关联玩偶 ID 列表')
     voice_provider: str | None = Field(None, max_length=64, description='声音服务商')
     voice_id: str | None = Field(None, max_length=128, description='声音 ID')
-    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    resource_id: ToyTTSResourceId | None = Field(None, description=TOY_TTS_RESOURCE_ID_DESCRIPTION)
     voice_name: str | None = Field(None, max_length=128, description='声音名称')
     voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
@@ -218,6 +222,7 @@ class CreateToyParam(SchemaBase):
         'summary',
         'voice_provider',
         'voice_id',
+        'resource_id',
         'voice_name',
         'voice_language',
         'intro_audio_url',
@@ -249,7 +254,7 @@ class UpdateToyParam(SchemaBase):
     related_toy_ids: list[PositiveToyId] | None = Field(None, description='关联玩偶 ID 列表')
     voice_provider: str | None = Field(None, max_length=64, description='声音服务商')
     voice_id: str | None = Field(None, max_length=128, description='声音 ID')
-    voice_type: int | None = Field(None, ge=1, description='声音类型')
+    resource_id: ToyTTSResourceId | None = Field(None, description=TOY_TTS_RESOURCE_ID_DESCRIPTION)
     voice_name: str | None = Field(None, max_length=128, description='声音名称')
     voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
@@ -269,6 +274,7 @@ class UpdateToyParam(SchemaBase):
         'summary',
         'voice_provider',
         'voice_id',
+        'resource_id',
         'voice_name',
         'voice_language',
         'intro_audio_url',
