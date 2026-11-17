@@ -18,7 +18,7 @@ class ToySeries(Base):
 
     __tablename__ = 'u_toy_series'
     __table_args__ = (
-        sa.Index('idx_status_sort', 'status', 'sort'),
+        sa.Index('idx_toy_series_status_sort', 'status', 'sort'),
         {'comment': '云端玩偶系列表'},
     )
 
@@ -36,7 +36,7 @@ class Toy(Base):
 
     __tablename__ = 'u_toy'
     __table_args__ = (
-        sa.Index('idx_status_sort', 'status', 'sort'),
+        sa.Index('idx_toy_status_sort', 'status', 'sort'),
         {'comment': '云端玩偶表'},
     )
 
