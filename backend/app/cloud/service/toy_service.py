@@ -286,7 +286,6 @@ class ToyService:
                 db,
                 toy_id=obj.toy_id,
                 nfc_codes=obj.nfc_codes,
-                batch_no=obj.batch_no,
                 status=obj.status,
                 remark=obj.remark,
             )

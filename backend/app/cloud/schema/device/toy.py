@@ -101,7 +101,6 @@ class ToyNfcInfo(SchemaBase):
     id: int = Field(description='NFC 绑定 ID')
     toy_id: int = Field(description='玩偶 ID')
     nfc_code: str = Field(description='NFC 编码')
-    batch_no: str | None = Field(None, description='NFC 批次号')
     status: int = Field(description='状态：0 禁用，1 启用')
     remark: str | None = Field(None, description='备注')
     created_time: datetime = Field(description='创建时间')
@@ -111,11 +110,10 @@ class ToyNfcInfo(SchemaBase):
 class CreateToyNfcParam(SchemaBase):
     toy_id: PositiveToyId = Field(description='玩偶 ID')
     nfc_code: str = Field(min_length=1, max_length=64, description='NFC 编码')
-    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
     status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
     remark: str | None = Field(None, max_length=500, description='备注')
 
-    @field_validator('nfc_code', 'batch_no', 'remark', mode='before')
+    @field_validator('nfc_code', 'remark', mode='before')
     @classmethod
     def strip_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
@@ -124,7 +122,6 @@ class CreateToyNfcParam(SchemaBase):
 class BatchCreateToyNfcParam(SchemaBase):
     toy_id: PositiveToyId = Field(description='玩偶 ID')
     nfc_codes: list[NfcCode] = Field(min_length=1, max_length=5000, description='NFC 编码列表')
-    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
     status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
     remark: str | None = Field(None, max_length=500, description='备注')
 
@@ -144,7 +141,7 @@ class BatchCreateToyNfcParam(SchemaBase):
             result.append(item)
         return result
 
-    @field_validator('batch_no', 'remark', mode='before')
+    @field_validator('remark', mode='before')
     @classmethod
     def strip_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)
@@ -153,11 +150,10 @@ class BatchCreateToyNfcParam(SchemaBase):
 class UpdateToyNfcParam(SchemaBase):
     toy_id: PositiveToyId | None = Field(None, description='玩偶 ID')
     nfc_code: str | None = Field(None, min_length=1, max_length=64, description='NFC 编码')
-    batch_no: str | None = Field(None, max_length=64, description='NFC 批次号')
     status: int | None = Field(None, ge=0, le=1, description='状态：0 禁用，1 启用')
     remark: str | None = Field(None, max_length=500, description='备注')
 
-    @field_validator('nfc_code', 'batch_no', 'remark', mode='before')
+    @field_validator('nfc_code', 'remark', mode='before')
     @classmethod
     def strip_text(cls, value: Any) -> Any:
         return _strip_optional_text(value)

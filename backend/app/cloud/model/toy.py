@@ -78,7 +78,6 @@ class ToyNfc(Base):
     __table_args__ = (
         sa.UniqueConstraint('nfc_code', name='uq_toy_nfc_code'),
         sa.Index('idx_toy_nfc_toy_id', 'toy_id'),
-        sa.Index('idx_toy_nfc_batch_no', 'batch_no'),
         {'comment': '玩偶 NFC 编码绑定表'},
     )
 
@@ -88,6 +87,5 @@ class ToyNfc(Base):
         sa.BigInteger, sa.ForeignKey('u_toy.id', ondelete='RESTRICT'), nullable=False, comment='玩偶 ID',
     )
     nfc_code: Mapped[str] = mapped_column(sa.String(64), nullable=False, comment='NFC 编码')
-    batch_no: Mapped[str | None] = mapped_column(sa.String(64), default=None, comment='NFC 批次号')
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')

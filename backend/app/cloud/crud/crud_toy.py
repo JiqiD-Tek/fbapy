@@ -195,7 +195,6 @@ class CRUDToyNfc(CRUDPlus[ToyNfc]):
         *,
         toy_id: int,
         nfc_codes: Sequence[str],
-        batch_no: str | None,
         status: int,
         remark: str | None,
     ) -> Sequence[ToyNfc]:
@@ -203,7 +202,6 @@ class CRUDToyNfc(CRUDPlus[ToyNfc]):
             self.model(
                 toy_id=toy_id,
                 nfc_code=nfc_code,
-                batch_no=batch_no,
                 status=status,
                 remark=remark,
             )
