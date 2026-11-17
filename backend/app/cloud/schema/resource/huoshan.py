@@ -38,7 +38,7 @@ class HuoshanVoiceListParam(HuoshanSchemaBase):
 
 class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
     toy_ids: list[int] = Field(min_length=1, max_length=10, description='玩偶 ID 列表')
-    text: str = Field(min_length=1, max_length=2000, description='用户提出的故事要求')
+    text: str = Field('一个有意思的故事', min_length=1, max_length=2000, description='用户提出的故事要求')
     c_toy_id: int | None = Field(None, gt=0, description='中心位玩偶 ID，为空表示不指定中心位玩偶')
 
     @field_validator('toy_ids')
@@ -48,8 +48,12 @@ class HuoshanToyStoryScriptParam(HuoshanSchemaBase):
 
     @field_validator('text', mode='before')
     @classmethod
-    def strip_text(cls, value: Any) -> Any:
-        return _strip_required_text(value)
+    def normalize_text(cls, value: Any) -> Any:
+        if value is None:
+            return '一个有意思的故事'
+        if isinstance(value, str):
+            return value.strip() or '一个有意思的故事'
+        return value
 
     @model_validator(mode='after')
     def validate_c_toy_id(self) -> 'HuoshanToyStoryScriptParam':
