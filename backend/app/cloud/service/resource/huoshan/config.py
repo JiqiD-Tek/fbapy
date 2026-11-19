@@ -105,7 +105,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.BYTES_TTS_APPID,
         access_token=settings.BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
-            {'id': 'S_GKcK2x2X1', 'name': '沙僧'},
+            {'id': 'S_GKcK2x2X1', 'name': '沙悟净'},
             {'id': 'S_DKcK2x2X1', 'name': '米粒'},
             {'id': 'S_CKcK2x2X1', 'name': '旁白'},
             {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
