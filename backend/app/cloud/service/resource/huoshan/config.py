@@ -128,7 +128,7 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
             {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '西游记旁白'},
             {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
-            {'id': 'S_7tAjyDOZ1', 'name': '童音男'},
+            {'id': 'S_7tAjyDOZ1', 'name': '旁大白2'},
             {'id': 'S_J6luyDOZ1', 'name': '狐狸-Pax'},
             {'id': 'S_r5toyDOZ1', 'name': '绵羊-绵绵'},
             {'id': 'S_7V2ryDOZ1', 'name': '海豹-卡卡'},
