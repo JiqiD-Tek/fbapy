@@ -5,6 +5,7 @@ from datetime import datetime
 
 from pydantic import ConfigDict, Field, field_validator
 
+from backend.app.cloud.schema.resource.script import GetScriptDetail
 from backend.common.schema import SchemaBase
 
 
@@ -61,3 +62,7 @@ class GetScriptAlbumDetail(ScriptAlbumSchemaBase):
     id: int = Field(description='剧本专辑 ID')
     created_time: datetime = Field(description='创建时间')
     updated_time: datetime | None = Field(None, description='更新时间')
+
+
+class GetScriptAlbumWithScripts(GetScriptAlbumDetail):
+    scripts: list[GetScriptDetail] = Field(default_factory=list, description='专辑下的剧本列表')

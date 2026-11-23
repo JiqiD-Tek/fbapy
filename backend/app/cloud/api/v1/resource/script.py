@@ -14,6 +14,7 @@ from backend.app.cloud.schema.resource.script import (
 from backend.app.cloud.schema.resource.script_album import (
     CreateScriptAlbumParam,
     GetScriptAlbumDetail,
+    GetScriptAlbumWithScripts,
     UpdateScriptAlbumParam,
 )
 from backend.app.cloud.service.resource.script_album_service import script_album_service
@@ -24,6 +25,21 @@ from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
+
+
+@router.get('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsJwtAuth])
+async def get_script_albums_by_toys(
+    db: CurrentSession,
+    toy_ids: Annotated[list[int], Query(min_length=1, description='完全匹配的玩偶 ID 集合')],
+) -> ResponseSchemaModel[list[GetScriptAlbumWithScripts]]:
+    albums = await script_album_service.get_albums_by_toy_ids(db=db, toy_ids=toy_ids)
+    data = [
+        GetScriptAlbumWithScripts.model_validate(album).model_copy(
+            update={'scripts': [GetScriptDetail.model_validate(script) for script in scripts]},
+        )
+        for album, scripts in albums
+    ]
+    return response_base.success(data=data)
 
 
 @router.get('/albums/{pk}', summary='获取剧本专辑详情', dependencies=[DependsJwtAuth])
@@ -102,8 +118,6 @@ async def get_script_paginated(
         list[int] | None,
         Query(description='包含指定内容类型：1语言 2科学 3社会 4艺术 5健康'),
     ] = None,
-    toy_ids: Annotated[list[int] | None, Query(description='包含指定的全部玩偶 ID')] = None,
-    exact_toy_ids: Annotated[list[int] | None, Query(description='完全匹配指定玩偶 ID 集合')] = None,
 ) -> ResponseSchemaModel[PageData[GetScriptDetail]]:
     page_data = await script_service.get_script_list(
         db=db,
@@ -114,8 +128,6 @@ async def get_script_paginated(
         favorite=favorite,
         album_id=album_id,
         content_types=content_types,
-        toy_ids=toy_ids,
-        exact_toy_ids=exact_toy_ids,
     )
     page_data['items'] = [GetScriptDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)

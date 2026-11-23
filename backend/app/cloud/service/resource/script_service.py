@@ -27,12 +27,10 @@ class ScriptService:
             *, db: AsyncSession, title: str | None = None, author: str | None = None,
             status: int | None = None, baby_id: int | None = None, favorite: int | None = None,
             album_id: int | None = None, content_types: list[int] | None = None,
-            toy_ids: list[int] | None = None, exact_toy_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         stmt = await script_dao.get_select(
             title=title, author=author, status=status, baby_id=baby_id, favorite=favorite,
             album_id=album_id, content_types=ScriptService._normalize_content_types(content_types),
-            toy_ids=ScriptService._normalize_ids(toy_ids), exact_toy_ids=ScriptService._normalize_ids(exact_toy_ids),
         )
         return await paging_data(db, stmt)
 

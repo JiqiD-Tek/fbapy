@@ -21,6 +21,7 @@ from backend.app.cloud.schema.device.toy import (
     GetToySeriesDetail,
     ToyNfcInfo,
     ToyRelatedInfo,
+    ToySeriesInfo,
     UpdateToyParam,
     UpdateToyNfcParam,
     UpdateToySeriesParam,
@@ -201,9 +202,15 @@ async def get_toy(
     pk: Annotated[int, Path(description='玩偶 ID')],
 ) -> ResponseSchemaModel[GetToyDetail]:
     toy = await toy_service.get_toy(db=db, pk=pk)
+    series = None
+    if toy.series_id is not None:
+        series = await toy_service.get_toy_series(db=db, pk=toy.series_id)
     related_toys = await toy_service.get_related_toys(db=db, toy=toy)
     data = GetToyDetail.model_validate(toy).model_copy(
-        update={'related_toys': [ToyRelatedInfo.model_validate(item) for item in related_toys]},
+        update={
+            'series': ToySeriesInfo.model_validate(series) if series is not None else None,
+            'related_toys': [ToyRelatedInfo.model_validate(item) for item in related_toys],
+        },
     )
     return response_base.success(data=data)
 

@@ -1,19 +1,13 @@
-import json
-
 from collections.abc import Sequence
 from datetime import datetime
 
 import sqlalchemy as sa
 from sqlalchemy import Select
-from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy_crud_plus import CRUDPlus
 
-from backend.app.cloud.model import Script, ScriptAlbum
+from backend.app.cloud.model import Script
 from backend.app.cloud.schema.resource.script import CreateScriptParam, UpdateScriptParam
-from backend.common.enums import DataBaseType
-from backend.core.conf import settings
 
 
 class CRUDScript(CRUDPlus[Script]):
@@ -29,8 +23,6 @@ class CRUDScript(CRUDPlus[Script]):
         favorite: int | None = None,
         album_id: int | None = None,
         content_types: list[int] | None = None,
-        toy_ids: list[int] | None = None,
-        exact_toy_ids: list[int] | None = None,
     ) -> Select:
         filters = {}
 
@@ -51,14 +43,6 @@ class CRUDScript(CRUDPlus[Script]):
 
         if content_types:
             stmt = stmt.where(self._build_json_array_contains_condition(self.model.content_types, content_types))
-        if toy_ids:
-            stmt = stmt.join(ScriptAlbum, ScriptAlbum.id == self.model.album_id)
-            stmt = stmt.where(self._build_contains_toy_ids_condition(toy_ids))
-        if exact_toy_ids:
-            if not toy_ids:
-                stmt = stmt.join(ScriptAlbum, ScriptAlbum.id == self.model.album_id)
-            stmt = stmt.where(self._build_exact_toy_ids_condition(exact_toy_ids))
-
         return stmt
 
     async def create(self, db: AsyncSession, obj: CreateScriptParam) -> Script:
@@ -96,31 +80,5 @@ class CRUDScript(CRUDPlus[Script]):
             stmt = stmt.limit(limit)
         result = await db.execute(stmt)
         return result.tuples().all()
-
-    def _build_contains_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
-        return self._build_json_array_contains_condition(ScriptAlbum.toy_ids, toy_ids)
-
-    @staticmethod
-    def _build_json_array_contains_condition(
-            column: InstrumentedAttribute,
-            values: list[int],
-    ) -> sa.ColumnElement[bool]:
-        if settings.DATABASE_TYPE == DataBaseType.postgresql:
-            json_array = sa.cast(column, postgresql.JSONB)
-            return json_array.contains(values)
-        return sa.func.JSON_CONTAINS(column, json.dumps(values)) == 1
-
-    def _build_exact_toy_ids_condition(self, toy_ids: list[int]) -> sa.ColumnElement[bool]:
-        if settings.DATABASE_TYPE == DataBaseType.postgresql:
-            toy_ids_expr = sa.cast(ScriptAlbum.toy_ids, postgresql.JSONB)
-            return sa.and_(
-                toy_ids_expr.contains(toy_ids),
-                sa.func.jsonb_array_length(toy_ids_expr) == len(toy_ids),
-            )
-        return sa.and_(
-            sa.func.JSON_CONTAINS(ScriptAlbum.toy_ids, json.dumps(toy_ids)) == 1,
-            sa.func.JSON_LENGTH(ScriptAlbum.toy_ids) == len(toy_ids),
-        )
-
 
 script_dao: CRUDScript = CRUDScript(Script)

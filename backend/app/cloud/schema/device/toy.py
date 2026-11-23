@@ -312,4 +312,5 @@ class GetToyDetail(ToyReadSchemaBase):
     id: int = Field(description='玩偶 ID')
     created_time: datetime = Field(description='创建时间')
     updated_time: datetime | None = Field(None, description='更新时间')
+    series: ToySeriesInfo | None = Field(None, description='玩偶所属系列')
     related_toys: list[ToyRelatedInfo] = Field(default_factory=list, description='关联玩偶详情列表')

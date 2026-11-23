@@ -1,9 +1,15 @@
+import json
+
+import sqlalchemy as sa
 from sqlalchemy import Select, select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import Script, ScriptAlbum
 from backend.app.cloud.schema.resource.script_album import CreateScriptAlbumParam, UpdateScriptAlbumParam
+from backend.common.enums import DataBaseType
+from backend.core.conf import settings
 
 
 class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
@@ -15,6 +21,7 @@ class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
             title: str | None,
             author: str | None,
             status: int | None,
+            exact_toy_ids: list[int] | None = None,
     ) -> Select:
         filters = {}
         if title is not None:
@@ -23,7 +30,23 @@ class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
             filters['author__like'] = f'%{author}%'
         if status is not None:
             filters['status'] = status
-        return await self.select_order('id', 'desc', **filters)
+        stmt = await self.select_order('id', 'desc', **filters)
+        if exact_toy_ids:
+            stmt = stmt.where(self._build_exact_toy_ids_condition(exact_toy_ids))
+        return stmt
+
+    @staticmethod
+    def _build_exact_toy_ids_condition(toy_ids: list[int]) -> sa.ColumnElement[bool]:
+        if settings.DATABASE_TYPE == DataBaseType.postgresql:
+            toy_ids_expr = sa.cast(ScriptAlbum.toy_ids, postgresql.JSONB)
+            return sa.and_(
+                toy_ids_expr.contains(toy_ids),
+                sa.func.jsonb_array_length(toy_ids_expr) == len(toy_ids),
+            )
+        return sa.and_(
+            sa.func.JSON_CONTAINS(ScriptAlbum.toy_ids, json.dumps(toy_ids)) == 1,
+            sa.func.JSON_LENGTH(ScriptAlbum.toy_ids) == len(toy_ids),
+        )
 
     async def create(self, db: AsyncSession, obj: CreateScriptAlbumParam) -> ScriptAlbum:
         return await self.create_model(db, obj, flush=True)
