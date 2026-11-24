@@ -162,6 +162,7 @@ class UpdateToyNfcParam(SchemaBase):
 class ToyReadSchemaBase(SchemaBase):
     series_id: int | None = Field(None, description='玩偶系列 ID')
     name: str | None = Field(None, description='玩偶名称')
+    color: str | None = Field(None, description='玩偶主题颜色')
     system_prompt: str | None = Field(None, description='系统提示词')
     avatar_url: str | None = Field(None, description='玩偶头像地址')
     summary: str | None = Field(None, description='玩偶简介')
@@ -192,6 +193,7 @@ class ToyRelatedInfo(ToyReadSchemaBase):
 class CreateToyParam(SchemaBase):
     series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
     name: str = Field(min_length=1, max_length=128, description='玩偶名称')
+    color: str | None = Field(None, max_length=32, description='玩偶主题颜色')
     system_prompt: str = Field(min_length=1, description='系统提示词')
     avatar_url: str | None = Field(None, max_length=512, description='玩偶头像地址')
     summary: str | None = Field(None, max_length=500, description='玩偶简介')
@@ -215,6 +217,7 @@ class CreateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
+        'color',
         'summary',
         'voice_provider',
         'voice_id',
@@ -244,6 +247,7 @@ class CreateToyParam(SchemaBase):
 class UpdateToyParam(SchemaBase):
     series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
     name: str | None = Field(None, min_length=1, max_length=128, description='玩偶名称')
+    color: str | None = Field(None, max_length=32, description='玩偶主题颜色')
     system_prompt: str | None = Field(None, min_length=1, description='系统提示词')
     avatar_url: str | None = Field(None, max_length=512, description='玩偶头像地址')
     summary: str | None = Field(None, max_length=500, description='玩偶简介')
@@ -267,6 +271,7 @@ class UpdateToyParam(SchemaBase):
 
     @field_validator(
         'avatar_url',
+        'color',
         'summary',
         'voice_provider',
         'voice_id',

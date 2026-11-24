@@ -47,6 +47,7 @@ class Toy(Base):
         default=None, index=True, comment='玩偶系列 ID',
     )
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='玩偶名称')
+    color: Mapped[str | None] = mapped_column(sa.String(32), default=None, comment='玩偶主题颜色')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶头像地址')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶简介')
     intro_audio_url: Mapped[str | None] = mapped_column(
