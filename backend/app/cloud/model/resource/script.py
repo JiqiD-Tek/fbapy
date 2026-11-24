@@ -4,7 +4,6 @@
 from typing import Any
 
 import sqlalchemy as sa
-
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.common.model import Base, id_key
@@ -34,6 +33,9 @@ class Script(Base):
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), comment='剧本封面地址')
     author: Mapped[str | None] = mapped_column(sa.String(128), index=True, comment='作者')
     content: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, comment='剧本台词内容')
+    resource_type: Mapped[int] = mapped_column(
+        sa.SmallInteger, default=0, index=True, comment='资源类型：0 普通资源，1 彩蛋资源',
+    )
     play_url: Mapped[str | None] = mapped_column(sa.String(1000), default=None, comment='播放地址')
     duration: Mapped[int] = mapped_column(default=0, comment='时长（秒）')
     track_no: Mapped[int] = mapped_column(default=0, comment='专辑内曲目序号')

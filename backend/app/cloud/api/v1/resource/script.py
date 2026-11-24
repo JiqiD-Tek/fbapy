@@ -8,6 +8,7 @@ from fastapi import APIRouter, Path, Query, Request
 from backend.app.cloud.schema.resource.script import (
     CreateScriptParam,
     GetScriptDetail,
+    ScriptResourceType,
     UpdateScriptFavoriteParam,
     UpdateScriptParam,
 )
@@ -28,17 +29,17 @@ router = APIRouter()
 
 
 @router.get('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsJwtAuth])
-async def get_script_albums_by_toys(
+async def get_script_album_by_toys(
     db: CurrentSession,
     toy_ids: Annotated[list[int], Query(min_length=1, description='完全匹配的玩偶 ID 集合')],
-) -> ResponseSchemaModel[list[GetScriptAlbumWithScripts]]:
-    albums = await script_album_service.get_albums_by_toy_ids(db=db, toy_ids=toy_ids)
-    data = [
-        GetScriptAlbumWithScripts.model_validate(album).model_copy(
-            update={'scripts': [GetScriptDetail.model_validate(script) for script in scripts]},
-        )
-        for album, scripts in albums
-    ]
+) -> ResponseSchemaModel[GetScriptAlbumWithScripts | None]:
+    result = await script_album_service.get_album_by_toy_ids(db=db, toy_ids=toy_ids)
+    if result is None:
+        return response_base.success(data=None)
+    album, scripts = result
+    data = GetScriptAlbumWithScripts.model_validate(album).model_copy(
+        update={'scripts': [GetScriptDetail.model_validate(script) for script in scripts]},
+    )
     return response_base.success(data=data)
 
 
@@ -57,12 +58,14 @@ async def get_script_album_paginated(
     title: Annotated[str | None, Query(description='专辑标题')] = None,
     author: Annotated[str | None, Query(description='作者')] = None,
     status: Annotated[int | None, Query(description='状态：0 禁用，1 启用')] = None,
+    resource_type: Annotated[ScriptResourceType | None, Query(description='资源类型：0 普通资源，1 彩蛋资源')] = None,
 ) -> ResponseSchemaModel[PageData[GetScriptAlbumDetail]]:
     page_data = await script_album_service.get_album_list(
         db=db,
         title=title,
         author=author,
         status=status,
+        resource_type=resource_type,
     )
     page_data['items'] = [GetScriptAlbumDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)
@@ -111,6 +114,7 @@ async def get_script_paginated(
     title: Annotated[str | None, Query(description='剧本标题')] = None,
     author: Annotated[str | None, Query(description='作者')] = None,
     status: Annotated[int | None, Query(description='状态')] = None,
+    resource_type: Annotated[ScriptResourceType | None, Query(description='资源类型：0 普通资源，1 彩蛋资源')] = None,
     baby_id: Annotated[int | None, Query(description='宝宝 ID')] = None,
     favorite: Annotated[int | None, Query(description='是否收藏：0 否，1 是')] = None,
     album_id: Annotated[int | None, Query(description='剧本专辑 ID')] = None,
@@ -128,6 +132,7 @@ async def get_script_paginated(
         favorite=favorite,
         album_id=album_id,
         content_types=content_types,
+        resource_type=resource_type,
     )
     page_data['items'] = [GetScriptDetail.model_validate(item) for item in page_data['items']]
     return response_base.success(data=page_data)

@@ -23,6 +23,7 @@ class CRUDScript(CRUDPlus[Script]):
         favorite: int | None = None,
         album_id: int | None = None,
         content_types: list[int] | None = None,
+        resource_type: int | None = None,
     ) -> Select:
         filters = {}
 
@@ -38,6 +39,8 @@ class CRUDScript(CRUDPlus[Script]):
             filters['favorite'] = favorite
         if album_id is not None:
             filters['album_id'] = album_id
+        if resource_type is not None:
+            filters['resource_type'] = resource_type
 
         stmt = await self.select_order('id', 'desc', **filters)
 

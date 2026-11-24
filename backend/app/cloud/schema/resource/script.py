@@ -2,6 +2,7 @@
 """剧本数据结构。"""
 
 from datetime import datetime
+from enum import IntEnum
 from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator
@@ -9,6 +10,11 @@ from pydantic import ConfigDict, Field, field_validator
 from backend.common.schema import SchemaBase
 
 SCRIPT_CONTENT_TYPES_DESCRIPTION = '内容类型列表：1 语言，2 科学，3 社会，4 艺术，5 健康'
+
+
+class ScriptResourceType(IntEnum):
+    NORMAL = 0
+    EASTER_EGG = 1
 
 
 def _normalize_content_types(value: list[int] | None) -> list[int] | None:
@@ -56,6 +62,9 @@ class ScriptLine(SchemaBase):
 class ScriptSchemaBase(SchemaBase):
     album_id: int | None = Field(None, gt=0, description='剧本专辑 ID，NULL 表示不属于专辑')
     title: str = Field(min_length=1, max_length=256, description='剧本标题')
+    resource_type: ScriptResourceType = Field(
+        default=ScriptResourceType.NORMAL, description='资源类型：0 普通资源，1 彩蛋资源',
+    )
     content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
     content: list[ScriptLine] = Field(min_length=1, description='剧本台词内容')
     baby_id: int | None = Field(None, gt=0, description='宝宝 ID，NULL 表示平台剧本')
@@ -98,6 +107,7 @@ class UpdateScriptFavoriteParam(SchemaBase):
 class UpdateScriptParam(SchemaBase):
     album_id: int | None = Field(None, gt=0, description='剧本专辑 ID，NULL 表示不属于专辑')
     baby_id: int | None = Field(None, gt=0, description='宝宝 ID，NULL 表示平台剧本')
+    resource_type: ScriptResourceType | None = Field(None, description='资源类型：0 普通资源，1 彩蛋资源')
     favorite: int | None = Field(None, ge=0, le=1, description='是否收藏：0 否，1 是')
     title: str | None = Field(None, min_length=1, max_length=256, description='剧本标题')
     content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)

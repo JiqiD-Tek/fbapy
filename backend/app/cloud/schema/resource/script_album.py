@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pydantic import ConfigDict, Field, field_validator
 
-from backend.app.cloud.schema.resource.script import GetScriptDetail
+from backend.app.cloud.schema.resource.script import GetScriptDetail, ScriptResourceType
 from backend.common.schema import SchemaBase
 
 
@@ -19,6 +19,9 @@ def normalize_toy_ids(value: list[int] | None) -> list[int] | None:
 class ScriptAlbumSchemaBase(SchemaBase):
     title: str = Field(min_length=1, max_length=256, description='专辑标题')
     toy_ids: list[int] = Field(min_length=1, description='专辑适用的玩偶 ID 列表')
+    resource_type: ScriptResourceType = Field(
+        default=ScriptResourceType.NORMAL, description='资源类型：0 普通资源，1 彩蛋资源',
+    )
     description: str | None = Field(None, description='专辑简介')
     cover_url: str | None = Field(None, max_length=512, description='专辑封面地址')
     author: str | None = Field(None, max_length=128, description='作者')
@@ -41,6 +44,7 @@ class CreateScriptAlbumParam(ScriptAlbumSchemaBase):
 class UpdateScriptAlbumParam(SchemaBase):
     title: str | None = Field(None, min_length=1, max_length=256, description='专辑标题')
     toy_ids: list[int] | None = Field(None, min_length=1, description='专辑适用的玩偶 ID 列表')
+    resource_type: ScriptResourceType | None = Field(None, description='资源类型：0 普通资源，1 彩蛋资源')
     description: str | None = Field(None, description='专辑简介')
     cover_url: str | None = Field(None, max_length=512, description='专辑封面地址')
     author: str | None = Field(None, max_length=128, description='作者')

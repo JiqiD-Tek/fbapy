@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.app.cloud.crud.resource.crud_script import script_dao
 from backend.app.cloud.crud.resource.crud_script_album import script_album_dao
 from backend.app.cloud.model import Baby, Script
-from backend.app.cloud.schema.resource.script import CreateScriptParam, UpdateScriptFavoriteParam, UpdateScriptParam
+from backend.app.cloud.schema.resource.script import (
+    CreateScriptParam,
+    ScriptResourceType,
+    UpdateScriptFavoriteParam,
+    UpdateScriptParam,
+)
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
 
@@ -27,10 +32,12 @@ class ScriptService:
             *, db: AsyncSession, title: str | None = None, author: str | None = None,
             status: int | None = None, baby_id: int | None = None, favorite: int | None = None,
             album_id: int | None = None, content_types: list[int] | None = None,
+            resource_type: ScriptResourceType | None = None,
     ) -> dict[str, Any]:
         stmt = await script_dao.get_select(
             title=title, author=author, status=status, baby_id=baby_id, favorite=favorite,
             album_id=album_id, content_types=ScriptService._normalize_content_types(content_types),
+            resource_type=resource_type,
         )
         return await paging_data(db, stmt)
 
@@ -90,7 +97,7 @@ class ScriptService:
 
     @staticmethod
     async def delete_script(*, db: AsyncSession, pk: int) -> int:
-        script = await ScriptService.get_script(db=db, pk=pk)
+        await ScriptService.get_script(db=db, pk=pk)
         return await script_dao.delete(db, pk)
 
     @staticmethod

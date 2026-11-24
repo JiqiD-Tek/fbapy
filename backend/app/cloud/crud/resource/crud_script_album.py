@@ -16,11 +16,18 @@ class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
     async def get(self, db: AsyncSession, pk: int) -> ScriptAlbum | None:
         return await self.select_model(db, pk)
 
+    async def get_by_exact_toy_ids(self, db: AsyncSession, toy_ids: list[int]) -> ScriptAlbum | None:
+        stmt = await self.get_select(title=None, author=None, status=None, exact_toy_ids=toy_ids)
+        stmt = stmt.where(self.model.deleted == 0).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_select(
             self,
             title: str | None,
             author: str | None,
             status: int | None,
+            resource_type: int | None = None,
             exact_toy_ids: list[int] | None = None,
     ) -> Select:
         filters = {}
@@ -30,6 +37,8 @@ class CRUDScriptAlbum(CRUDPlus[ScriptAlbum]):
             filters['author__like'] = f'%{author}%'
         if status is not None:
             filters['status'] = status
+        if resource_type is not None:
+            filters['resource_type'] = resource_type
         stmt = await self.select_order('id', 'desc', **filters)
         if exact_toy_ids:
             stmt = stmt.where(self._build_exact_toy_ids_condition(exact_toy_ids))
