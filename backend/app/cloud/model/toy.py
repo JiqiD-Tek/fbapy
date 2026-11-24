@@ -50,8 +50,8 @@ class Toy(Base):
     color: Mapped[str | None] = mapped_column(sa.String(32), default=None, comment='玩偶主题颜色')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶头像地址')
     summary: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='玩偶简介')
-    intro_audio_url: Mapped[str | None] = mapped_column(
-        sa.String(512), default=None, comment='玩偶介绍音频地址',
+    opening_audio_urls: Mapped[list[str] | None] = mapped_column(
+        sa.JSON, default=None, comment='玩偶开场白音频地址列表',
     )
     related_toy_ids: Mapped[list[int] | None] = mapped_column(sa.JSON, default=None, comment='关联玩偶 ID 列表')
 

@@ -9,12 +9,13 @@
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from backend.common.schema import SchemaBase
 
 PositiveToyId = Annotated[int, Field(gt=0)]
 NfcCode = Annotated[str, Field(min_length=1, max_length=64)]
+OpeningAudioUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=512)]
 ToyTTSResourceId = Literal['seed-tts-2.0', 'seed-icl-2.0']
 TOY_TTS_RESOURCE_ID_DESCRIPTION = (
     '火山语音合成资源 ID：seed-tts-2.0（预置音色）或 seed-icl-2.0（复刻音色）'
@@ -174,7 +175,7 @@ class ToyReadSchemaBase(SchemaBase):
     voice_language: str | None = Field(None, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
     loudness_rate: int | None = Field(None, description='音量')
-    intro_audio_url: str | None = Field(None, description='玩偶介绍音频地址')
+    opening_audio_urls: list[str] | None = Field(None, description='玩偶开场白音频地址列表')
     status: int = Field(default=1, description='状态：0 禁用，1 启用')
     sort: int = Field(default=0, description='排序值，越小越靠前')
     remark: str | None = Field(None, description='备注')
@@ -205,7 +206,7 @@ class CreateToyParam(SchemaBase):
     voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
     loudness_rate: int | None = Field(None, description='音量')
-    intro_audio_url: str | None = Field(None, max_length=512, description='玩偶介绍音频地址')
+    opening_audio_urls: list[OpeningAudioUrl] | None = Field(None, description='玩偶开场白音频地址列表')
     status: int = Field(default=1, description='状态：0 禁用，1 启用')
     sort: int = Field(default=0, description='排序值，越小越靠前')
     remark: str | None = Field(None, max_length=500, description='备注')
@@ -224,7 +225,6 @@ class CreateToyParam(SchemaBase):
         'resource_id',
         'voice_name',
         'voice_language',
-        'intro_audio_url',
         'remark',
         mode='before',
     )
@@ -259,7 +259,7 @@ class UpdateToyParam(SchemaBase):
     voice_language: str | None = Field(None, max_length=32, description='声音语言，例如 zh-CN、en-US、zh-TW')
     speech_rate: int | None = Field(None, description='语速')
     loudness_rate: int | None = Field(None, description='音量')
-    intro_audio_url: str | None = Field(None, max_length=512, description='玩偶介绍音频地址')
+    opening_audio_urls: list[OpeningAudioUrl] | None = Field(None, description='玩偶开场白音频地址列表')
     status: int | None = Field(None, description='状态：0 禁用，1 启用')
     sort: int | None = Field(None, description='排序值，越小越靠前')
     remark: str | None = Field(None, max_length=500, description='备注')
@@ -278,7 +278,6 @@ class UpdateToyParam(SchemaBase):
         'resource_id',
         'voice_name',
         'voice_language',
-        'intro_audio_url',
         'remark',
         mode='before',
     )
