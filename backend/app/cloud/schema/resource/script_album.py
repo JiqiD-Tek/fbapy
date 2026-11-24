@@ -2,6 +2,7 @@
 """剧本专辑数据结构。"""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import ConfigDict, Field, field_validator
 
@@ -50,6 +51,13 @@ class UpdateScriptAlbumParam(SchemaBase):
     author: str | None = Field(None, max_length=128, description='作者')
     status: int | None = Field(None, ge=0, le=1, description='状态：0 禁用，1 启用')
     remark: str | None = Field(None, max_length=500, description='备注')
+
+    @field_validator('resource_type', 'status')
+    @classmethod
+    def reject_null_required_fields(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError('字段不能为空')
+        return value
 
     @field_validator('toy_ids')
     @classmethod

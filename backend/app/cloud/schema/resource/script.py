@@ -122,6 +122,13 @@ class UpdateScriptParam(SchemaBase):
     status: int | None = Field(None, ge=0, le=2, description='状态：0 草稿，1 启用，2 禁用')
     remark: str | None = Field(None, max_length=500, description='备注')
 
+    @field_validator('resource_type', 'content', 'version', 'duration', 'track_no', 'status')
+    @classmethod
+    def reject_null_required_fields(cls, value: Any) -> Any:
+        if value is None:
+            raise ValueError('字段不能为空')
+        return value
+
     @field_validator('content_types')
     @classmethod
     def normalize_content_types(cls, value: list[int] | None) -> list[int] | None:

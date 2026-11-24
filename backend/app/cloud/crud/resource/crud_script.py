@@ -1,13 +1,20 @@
+import json
+
 from collections.abc import Sequence
 from datetime import datetime
 
 import sqlalchemy as sa
+
 from sqlalchemy import Select
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy_crud_plus import CRUDPlus
 
 from backend.app.cloud.model import Script
 from backend.app.cloud.schema.resource.script import CreateScriptParam, UpdateScriptParam
+from backend.common.enums import DataBaseType
+from backend.core.conf import settings
 
 
 class CRUDScript(CRUDPlus[Script]):
@@ -47,6 +54,15 @@ class CRUDScript(CRUDPlus[Script]):
         if content_types:
             stmt = stmt.where(self._build_json_array_contains_condition(self.model.content_types, content_types))
         return stmt
+
+    @staticmethod
+    def _build_json_array_contains_condition(
+            column: InstrumentedAttribute,
+            values: list[int],
+    ) -> sa.ColumnElement[bool]:
+        if settings.DATABASE_TYPE == DataBaseType.postgresql:
+            return sa.cast(column, postgresql.JSONB).contains(values)
+        return sa.func.JSON_CONTAINS(column, json.dumps(values)) == 1
 
     async def create(self, db: AsyncSession, obj: CreateScriptParam) -> Script:
         return await self.create_model(db, obj, flush=True)
