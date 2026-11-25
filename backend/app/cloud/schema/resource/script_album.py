@@ -23,6 +23,7 @@ class ScriptAlbumSchemaBase(SchemaBase):
     resource_type: ScriptResourceType = Field(
         default=ScriptResourceType.NORMAL, description='资源类型：0 普通资源，1 彩蛋资源',
     )
+    version: int = Field(default=1, ge=1, description='版本号')
     description: str | None = Field(None, description='专辑简介')
     cover_url: str | None = Field(None, max_length=512, description='专辑封面地址')
     author: str | None = Field(None, max_length=128, description='作者')
@@ -46,6 +47,7 @@ class UpdateScriptAlbumParam(SchemaBase):
     title: str | None = Field(None, min_length=1, max_length=256, description='专辑标题')
     toy_ids: list[int] | None = Field(None, min_length=1, description='专辑适用的玩偶 ID 列表')
     resource_type: ScriptResourceType | None = Field(None, description='资源类型：0 普通资源，1 彩蛋资源')
+    version: int | None = Field(None, ge=1, description='版本号')
     description: str | None = Field(None, description='专辑简介')
     cover_url: str | None = Field(None, max_length=512, description='专辑封面地址')
     author: str | None = Field(None, max_length=128, description='作者')

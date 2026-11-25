@@ -64,6 +64,7 @@ class Toy(Base):
     voice_language: Mapped[str | None] = mapped_column(
         sa.String(32), default=None, comment='声音语言，例如 zh-CN、en-US、zh-TW',
     )
+    version: Mapped[int] = mapped_column(default=1, comment='版本号')
     speech_rate: Mapped[int] = mapped_column(default=0, comment='语速')
     loudness_rate: Mapped[int] = mapped_column(default=0, comment='音量')
 

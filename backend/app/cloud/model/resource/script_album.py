@@ -18,6 +18,7 @@ class ScriptAlbum(Base):
     resource_type: Mapped[int] = mapped_column(
         sa.SmallInteger, default=0, index=True, comment='资源类型：0 普通资源，1 彩蛋资源',
     )
+    version: Mapped[int] = mapped_column(default=1, comment='版本号')
     description: Mapped[str | None] = mapped_column(UniversalText, default=None, comment='专辑简介')
     cover_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='专辑封面地址')
     author: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='作者')

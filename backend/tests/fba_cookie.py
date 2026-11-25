@@ -39,7 +39,7 @@ def _print_result(title: str, response: httpx.Response) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description='测试 terminal 设备鉴权 Cookie 传参')
-    parser.add_argument('--base-url', default='http://iot.jiqid.net', help='服务地址')
+    parser.add_argument('--base-url', default='https://iot.jiqid.net', help='服务地址')
     parser.add_argument('--path', default='/api/v1/terminal/auth/fba_token', help='测试接口路径')
     parser.add_argument('--method', default='POST', choices=['GET', 'POST'], help='请求方法')
     parser.add_argument('--mac', default='AC:27:6E:AC:A2:3C', help='设备 MAC')
