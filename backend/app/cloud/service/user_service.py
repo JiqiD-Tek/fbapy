@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_user import user_dao
 from backend.app.cloud.crud.crud_device import device_dao
-from backend.app.cloud.model import Baby, Device
+from backend.app.cloud.model import Baby, Device, Script
 from backend.app.cloud.model.m2m import user_device
 from backend.common.exception import errors
 from backend.common.pagination import paging_data
@@ -60,20 +60,30 @@ class UserService:
         device_id_result = await db.execute(device_id_stmt)
         device_ids = list(device_id_result.scalars().all())
 
+        baby_id_stmt = select(Baby.id).where(Baby.user_id == user_id)
+        baby_id_result = await db.execute(baby_id_stmt)
+        baby_ids = list(baby_id_result.scalars().all())
+
         await db.execute(
             update(Baby)
             .where(Baby.user_id == user_id)
             .values(device_id=None)
         )
+        if baby_ids:
+            await db.execute(
+                update(Script)
+                .where(Script.baby_id.in_(baby_ids))
+                .values(baby_id=None)
+            )
         await db.execute(delete(Baby).where(Baby.user_id == user_id))
         await db.execute(delete(user_device).where(user_device.c.user_id == user_id))
 
         count = await user_dao.delete(db, [user_id])
 
-        await redis_client.delete_prefix(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}')
-        await redis_client.delete_prefix(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user_id}')
-        await redis_client.delete_prefix(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}')
-        await redis_client.delete_prefix(f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user_id}')
+        await redis_client.delete_by_prefix(f'{settings.TOKEN_REDIS_PREFIX}:{user_id}')
+        await redis_client.delete_by_prefix(f'{settings.TOKEN_REFRESH_REDIS_PREFIX}:{user_id}')
+        await redis_client.delete_by_prefix(f'{settings.TOKEN_EXTRA_INFO_REDIS_PREFIX}:{user_id}')
+        await redis_client.delete_by_prefix(f'{settings.JWT_USER_REDIS_PREFIX}:terminal:{user_id}')
 
         return count, device_ids
 

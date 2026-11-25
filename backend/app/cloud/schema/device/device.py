@@ -27,9 +27,6 @@ class DeviceSchemaBase(SchemaBase):
     firmware: str | None = Field(None, description='Firmware version')
     hardware: str | None = Field(None, description='Hardware version')
 
-    quota: int = Field(0, description='Current usage duration in seconds')
-
-
 class DeviceCredentialsParam(SchemaBase):
     """Create device credentials request."""
 

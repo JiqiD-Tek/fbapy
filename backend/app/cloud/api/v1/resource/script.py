@@ -28,7 +28,7 @@ from backend.database.db import CurrentSession, CurrentSessionTransaction
 router = APIRouter()
 
 
-@router.get('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsJwtAuth])
+@router.post('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsJwtAuth])
 async def get_script_album_by_toys(
     db: CurrentSession,
     toy_ids: Annotated[list[int], Query(min_length=1, description='完全匹配的玩偶 ID 集合')],

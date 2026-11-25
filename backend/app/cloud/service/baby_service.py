@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.cloud.crud.crud_baby import baby_dao
 from backend.app.cloud.crud.crud_device import device_dao
-from backend.app.cloud.model import Baby
+from backend.app.cloud.model import Baby, Script
 from backend.app.cloud.model.m2m import user_device
 from backend.app.cloud.schema.baby import CreateBabyData, CreateBabyParam, DeviceBabyParam, UpdateBabyParam
 from backend.common.exception import errors
@@ -178,6 +178,11 @@ class BabyService:
     @staticmethod
     async def delete(*, db: AsyncSession, user_id: int, pk: int) -> int:
         baby = await BabyService._ensure_user_has_baby(db=db, user_id=user_id, baby_id=pk)
+        await db.execute(
+            update(Script)
+            .where(Script.baby_id == pk)
+            .values(baby_id=None)
+        )
         count = await baby_dao.delete(db, pk)
         if count > 0:
             await BabyService.invalidate_device_baby_cache(db=db, device_id=baby.device_id)

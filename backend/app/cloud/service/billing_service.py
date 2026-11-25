@@ -78,18 +78,14 @@ class CreditCalculator:
     @classmethod
     def llm_input(cls, characters: Decimal | int | float | str) -> int:
         """按 llm 输入 字符 换算积分。"""
-        return cls._per_thousand(
-            cls._require_non_negative_integer(characters, '输入 字符 数'),
-            cls.LLM_INPUT_CREDITS_PER_CHAR,
-        )
+        count = cls._require_non_negative_integer(characters, '输入 字符 数')
+        return count * cls.LLM_INPUT_CREDITS_PER_CHAR
 
     @classmethod
     def llm_output(cls, characters: Decimal | int | float | str) -> int:
         """按 llm 输出 字符 换算积分。"""
-        return cls._per_thousand(
-            cls._require_non_negative_integer(characters, '输出 字符 数'),
-            cls.LLM_OUTPUT_CREDITS_PER_CHAR,
-        )
+        count = cls._require_non_negative_integer(characters, '输出 字符 数')
+        return count * cls.LLM_OUTPUT_CREDITS_PER_CHAR
 
     @classmethod
     def tts(cls, characters: Decimal | int | float | str) -> int:
@@ -126,12 +122,6 @@ class CreditCalculator:
         if number < 0 or number != number.to_integral_value():
             raise ValueError(f'{name}必须为非负整数')
         return int(number)
-
-    @staticmethod
-    def _per_thousand(units: int, credits_per_1k: int) -> int:
-        """按千单位计价，并向上取整到 1 积分。"""
-        return (units * credits_per_1k + 999) // 1000
-
 
 class BillingService:
     """计费服务。"""
