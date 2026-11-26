@@ -44,9 +44,6 @@ class CRUDDevice(CRUDPlus[Device]):
     async def get_by_did(self, db: AsyncSession, did: str) -> Device | None:
         return await self.select_model_by_column(db, did=did)
 
-    async def get_by_model(self, db: AsyncSession, model: str) -> Sequence[Device]:
-        return await self.select_models(db, Device.model == model)
-
     async def get_all(self, db: AsyncSession) -> Sequence[Device]:
         return await self.select_models(db)
 
@@ -58,21 +55,6 @@ class CRUDDevice(CRUDPlus[Device]):
 
     async def delete(self, db: AsyncSession, pk: int) -> int:
         return await self.delete_model_by_column(db, allow_multiple=True, id=pk)
-
-    async def update_firmware_version(self, db: AsyncSession, pk: int, firmware_version: str) -> int:
-        return await self.update_model(db, pk, {'firmware': firmware_version})
-
-    async def get_device_count_by_model(self, db: AsyncSession, model: str) -> int:
-        return await self.count(db, Device.model == model)
-
-    async def get_device_count_by_user(self, db: AsyncSession, user_id: int) -> int:
-        stmt = (
-            select(func.count())
-            .select_from(user_device)
-            .where(user_device.c.user_id == user_id)
-        )
-        result = await db.execute(stmt)
-        return result.scalar_one()
 
 
 class CRUDDeviceChat(CRUDPlus[DeviceChat]):

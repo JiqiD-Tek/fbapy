@@ -23,12 +23,13 @@ from backend.app.cloud.service.resource.script_service import script_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.jwt import DependsJwtAuth
+from backend.common.security.auth import DependsDeviceOrJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
 router = APIRouter()
 
 
-@router.get('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsJwtAuth])
+@router.get('/albums/toys', summary='查询完全匹配玩偶集合的剧本专辑', dependencies=[DependsDeviceOrJwtAuth])
 async def get_script_album_by_toys(
     db: CurrentSession,
     toy_ids: Annotated[list[int], Query(min_length=1, description='完全匹配的玩偶 ID 集合')],

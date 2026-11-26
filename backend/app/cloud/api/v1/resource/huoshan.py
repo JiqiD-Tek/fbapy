@@ -28,7 +28,6 @@ from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream
 from backend.common.log import log
 from backend.common.response.response_schema import ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceOrJwtAuth
-from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSessionTransaction, CurrentSession
 
 router = APIRouter()
@@ -83,7 +82,7 @@ async def submit_huoshan_toy_story_script(
     '/stories/script',
     summary='查询玩偶故事剧本生成任务状态',
     response_model_by_alias=False,
-    dependencies=[DependsJwtAuth],
+    dependencies=[DependsDeviceOrJwtAuth],
 )
 async def get_huoshan_toy_story_script(
         task_id: Annotated[str, Query(description='故事剧本生成任务 ID')],
@@ -97,7 +96,7 @@ async def get_huoshan_toy_story_script(
     '/stories/script/tts',
     summary='获取玩偶故事剧本语音',
     response_model_by_alias=False,
-    dependencies=[DependsJwtAuth],
+    dependencies=[DependsDeviceOrJwtAuth],
 )
 async def get_huoshan_toy_story_tts(
         task_id: Annotated[str, Query(description='故事剧本生成任务 ID')],

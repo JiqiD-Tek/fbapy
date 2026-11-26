@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     DATABASE_CHARSET: str = 'utf8mb4'
     DATABASE_PK_MODE: Literal['autoincrement', 'snowflake'] = 'autoincrement'
 
+    # 设备每日 AI 使用额度；None 表示不限制
+    DEVICE_USAGE_DAILY_CHAT_SECONDS_LIMIT: int | None = None
+    DEVICE_USAGE_DAILY_STORY_COUNT_LIMIT: int | None = None
+
     # .env Redis
     REDIS_HOST: str
     REDIS_PORT: int

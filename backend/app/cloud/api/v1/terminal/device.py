@@ -22,17 +22,20 @@ from backend.app.cloud.schema.device.device import (
 )
 from backend.app.cloud.schema.device.device_state import GetDeviceStateDetail
 from backend.app.cloud.schema.device.device_chat import CreateDeviceChatParam, GetDeviceChatDetail
+from backend.app.cloud.schema.device_usage import DeviceUsageQuotaResult, UpdateDeviceUsageParam
 from backend.app.cloud.schema.token import MiniProvisionBindParam, MiniProvisionStatusDetail
 from backend.app.cloud.schema.user import DeviceAuthParam
 from backend.app.cloud.service.auth_service import auth_service
 from backend.app.cloud.service.baby_service import baby_service
 from backend.app.cloud.service.device_service import device_service
+from backend.app.cloud.service.device_usage_service import device_usage_service
 from backend.app.cloud.service.device.gateway import DeviceGateway
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
 from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
+from backend.utils.timezone import timezone
 
 router = APIRouter()
 
@@ -62,6 +65,40 @@ async def create_device_turn_chat(
 ) -> ResponseModel:
     await device_service.create_chat(db=db, did=auth_ctx.did, obj=obj)
     return response_base.success()
+
+
+@router.get('/usage', summary='查询设备每日 AI 使用额度', dependencies=[DependsDeviceAuth])
+async def get_device_usage(
+        db: CurrentSession,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[DeviceUsageQuotaResult]:
+    usage_date = timezone.now().date()
+    usage = await device_usage_service.get_daily_usage(db=db, did=auth_ctx.did, usage_date=usage_date)
+    data = device_usage_service.build_quota_result(did=auth_ctx.did, usage_date=usage_date, usage=usage)
+    return response_base.success(data=DeviceUsageQuotaResult.model_validate(data))
+
+
+@router.post('/usage', summary='更新设备每日 AI 使用额度', dependencies=[DependsDeviceAuth])
+async def update_device_usage(
+        db: CurrentSessionTransaction,
+        obj: UpdateDeviceUsageParam,
+        auth_ctx: DeviceAuthParam = DependsDeviceAuth,
+) -> ResponseSchemaModel[DeviceUsageQuotaResult]:
+    await device_usage_service.record_usage(
+        db=db,
+        did=auth_ctx.did,
+        event_type=obj.event_type,
+        event_key=obj.event_key,
+        quantity=obj.quantity,
+    )
+    usage = await device_usage_service.get_daily_usage(db=db, did=auth_ctx.did)
+    usage_date = timezone.now().date()
+    data = device_usage_service.build_quota_result(
+        did=auth_ctx.did,
+        usage_date=usage_date,
+        usage=usage,
+    )
+    return response_base.success(data=DeviceUsageQuotaResult.model_validate(data))
 
 
 @router.get('/bind/state', summary='设备绑定关系', dependencies=[DependsDeviceAuth])

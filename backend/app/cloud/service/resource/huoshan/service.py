@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 
-from backend.app.cloud.schema.billing import CreditUsageType
 from backend.app.cloud.schema.resource.huoshan import (
     HuoshanStoryBgmInfo,
     HuoshanStorySynthesisParam,
@@ -31,21 +30,18 @@ from backend.app.cloud.schema.resource.huoshan import (
     HuoshanVoiceListResult,
     HuoshanVoiceStatus,
 )
-from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine
+from backend.app.cloud.schema.resource.script import CreateScriptParam, ScriptLine, ScriptResourceType
 from backend.app.cloud.service.baby_service import baby_service
-from backend.app.cloud.service.billing_service import (
-    BILL_BIZ_STORY,
-    billing_service,
-)
+from backend.app.cloud.service.device_usage_service import device_usage_service
 from backend.app.cloud.service.toy_service import toy_service
 from backend.app.cloud.service.resource.song_service import song_service
 from backend.app.cloud.service.resource.script_service import script_service
 from backend.app.cloud.service.resource.huoshan.tts.tts_cache import tts_cache
 from backend.app.cloud.service.resource.huoshan.tts.tts_stream import tts_stream_service
-from backend.common.providers.ali_oss import oss_client
-from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, doubao_provider
 from backend.common.exception import errors
 from backend.common.log import log
+from backend.common.providers.ali_oss import oss_client
+from backend.common.providers.doubao import DEFAULT_DOUBAO_LITE_MODEL, doubao_provider
 from backend.core.conf import settings
 from backend.database.db import async_db_session
 from backend.database.redis import redis_client
@@ -287,13 +283,13 @@ class HuoshanVoiceService:
     ) -> HuoshanLongTextTTSConfig:
         project = get_voice_project_for_speaker(speaker)
         resolved_resource_id = (
-            cls._normalize_text(resource_id)
-            or settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
-            or CLONE_VOICE_RESOURCE_ID_V2
+                cls._normalize_text(resource_id)
+                or settings.BYTES_TTS_LONG_RESOURCE_ID.strip()
+                or CLONE_VOICE_RESOURCE_ID_V2
         )
         query_resource_id = (
-            settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
-            or HuoshanLongTextTTSClient.infer_query_resource_id(resolved_resource_id)
+                settings.BYTES_TTS_LONG_QUERY_RESOURCE_ID.strip()
+                or HuoshanLongTextTTSClient.infer_query_resource_id(resolved_resource_id)
         )
         return HuoshanLongTextTTSConfig(
             app_id=project.app_id,
@@ -616,7 +612,7 @@ class HuoshanVoiceService:
         normalized_result = cls._normalize_toy_story_script_result(result)
         try:
             payload = normalized_result.model_dump()
-            payload['billing_did'] = normalized_result.billing_did
+            payload['device_did'] = normalized_result.device_did
             await redis_client.set(
                 cls._toy_story_script_task_key(normalized_result.task_id),
                 json.dumps(payload, ensure_ascii=False, separators=(',', ':')),
@@ -624,6 +620,21 @@ class HuoshanVoiceService:
             )
         except Exception as exc:
             raise errors.GatewayError(msg='火山玩偶故事剧本任务结果保存失败') from exc
+
+    @staticmethod
+    async def _record_completed_toy_story_usage(result: HuoshanToyStoryScriptResult) -> None:
+        if result.device_did is None:
+            return
+
+        try:
+            async with async_db_session.begin() as db:
+                await device_usage_service.record_story(
+                    db=db,
+                    did=result.device_did,
+                    event_key=result.task_id,
+                )
+        except Exception as exc:
+            log.error(f'玩偶故事剧本使用量记录失败：task_id={result.task_id}，error={exc!r}')
 
     @classmethod
     async def get_toy_story_script(cls, task_id: str) -> HuoshanToyStoryScriptResult:
@@ -748,32 +759,7 @@ class HuoshanVoiceService:
         result = await self._list_clone_voice_status_page(query)
         return [self._attach_voice_alias(status) for status in result.statuses]
 
-    # 故事文本计费
-
-    async def _charge_story(
-            self,
-            *,
-            task_id: str,
-            billing_did: str | None,
-            biz_suffix: str,
-            quantity: int,
-            usage_type: CreditUsageType,
-    ) -> None:
-        log.info(f"charge_story [billing_did: {billing_did}, usage_type: {usage_type}, quantity={quantity}]")
-        if not billing_did or quantity <= 0:
-            return
-        async with async_db_session.begin() as db:
-            await billing_service.debit(
-                db=db,
-                auth_did=billing_did,
-                biz_type=BILL_BIZ_STORY,
-                biz_id=f'{task_id}:{biz_suffix}',
-                quantity=quantity,
-                usage_type=usage_type,
-            )
-
     # 玩偶故事剧本生成
-
     async def _process_toy_story_script(
             self,
             task_id: str,
@@ -827,15 +813,7 @@ class HuoshanVoiceService:
                 'task_status': STORY_TASK_STATUS_COMPLETED,
                 'error_message': None,
             }, deep=True)
-            generated_text = ''.join(line.text for line in result.lines)
-            await self._charge_story(
-                task_id=result.task_id,
-                billing_did=result.billing_did,
-                biz_suffix='text',
-                # 当前流式接口不返回 token 用量，中文故事暂按字符数估算输出 token。
-                quantity=len(generated_text),
-                usage_type=CreditUsageType.LLM_OUTPUT_CHARACTERS,
-            )
+            await self._record_completed_toy_story_usage(result)
             await self._save_toy_story_script_task_result(result)
             asyncio.create_task(
                 self._save_toy_story_script(task_id=task_id),
@@ -911,7 +889,7 @@ class HuoshanVoiceService:
             toys=toy_infos,
             lines=[],
             baby_id=baby_id,
-            billing_did=device_did,
+            device_did=device_did,
             is_completed=False,
             task_status=STORY_TASK_STATUS_PROCESSING,
             error_message=None,
@@ -943,13 +921,6 @@ class HuoshanVoiceService:
             if line.tts_status:
                 return
 
-            await self._charge_story(
-                task_id=result.task_id,
-                billing_did=result.billing_did,
-                biz_suffix=f'tts:{request_id}',
-                quantity=len(line.text),
-                usage_type=CreditUsageType.TTS_CHARACTERS,
-            )
             updated_lines = list(result.lines)
             updated_lines[index] = line.model_copy(update={'tts_status': True}, deep=True)
             result = result.model_copy(update={'lines': updated_lines}, deep=True)
@@ -991,6 +962,8 @@ class HuoshanVoiceService:
                             summary=result.text,
                             cover_url=None,
                             author="AI",
+                            resource_type=ScriptResourceType.NORMAL,
+                            content_types=[1],
                             content=content,
                             play_url=play_url,
                             duration=ScriptAudioBuilder.get_content_duration(content),
@@ -1157,5 +1130,6 @@ class HuoshanVoiceService:
 
     async def get_story_synthesis(self, *, task_id: str) -> HuoshanStorySynthesisResult:
         return await self._get_story_synthesis_task_result(task_id)
+
 
 huoshan_voice_service = HuoshanVoiceService()

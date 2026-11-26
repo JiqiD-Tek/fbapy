@@ -29,6 +29,7 @@ from backend.app.cloud.schema.device.toy import (
 from backend.app.cloud.service.toy_service import toy_service
 from backend.common.pagination import DependsPagination, PageData
 from backend.common.response.response_schema import ResponseModel, ResponseSchemaModel, response_base
+from backend.common.security.auth import DependsDeviceAuth
 from backend.common.security.jwt import DependsJwtAuth
 from backend.database.db import CurrentSession, CurrentSessionTransaction
 
@@ -194,6 +195,15 @@ async def create_toy(
 ) -> ResponseSchemaModel[GetToyDetail]:
     toy = await toy_service.create_toy(db=db, obj=obj)
     return response_base.success(data=GetToyDetail.model_validate(toy))
+
+
+@router.get('/batch', summary='??????????', dependencies=[DependsDeviceAuth])
+async def get_toys_by_ids(
+        db: CurrentSession,
+        toy_ids: Annotated[list[int], Query(min_length=1, max_length=100, description='?? ID ??')],
+) -> ResponseSchemaModel[list[GetToyDetail]]:
+    toys = await toy_service.get_toys_by_ids(db=db, toy_ids=toy_ids)
+    return response_base.success(data=[GetToyDetail.model_validate(toy) for toy in toys])
 
 
 @router.get('/{pk}', summary='获取玩偶详情', dependencies=[DependsJwtAuth])

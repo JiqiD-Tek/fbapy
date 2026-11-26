@@ -116,7 +116,7 @@ class HuoshanToyStoryScriptResult(HuoshanSchemaBase):
     toys: list[HuoshanToyStoryToyInfo] = Field(default_factory=list, description='缓存的玩偶快照')
     lines: list[HuoshanToyStoryScriptLine] = Field(default_factory=list, description='生成的剧本台词列表')
     baby_id: int | None = Field(None, gt=0, description='任务归属的宝宝 ID，NULL 表示平台任务')
-    billing_did: str | None = Field(None, exclude=True, description='内部计费设备 DID')
+    device_did: str | None = Field(None, exclude=True, description='内部设备 DID')
     is_completed: bool = Field(description='故事剧本生成是否完成')
     task_status: int = Field(description='任务状态')
     error_message: str | None = Field(None, description='任务错误信息')

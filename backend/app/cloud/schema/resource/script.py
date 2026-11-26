@@ -9,8 +9,6 @@ from pydantic import ConfigDict, Field, field_validator
 
 from backend.common.schema import SchemaBase
 
-SCRIPT_CONTENT_TYPES_DESCRIPTION = '内容类型列表：1 语言，2 科学，3 社会，4 艺术，5 健康'
-
 
 class ScriptResourceType(IntEnum):
     NORMAL = 0
@@ -65,7 +63,8 @@ class ScriptSchemaBase(SchemaBase):
     resource_type: ScriptResourceType = Field(
         default=ScriptResourceType.NORMAL, description='资源类型：0 普通资源，1 彩蛋资源',
     )
-    content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
+    content_types: list[int] | None = Field(None, min_length=1,
+                                            description='内容类型列表：1 语言，2 科学，3 社会，4 艺术，5 健康')
     content: list[ScriptLine] = Field(min_length=1, description='剧本台词内容')
     baby_id: int | None = Field(None, gt=0, description='宝宝 ID，NULL 表示平台剧本')
     favorite: int = Field(default=0, ge=0, le=1, description='是否收藏：0 否，1 是')
@@ -110,7 +109,8 @@ class UpdateScriptParam(SchemaBase):
     resource_type: ScriptResourceType | None = Field(None, description='资源类型：0 普通资源，1 彩蛋资源')
     favorite: int | None = Field(None, ge=0, le=1, description='是否收藏：0 否，1 是')
     title: str | None = Field(None, min_length=1, max_length=256, description='剧本标题')
-    content_types: list[int] | None = Field(None, min_length=1, description=SCRIPT_CONTENT_TYPES_DESCRIPTION)
+    content_types: list[int] | None = Field(None, min_length=1,
+                                            description='内容类型列表：1 语言，2 科学，3 社会，4 艺术，5 健康')
     version: int | None = Field(None, ge=1, description='版本号')
     summary: str | None = Field(None, max_length=1000, description='剧本摘要')
     cover_url: str | None = Field(None, max_length=512, description='剧本封面地址')
