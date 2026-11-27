@@ -25,6 +25,7 @@ class CRUDDeviceUsage(CRUDPlus[DeviceUsage]):
             select(self.model)
             .where(self.model.did == did, self.model.usage_date == usage_date)
             .with_for_update()
+            .execution_options(populate_existing=True)
             .limit(1)
         )
         return result.scalar_one_or_none()
@@ -37,6 +38,7 @@ class CRUDDeviceUsageEvent(CRUDPlus[DeviceUsageEvent]):
         result = await db.execute(
             select(self.model)
             .where(self.model.event_type == event_type, self.model.event_key == event_key)
+            .with_for_update()
             .limit(1)
         )
         return result.scalar_one_or_none()

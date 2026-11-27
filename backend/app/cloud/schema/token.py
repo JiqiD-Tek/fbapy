@@ -105,7 +105,7 @@ class CozeToken(SchemaBase):
 class LivekitToken(SchemaBase):
     """令牌"""
 
-    url: str = Field(description='URL')
+    url: str = Field(description='服务地址')
     token: str = Field(description='令牌')
     ttl: int = Field(description='令牌剩余时间')
 
@@ -126,8 +126,8 @@ class MiniProvisionBindParam(SchemaBase):
 class StsToken(SchemaBase):
     """令牌"""
 
-    access_key_id: str = Field(description='key')
-    access_key_secret: str = Field(description='秘钥')
+    access_key_id: str = Field(description='访问密钥 ID')
+    access_key_secret: str = Field(description='访问密钥')
     security_token: str = Field(description='令牌')
     expiration: str = Field(description='失效时间')
 

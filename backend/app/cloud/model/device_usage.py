@@ -22,8 +22,7 @@ class DeviceUsage(Base):
     id: Mapped[id_key] = mapped_column(init=False)
     did: Mapped[str] = mapped_column(sa.String(64), comment='设备 DID')
     usage_date: Mapped[date] = mapped_column(sa.Date, comment='业务日期')
-    chat_seconds: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='AI 对话时长，单位秒')
-    story_count: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='AI 故事创建次数')
+    quantity: Mapped[int] = mapped_column(sa.BigInteger, default=0, comment='当日累计使用量，统一用量单位')
 
 
 class DeviceUsageEvent(Base):
@@ -41,4 +40,4 @@ class DeviceUsageEvent(Base):
     usage_date: Mapped[date] = mapped_column(sa.Date, comment='业务日期')
     event_type: Mapped[str] = mapped_column(sa.String(16), comment='事件类型：CHAT、STORY')
     event_key: Mapped[str] = mapped_column(sa.String(256), comment='事件幂等标识')
-    quantity: Mapped[int] = mapped_column(sa.BigInteger, comment='本次使用量：CHAT 单位为秒，STORY 单位为次')
+    quantity: Mapped[int] = mapped_column(sa.BigInteger, comment='本次使用量，统一用量单位')

@@ -84,15 +84,12 @@ async def update_device_usage(
         obj: UpdateDeviceUsageParam,
         auth_ctx: DeviceAuthParam = DependsDeviceAuth,
 ) -> ResponseSchemaModel[DeviceUsageQuotaResult]:
-    await device_usage_service.record_usage(
-        db=db,
-        did=auth_ctx.did,
-        event_type=obj.event_type,
-        event_key=obj.event_key,
-        quantity=obj.quantity,
-    )
-    usage = await device_usage_service.get_daily_usage(db=db, did=auth_ctx.did)
     usage_date = timezone.now().date()
+    await device_usage_service.record_usage(
+        db=db, did=auth_ctx.did, event_type=obj.event_type, event_key=obj.event_key,
+        asr_characters=obj.asr_characters, tts_characters=obj.tts_characters, usage_date=usage_date,
+    )
+    usage = await device_usage_service.get_daily_usage(db=db, did=auth_ctx.did, usage_date=usage_date)
     data = device_usage_service.build_quota_result(
         did=auth_ctx.did,
         usage_date=usage_date,

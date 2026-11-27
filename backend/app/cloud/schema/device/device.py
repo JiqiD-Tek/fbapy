@@ -9,90 +9,84 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
 from backend.app.cloud.schema.user import GetUserInfoDetail
 from backend.common.schema import SchemaBase
 
 
 class DeviceSchemaBase(SchemaBase):
-    """Device base schema."""
+    """设备基础数据结构。"""
 
-    did: str = Field(description='Device DID')
-    sn: str = Field(description='Device serial number')
-    mac: str = Field(description='Device MAC address')
-    model: str = Field(description='Device model')
+    did: str = Field(description='设备 DID')
+    sn: str = Field(description='设备序列号')
+    mac: str = Field(description='设备 MAC 地址')
+    model: str = Field(description='设备型号')
 
-    name: str | None = Field(None, description='Device name')
-    firmware: str | None = Field(None, description='Firmware version')
-    hardware: str | None = Field(None, description='Hardware version')
+    name: str | None = Field(None, description='设备名称')
+    firmware: str | None = Field(None, description='固件版本')
+    hardware: str | None = Field(None, description='硬件版本')
+
 
 class DeviceCredentialsParam(SchemaBase):
-    """Create device credentials request."""
+    """创建设备凭证请求。"""
 
-    mac: str = Field(description='MAC address')
+    mac: str = Field(description='MAC 地址')
 
 
 class DeviceCredentialsDetail(SchemaBase):
-    """Device credentials detail."""
+    """设备凭证详情。"""
 
-    mac: str = Field(description='Normalized MAC address')
-    did: str = Field(description='Device DID')
-    key: str = Field(description='Device key')
+    mac: str = Field(description='标准化 MAC 地址')
+    did: str = Field(description='设备 DID')
+    key: str = Field(description='设备密钥')
 
 
 class CreateDeviceParam(DeviceSchemaBase):
-    """Create device request."""
+    """创建设备请求。"""
 
 
 class UpdateDeviceParam(DeviceSchemaBase):
-    """Update device request."""
+    """更新设备请求。"""
 
-    did: str | None = Field(None, description='Device DID')
-    sn: str | None = Field(None, description='Device serial number')
-    mac: str | None = Field(None, description='Device MAC address')
-    model: str | None = Field(None, description='Device model')
+    did: str | None = Field(None, description='设备 DID')
+    sn: str | None = Field(None, description='设备序列号')
+    mac: str | None = Field(None, description='设备 MAC 地址')
+    model: str | None = Field(None, description='设备型号')
 
 
 class UpdateFirmwareParam(SchemaBase):
-    """Update firmware request."""
+    """更新固件请求。"""
 
-    firmware: str = Field(description='Firmware version')
-    hardware: str = Field(description='Hardware version')
+    firmware: str = Field(description='固件版本')
+    hardware: str = Field(description='硬件版本')
 
 
 class DeleteDeviceParam(SchemaBase):
-    """Delete device request."""
+    """删除设备请求。"""
 
-    pks: list[int] = Field(description='Device ID list')
+    pks: list[int] = Field(description='设备 ID 列表')
 
 
 class GetDeviceDetail(DeviceSchemaBase):
-    """Device detail."""
+    """设备详情。"""
 
     model_config = ConfigDict(from_attributes=True, frozen=True)
 
-    id: int = Field(description='Device ID')
-    created_time: datetime = Field(description='Created time')
-    updated_time: datetime | None = Field(None, description='Updated time')
+    id: int = Field(description='设备 ID')
+    created_time: datetime = Field(description='创建时间')
+    updated_time: datetime | None = Field(None, description='更新时间')
 
 
 class GetDeviceBindStateDetail(SchemaBase):
-    """Device binding state."""
+    """设备绑定状态。"""
 
-    is_bound: bool = Field(description='Whether the device is bound to a user')
-    user: GetUserInfoDetail | None = Field(None, description='Bound user info')
+    is_bound: bool = Field(description='设备是否已绑定用户')
+    user: GetUserInfoDetail | None = Field(None, description='已绑定的用户信息')
 
 
 class DeviceToyUnlockParam(SchemaBase):
-    tag_id: str = Field(min_length=1, max_length=64, description='玩偶 NFC 标签 ID')
-
-    @field_validator('tag_id', mode='before')
-    @classmethod
-    def strip_tag_id(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip()
-        return value
+    toy_id: int = Field(gt=0, description='玩偶 ID')
 
 
 class DeviceCommandRequest(SchemaBase):
@@ -105,10 +99,10 @@ class DeviceCommandRequest(SchemaBase):
 
 
 class DeviceToyListItem(SchemaBase):
-    toy_id: int = Field(description='Toy ID')
-    series_id: int | None = Field(None, description='Toy series ID')
-    name: str | None = Field(None, description='Toy name')
-    avatar_url: str | None = Field(None, description='Toy avatar URL')
-    summary: str | None = Field(None, description='Toy summary')
-    is_unlocked: bool = Field(description='Whether the toy has been unlocked on the device')
-    unlocked_at: datetime | None = Field(None, description='Unlock time')
+    toy_id: int = Field(description='玩偶 ID')
+    series_id: int | None = Field(None, description='玩偶系列 ID')
+    name: str | None = Field(None, description='玩偶名称')
+    avatar_url: str | None = Field(None, description='玩偶头像地址')
+    summary: str | None = Field(None, description='玩偶简介')
+    is_unlocked: bool = Field(description='玩偶是否已在设备上解锁')
+    unlocked_at: datetime | None = Field(None, description='解锁时间')

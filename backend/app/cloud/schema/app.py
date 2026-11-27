@@ -19,7 +19,7 @@ class AppSchemaBase(SchemaBase):
     name: str = Field(description='应用名称')
     package_name: str = Field(description='包名')
     size: int | None = Field(None, description='大小')
-    md5: str | None = Field(None, description='MD5')
+    md5: str | None = Field(None, description='应用包 MD5 校验值')
     version: str | None = Field(None, description='版本')
     version_code: int = Field(default=0, ge=0, description='版本代码')
 

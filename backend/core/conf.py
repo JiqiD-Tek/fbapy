@@ -59,9 +59,10 @@ class Settings(BaseSettings):
     DATABASE_CHARSET: str = 'utf8mb4'
     DATABASE_PK_MODE: Literal['autoincrement', 'snowflake'] = 'autoincrement'
 
-    # 设备每日 AI 使用额度；None 表示不限制
-    DEVICE_USAGE_DAILY_CHAT_SECONDS_LIMIT: int | None = None
-    DEVICE_USAGE_DAILY_STORY_COUNT_LIMIT: int | None = None
+    # 设备每日共享 AI 额度；1 元成本对应 100 万用量单位，None 表示不限制
+    DEVICE_DAILY_AI_QUOTA: int | None = Field(None, ge=0)
+    # ASR 按时长计价，通过每分钟识别字符数估算时长
+    ASR_CHARACTERS_PER_MINUTE: int = Field(300, gt=0)
 
     # .env Redis
     REDIS_HOST: str

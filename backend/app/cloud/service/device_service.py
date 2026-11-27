@@ -202,7 +202,7 @@ class DeviceService:
             did: str,
             obj: DeviceToyUnlockParam,
     ) -> None:
-        lock_key = f'{cls.DEVICE_TOY_UNLOCK_CACHE_PREFIX}:{did}:{obj.tag_id}'
+        lock_key = f'{cls.DEVICE_TOY_UNLOCK_CACHE_PREFIX}:{did}:{obj.toy_id}'
         try:
             marked = await redis_client.set(lock_key, '1', ex=cls.DEVICE_TOY_UNLOCK_CACHE_TTL_SECONDS, nx=True)
             if not marked:
@@ -211,7 +211,10 @@ class DeviceService:
             from backend.app.cloud.service.toy_service import toy_service
 
             device = await DeviceService.get_by_did(db=db, did=did)
-            toy_id = await toy_service.get_enabled_toy_id_by_tag_id(db=db, tag_id=obj.tag_id)
+            toy = await toy_service.get_toy(db=db, pk=obj.toy_id)
+            if toy.status != 1:
+                raise errors.NotFoundError(msg='玩偶不存在或已禁用')
+            toy_id = int(toy.id)
 
             try:
                 await db.execute(

@@ -628,10 +628,13 @@ class HuoshanVoiceService:
 
         try:
             async with async_db_session.begin() as db:
-                await device_usage_service.record_story(
+                await device_usage_service.record_usage(
                     db=db,
                     did=result.device_did,
                     event_key=result.task_id,
+                    event_type='STORY',
+                    asr_characters=len(result.text),
+                    tts_characters=sum(len(line.text) for line in result.lines),
                 )
         except Exception as exc:
             log.error(f'玩偶故事剧本使用量记录失败：task_id={result.task_id}，error={exc!r}')
@@ -778,16 +781,14 @@ class HuoshanVoiceService:
             lines.append(_line.model_copy(update={'tts_token': request_id}, deep=True))
 
         try:
+            messages = [
+                {'role': 'system', 'content': self.TOY_STORY_SCRIPT_SYSTEM_PROMPT},
+                {'role': 'user', 'content': self._build_toy_story_script_prompt(
+                    toys=list(result.toys), text=result.text, c_toy_id=result.c_toy_id,
+                )},
+            ]
             async for chunk in doubao_provider.stream_chat(
-                    [
-                        {'role': 'system', 'content': self.TOY_STORY_SCRIPT_SYSTEM_PROMPT},
-                        {'role': 'user',
-                         'content': self._build_toy_story_script_prompt(
-                             toys=list(result.toys),
-                             text=result.text,
-                             c_toy_id=result.c_toy_id,
-                         )},
-                    ],
+                    messages,
                     model_name=result.model,
                     reasoning_effort='minimal',
                     temperature=0.8,
@@ -850,6 +851,7 @@ class HuoshanVoiceService:
     ) -> HuoshanToyStoryScriptResult:
         baby_id = None
         if device_did is not None:
+            await device_usage_service.ensure_quota_available(db=db, did=device_did)
             baby = await baby_service.get_by_device_did(db=db, did=device_did)
             if baby is None:
                 raise errors.RequestError(msg='当前设备未绑定宝宝')

@@ -75,19 +75,6 @@ class CRUDToy(CRUDPlus[Toy]):
         result = await db.execute(stmt)
         return result.scalars().all()
 
-    async def get_by_tag_id(
-        self,
-        db: AsyncSession,
-        *,
-        tag_id: str,
-        enabled_only: bool = False,
-    ) -> Toy | None:
-        stmt = sa.select(self.model).where(self.model.deleted == 0, self.model.tag_id == tag_id)
-        if enabled_only:
-            stmt = stmt.where(self.model.status == 1)
-        result = await db.execute(stmt.limit(1))
-        return result.scalar_one_or_none()
-
     async def get_select(
         self,
         *,

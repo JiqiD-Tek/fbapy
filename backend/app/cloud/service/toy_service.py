@@ -345,15 +345,6 @@ class ToyService:
         normalized = value.strip()
         return normalized or None
 
-    @staticmethod
-    async def get_enabled_toy_id_by_tag_id(*, db: AsyncSession, tag_id: str) -> int:
-        normalized_tag_id = ToyService._normalize_query_text(tag_id)
-        if normalized_tag_id is None:
-            raise errors.NotFoundError(msg='未找到对应玩偶，玩偶可能已禁用或标签无效')
-        toy = await toy_dao.get_by_tag_id(db, tag_id=normalized_tag_id, enabled_only=True)
-        if toy is None:
-            raise errors.NotFoundError(msg='未找到对应玩偶，玩偶可能已禁用或标签无效')
-        return int(toy.id)
 
     @staticmethod
     def _validate_voice_binding(
