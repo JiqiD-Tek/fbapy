@@ -105,16 +105,19 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.BYTES_TTS_APPID,
         access_token=settings.BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
-            {'id': 'S_GKcK2x2X1', 'name': '沙悟净'},
-            {'id': 'S_DKcK2x2X1', 'name': '米粒'},
-            {'id': 'S_CKcK2x2X1', 'name': '旁白'},
-            {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
-            {'id': 'S_AKcK2x2X1', 'name': '猪八戒'},
-            {'id': 'S_zKcK2x2X1', 'name': '沙悟净2'},
-            {'id': 'S_xKcK2x2X1', 'name': '孙悟空'},
             {'id': 'S_FKcK2x2X1', 'name': '观音'},
+            {'id': 'S_xKcK2x2X1', 'name': '孙悟空'},
+            {'id': 'S_AKcK2x2X1', 'name': '猪八戒'},
+            {'id': 'S_GKcK2x2X1', 'name': '沙悟净'},
+            {'id': 'S_zKcK2x2X1', 'name': '沙悟净2'},
+            {'id': 'S_CKcK2x2X1', 'name': '女妖精'},
+
             {'id': 'S_EKcK2x2X1', 'name': '狗-果果'},
             {'id': 'S_yKcK2x2X1', 'name': '企鹅-奇奇'},
+
+            {'id': 'S_DKcK2x2X1', 'name': '米粒'},
+            {'id': 'S_BKcK2x2X1', 'name': '珍棒'},
+            
         ]),
     ),
     _build_project(
@@ -122,17 +125,20 @@ VOICE_PROJECTS: tuple[VoiceProject, ...] = (
         app_id=settings.JS61_BYTES_TTS_APPID,
         access_token=settings.JS61_BYTES_TTS_TOKEN,
         voices=_build_voice_profiles([
-            {'id': 'S_RCrqyDOZ1', 'name': '旁大白'},
-            {'id': 'S_fz5jyDOZ1', 'name': 'Pax2'},
-            {'id': 'S_jz2iyDOZ1', 'name': '白龙马'},
-            {'id': 'S_bpthyDOZ1', 'name': '虾球朋友旁白'},
             {'id': 'S_ZaTgyDOZ1', 'name': '西游记旁白'},
-            {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
+            {'id': 'S_jz2iyDOZ1', 'name': '白龙马'},
+            {'id': 'S_jBziyDOZ1', 'name': '唐僧'},
+            {'id': 'S_bpthyDOZ1', 'name': '唐僧2'},
+
+            {'id': 'S_RCrqyDOZ1', 'name': '旁大白'},
             {'id': 'S_7tAjyDOZ1', 'name': '旁大白2'},
             {'id': 'S_J6luyDOZ1', 'name': '狐狸-Pax'},
+            {'id': 'S_fz5jyDOZ1', 'name': '狐狸-Pax2'},
             {'id': 'S_r5toyDOZ1', 'name': '绵羊-绵绵'},
             {'id': 'S_7V2ryDOZ1', 'name': '海豹-卡卡'},
-            {'id': 'S_jBziyDOZ1', 'name': '唐僧'},
+
+            {'id': 'S_xgPpyDOZ1', 'name': '鼋宝'},
+
         ]),
     ),
 )

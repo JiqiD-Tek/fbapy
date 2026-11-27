@@ -85,11 +85,11 @@ class GetDeviceBindStateDetail(SchemaBase):
 
 
 class DeviceToyUnlockParam(SchemaBase):
-    nfc_code: str = Field(min_length=1, max_length=64, description='玩偶 NFC 编码')
+    tag_id: str = Field(min_length=1, max_length=64, description='玩偶 NFC 标签 ID')
 
-    @field_validator('nfc_code', mode='before')
+    @field_validator('tag_id', mode='before')
     @classmethod
-    def strip_nfc_code(cls, value: Any) -> Any:
+    def strip_tag_id(cls, value: Any) -> Any:
         if isinstance(value, str):
             return value.strip()
         return value

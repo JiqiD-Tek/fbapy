@@ -47,6 +47,9 @@ class Toy(Base):
         default=None, index=True, comment='玩偶系列 ID',
     )
     name: Mapped[str | None] = mapped_column(sa.String(128), default=None, index=True, comment='玩偶名称')
+    tag_id: Mapped[str | None] = mapped_column(
+        sa.String(64), default=None, unique=True, index=True, comment='玩偶 NFC 标签 ID',
+    )
     color: Mapped[str | None] = mapped_column(sa.String(32), default=None, comment='玩偶主题颜色')
     tag: Mapped[str | None] = mapped_column(sa.String(256), default=None, comment='玩偶标签')
     avatar_url: Mapped[str | None] = mapped_column(sa.String(512), default=None, comment='玩偶头像地址')
@@ -71,24 +74,4 @@ class Toy(Base):
 
     status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
     sort: Mapped[int] = mapped_column(default=0, comment='排序值，越小越靠前')
-    remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')
-
-
-class ToyNfc(Base):
-    """玩偶 NFC 编码绑定表。"""
-
-    __tablename__ = 'u_toy_nfc'
-    __table_args__ = (
-        sa.UniqueConstraint('nfc_code', name='uq_toy_nfc_code'),
-        sa.Index('idx_toy_nfc_toy_id', 'toy_id'),
-        {'comment': '玩偶 NFC 编码绑定表'},
-    )
-
-    id: Mapped[id_key] = mapped_column(init=False)
-
-    toy_id: Mapped[int] = mapped_column(
-        sa.BigInteger, sa.ForeignKey('u_toy.id', ondelete='RESTRICT'), nullable=False, comment='玩偶 ID',
-    )
-    nfc_code: Mapped[str] = mapped_column(sa.String(64), nullable=False, comment='NFC 编码')
-    status: Mapped[int] = mapped_column(sa.SmallInteger, default=1, index=True, comment='状态：0 禁用，1 启用')
     remark: Mapped[str | None] = mapped_column(sa.String(500), default=None, comment='备注')

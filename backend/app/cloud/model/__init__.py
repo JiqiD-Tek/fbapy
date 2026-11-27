@@ -20,7 +20,6 @@ from backend.app.cloud.model.resource.script_album import ScriptAlbum as ScriptA
 from backend.app.cloud.model.resource.song import Song as Song
 from backend.app.cloud.model.resource.song_album import SongAlbum as SongAlbum
 from backend.app.cloud.model.toy import Toy as Toy
-from backend.app.cloud.model.toy import ToyNfc as ToyNfc
 from backend.app.cloud.model.toy import ToySeries as ToySeries
 from backend.app.cloud.model.product import Product as Product
 from backend.app.cloud.model.feedback import Feedback as Feedback

@@ -14,7 +14,6 @@ from pydantic import ConfigDict, Field, StringConstraints, field_validator, mode
 from backend.common.schema import SchemaBase
 
 PositiveToyId = Annotated[int, Field(gt=0)]
-NfcCode = Annotated[str, Field(min_length=1, max_length=64)]
 OpeningAudioUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=512)]
 ToyTTSResourceId = Literal['seed-tts-2.0', 'seed-icl-2.0']
 TOY_TTS_RESOURCE_ID_DESCRIPTION = (
@@ -96,72 +95,9 @@ class GetToySeriesDetail(ToySeriesInfo):
     updated_time: datetime | None = Field(None, description='更新时间')
 
 
-class ToyNfcInfo(SchemaBase):
-    model_config = ConfigDict(from_attributes=True, frozen=True)
-
-    id: int = Field(description='NFC 绑定 ID')
-    toy_id: int = Field(description='玩偶 ID')
-    nfc_code: str = Field(description='NFC 编码')
-    status: int = Field(description='状态：0 禁用，1 启用')
-    remark: str | None = Field(None, description='备注')
-    created_time: datetime = Field(description='创建时间')
-    updated_time: datetime | None = Field(None, description='更新时间')
-
-
-class CreateToyNfcParam(SchemaBase):
-    toy_id: PositiveToyId = Field(description='玩偶 ID')
-    nfc_code: str = Field(min_length=1, max_length=64, description='NFC 编码')
-    status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
-    remark: str | None = Field(None, max_length=500, description='备注')
-
-    @field_validator('nfc_code', 'remark', mode='before')
-    @classmethod
-    def strip_text(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-
-class BatchCreateToyNfcParam(SchemaBase):
-    toy_id: PositiveToyId = Field(description='玩偶 ID')
-    nfc_codes: list[NfcCode] = Field(min_length=1, max_length=5000, description='NFC 编码列表')
-    status: int = Field(default=1, ge=0, le=1, description='状态：0 禁用，1 启用')
-    remark: str | None = Field(None, max_length=500, description='备注')
-
-    @field_validator('nfc_codes', mode='before')
-    @classmethod
-    def normalize_nfc_codes(cls, value: Any) -> Any:
-        if not isinstance(value, list):
-            return value
-        result: list[Any] = []
-        seen: set[str] = set()
-        for item in value:
-            if isinstance(item, str):
-                item = item.strip()
-                if item in seen:
-                    continue
-                seen.add(item)
-            result.append(item)
-        return result
-
-    @field_validator('remark', mode='before')
-    @classmethod
-    def strip_text(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-
-class UpdateToyNfcParam(SchemaBase):
-    toy_id: PositiveToyId | None = Field(None, description='玩偶 ID')
-    nfc_code: str | None = Field(None, min_length=1, max_length=64, description='NFC 编码')
-    status: int | None = Field(None, ge=0, le=1, description='状态：0 禁用，1 启用')
-    remark: str | None = Field(None, max_length=500, description='备注')
-
-    @field_validator('nfc_code', 'remark', mode='before')
-    @classmethod
-    def strip_text(cls, value: Any) -> Any:
-        return _strip_optional_text(value)
-
-
 class ToyReadSchemaBase(SchemaBase):
     series_id: int | None = Field(None, description='玩偶系列 ID')
+    tag_id: str | None = Field(None, description='玩偶 NFC 标签 ID')
     name: str | None = Field(None, description='玩偶名称')
     color: str | None = Field(None, description='玩偶主题颜色')
     tag: str | None = Field(None, description='玩偶标签')
@@ -196,6 +132,7 @@ class ToyRelatedInfo(ToyReadSchemaBase):
 class CreateToyParam(SchemaBase):
     series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
     name: str = Field(min_length=1, max_length=128, description='玩偶名称')
+    tag_id: str | None = Field(None, min_length=1, max_length=64, description='玩偶 NFC 标签 ID')
     color: str | None = Field(None, max_length=32, description='玩偶主题颜色')
     tag: str | None = Field(None, max_length=256, description='玩偶标签')
     system_prompt: str = Field(min_length=1, description='系统提示词')
@@ -221,6 +158,7 @@ class CreateToyParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
+        'tag_id',
         'avatar_url',
         'color',
         'tag',
@@ -252,6 +190,7 @@ class CreateToyParam(SchemaBase):
 class UpdateToyParam(SchemaBase):
     series_id: int | None = Field(None, gt=0, description='玩偶系列 ID')
     name: str | None = Field(None, min_length=1, max_length=128, description='玩偶名称')
+    tag_id: str | None = Field(None, min_length=1, max_length=64, description='玩偶 NFC 标签 ID')
     color: str | None = Field(None, max_length=32, description='玩偶主题颜色')
     tag: str | None = Field(None, max_length=256, description='玩偶标签')
     system_prompt: str | None = Field(None, min_length=1, description='系统提示词')
@@ -277,6 +216,7 @@ class UpdateToyParam(SchemaBase):
         return _strip_required_text(value)
 
     @field_validator(
+        'tag_id',
         'avatar_url',
         'color',
         'tag',
