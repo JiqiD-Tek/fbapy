@@ -11,17 +11,17 @@ import time
 import uuid
 import requests
 
-
 # ========== 1) 改成你自己的参数 ==========
-API_KEY = "d7109a24-08ed-456c-8dc9-288367c8b0ca"
+API_KEY = "5aadc376-4432-4462-945a-76d3ea532e4e"  # default
+# API_KEY = "d7109a24-08ed-456c-8dc9-288367c8b0ca"  # JS61
 
 # 预付费音色：填控制台购买的 SpeakerID，例如 "S_J6luyDOZ1"
 # 后付费音色：这里 speaker_id 固定填 "custom_speaker_id"，并设置 CUSTOM_SPEAKER_ID
-SPEAKER_ID = "S_J6luyDOZ1"
-CUSTOM_SPEAKER_ID = None   # 例如 "bilingual_pax_001"，仅后付费时使用
+SPEAKER_ID = "S_GKcK2x2X1"
+CUSTOM_SPEAKER_ID = None  # 例如 "bilingual_pax_001"，仅后付费时使用
 
-AUDIO_PATH = "prompt.wav"   # 你的训练音频，建议 wav，14~30秒，包含中英双语
-AUDIO_FORMAT = "wav"
+AUDIO_PATH = "./audio/沙悟净.mp3"  # 你的训练音频，建议 wav，14~30秒，包含中英双语
+AUDIO_FORMAT = "mp3"
 
 # language:
 # 0 = 中文（默认）
@@ -37,7 +37,6 @@ DEMO_TEXT_EN = "Welcome to the voice demo. This is an English test sentence for 
 # 合成参数
 SYNTH_TEXT = "你好，这是中文测试。Hello, this is an English test. Let us check bilingual pronunciation."
 OUTPUT_WAV = "output_seed_icl_2.wav"
-
 
 # ========== 2) 公共配置 ==========
 VOICE_CLONE_URL = "https://openspeech.bytedance.com/api/v3/tts/voice_clone"
@@ -168,56 +167,6 @@ def wait_until_ready(speaker_id: str, custom_speaker_id: str = None, poll_interv
         time.sleep(poll_interval)
 
 
-# ========== 5) 用复刻 2.0 合成音频 ==========
-def tts_with_clone_2(speaker_id: str, text: str, output_path: str, custom_speaker_id: str = None):
-    """
-    使用复刻 2.0 资源合成：
-    - Resource-Id: seed-icl-2.0
-    - speaker: 你的复刻音色ID
-    - model_type: 2.0 一般传 4 或 5；你账号里很多 2.0 音色实际返回 model_type=5
-    """
-    real_speaker_id = custom_speaker_id if custom_speaker_id else speaker_id
-
-    payload = {
-        "user": {
-            "uid": "python_demo_user"
-        },
-        "event": "finish",
-        "namespace": "volcano_icl",   # 复刻音色使用 volcano_icl；不要和 volcano_tts 混用
-        "payload": {
-            "speaker": real_speaker_id,
-            "text": text,
-            "model_type": 5,           # 2.0 常见值；如效果不对可试 4
-            "audio_params": {
-                "format": "wav",
-                "sample_rate": 24000
-            }
-        }
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "X-Api-Key": API_KEY,
-        "X-Api-Resource-Id": "seed-icl-2.0",
-        "X-Api-Request-Id": str(uuid.uuid4()),
-    }
-
-    resp = requests.post(TTS_URL, headers=headers, data=json.dumps(payload), stream=True)
-    print("[tts_with_clone_2] status_code =", resp.status_code)
-
-    if resp.status_code != 200:
-        print(resp.text)
-        resp.raise_for_status()
-
-    # HTTP Chunked 返回音频二进制流，直接落盘
-    with open(output_path, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=1024):
-            if chunk:
-                f.write(chunk)
-
-    print(f"[tts_with_clone_2] 合成完成，已保存到: {output_path}")
-
-
 # ========== 6) 主流程 ==========
 if __name__ == "__main__":
     # 第一步：训练/注册音色
@@ -230,11 +179,3 @@ if __name__ == "__main__":
     speaker_status = voice_info.get("speaker_status", [])
     print("[speaker_status]")
     print(json.dumps(speaker_status, ensure_ascii=False, indent=2))
-
-    # 第三步：用 2.0 资源合成
-    tts_with_clone_2(
-        speaker_id=SPEAKER_ID,
-        custom_speaker_id=CUSTOM_SPEAKER_ID,
-        text=SYNTH_TEXT,
-        output_path=OUTPUT_WAV
-    )
